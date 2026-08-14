@@ -1,6 +1,6 @@
 package com.aichathub.app.ui.screens
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.device.MemoryBudgetCalculator
@@ -10,7 +10,7 @@ import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.domain.model.Recommendation
 import com.aichathub.app.download.DownloadInfo
 import com.aichathub.app.download.DownloadStatus
-import com.aichathub.app.ui.applicationContainer
+import com.aichathub.app.ui.AiViewModel
 import com.aichathub.app.util.Formatters
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,9 +28,8 @@ data class ModelDetailsUiState(
     val filePath: String? = null
 )
 
-class ModelDetailsViewModel : ViewModel() {
+class ModelDetailsViewModel(application: Application) : AiViewModel(application) {
 
-    private val container = applicationContainer()
     private val _state = MutableStateFlow(ModelDetailsUiState())
     val state: StateFlow<ModelDetailsUiState> = _state.asStateFlow()
 
@@ -38,7 +37,7 @@ class ModelDetailsViewModel : ViewModel() {
 
     fun load(modelId: String) {
         this.modelId = modelId
-        val model = LocalModelCatalog.byId(modelId)
+        val model = LocalModelCatalog.byId(modelId) ?: return
         _state.value = _state.value.copy(model = model)
         viewModelScope.launch {
             val installed = container.modelRepository.stateFor(modelId)

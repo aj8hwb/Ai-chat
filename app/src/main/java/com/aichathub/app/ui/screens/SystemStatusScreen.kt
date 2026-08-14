@@ -64,7 +64,7 @@ fun SystemStatusScreen(
             ) {
                 Text("System Status", style = MaterialTheme.typography.headlineMedium, color = TextPrimary, modifier = Modifier.weight(1f))
                 IconButton(onClick = viewModel::analyze) {
-                    Icon(Icons.filled.Refresh, contentDescription = "Refresh", tint = TextSecondary)
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = TextSecondary)
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -82,8 +82,9 @@ fun SystemStatusScreen(
             }
         } else {
             // Device AI score
+            val profile = state.deviceProfile
             item {
-                DeviceScoreCard(profile = state.deviceProfile, budget = state.memoryBudget)
+                DeviceScoreCard(profile = profile, budget = state.memoryBudget)
                 Spacer(Modifier.height(16.dp))
             }
 
@@ -125,11 +126,11 @@ fun SystemStatusScreen(
                 AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         SectionHeader(title = "System Metrics")
-                        MetricRow("RAM", "${state.deviceProfile.availableRamGb.toString().take(3)} / ${state.deviceProfile.totalRamGb.toString().take(3)} GB", icon = Icons.filled.Memory)
-                        MetricRow("Storage Free", Formatters.bytes(state.deviceProfile.storageAvailableBytes), icon = Icons.filled.Storage)
-                        MetricRow("CPU Cores", state.deviceProfile.cpuCores.toString(), icon = Icons.filled.PhoneAndroid)
-                        MetricRow("ABI", state.deviceProfile.abi)
-                        MetricRow("Android API", state.deviceProfile.androidVersion.toString())
+                        MetricRow("RAM", "${profile.availableRamGb.toString().take(3)} / ${profile.totalRamGb.toString().take(3)} GB", icon = Icons.Filled.Memory)
+                        MetricRow("Storage Free", Formatters.bytes(profile.storageAvailableBytes), icon = Icons.Filled.Storage)
+                        MetricRow("CPU Cores", profile.cpuCores.toString(), icon = Icons.Filled.PhoneAndroid)
+                        MetricRow("ABI", profile.abi)
+                        MetricRow("Android API", profile.androidVersion.toString())
                     }
                 }
             }

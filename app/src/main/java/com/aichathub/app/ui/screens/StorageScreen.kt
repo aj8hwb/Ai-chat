@@ -71,7 +71,7 @@ fun StorageScreen(
             item {
                 AppCard(modifier = Modifier.fillMaxWidth()) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.filled.Storage, contentDescription = null, tint = TextSecondary)
+                        Icon(Icons.Filled.Storage, contentDescription = null, tint = TextSecondary)
                         Spacer(Modifier.width(10.dp))
                         Text("No models installed.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                     }
@@ -99,7 +99,7 @@ fun StorageScreen(
                         Text("Remove temporary download files (keeps models & chats).", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                     }
                     androidx.compose.material3.TextButton(onClick = viewModel::clearCache) {
-                        Icon(Icons.filled.DeleteSweep, contentDescription = null, tint = TextSecondary)
+                        Icon(Icons.Filled.DeleteSweep, contentDescription = null, tint = TextSecondary)
                         Spacer(Modifier.width(4.dp))
                         Text("Clear", color = TextSecondary)
                     }

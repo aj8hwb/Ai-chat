@@ -116,7 +116,7 @@ fun ModelCard(
             Spacer(Modifier.width(8.dp))
             if (onMore != null) {
                 IconButton(onClick = onMore) {
-                    Icon(Icons.filled.MoreVert, contentDescription = "More", tint = TextSecondary)
+                    Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = TextSecondary)
                 }
             } else if (primaryAction == null) {
                 Icon(
@@ -196,7 +196,7 @@ fun ModelIcon(
     Box(
         modifier = Modifier
             .size(size)
-            .background(Brush.linearGradient(gradient), RoundedCornerShape(size.value * 0.28f.dp)),
+            .background(Brush.linearGradient(gradient), RoundedCornerShape((size.value * 0.28f).dp)),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -220,19 +220,19 @@ fun ModelActionButtons(
             GradientButton(
                 text = "Download",
                 onClick = onDownload,
-                icon = Icons.filled.Download
+                icon = Icons.Filled.Download
             )
         ModelLifecycleState.INSTALLED ->
             GradientButton(
                 text = "Open Chat",
                 onClick = onChat,
-                icon = Icons.filled.ChatBubbleOutline
+                icon = Icons.Filled.ChatBubbleOutline
             )
         ModelLifecycleState.READY, ModelLifecycleState.RUNNING ->
             GradientButton(
                 text = "Chat",
                 onClick = onChat,
-                icon = Icons.filled.ChatBubbleOutline
+                icon = Icons.Filled.ChatBubbleOutline
             )
         ModelLifecycleState.ERROR ->
             GradientButton(text = "Retry", onClick = onDownload)

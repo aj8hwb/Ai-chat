@@ -65,7 +65,7 @@ fun SettingsScreen(
                     SettingRow(
                         title = "Default Model",
                         value = state.installedModels.firstOrNull { it.id == state.defaultModelId }?.name
-                            ?: if (state.defaultModelId != null) state.defaultModelId else "Not set",
+                            ?: (state.defaultModelId ?: "Not set"),
                         onClick = { onNavigate(Screen.Models.route) }
                     )
                     HorizontalDivider(color = SurfaceHigh)
@@ -142,7 +142,7 @@ fun SettingsScreen(
             AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.filled.Check, contentDescription = null, tint = Primary)
+                        Icon(Icons.Filled.Check, contentDescription = null, tint = Primary)
                         Spacer(Modifier.width(10.dp))
                         Column {
                             Text("Local-First", style = MaterialTheme.typography.titleSmall, color = TextPrimary, fontWeight = FontWeight.SemiBold)

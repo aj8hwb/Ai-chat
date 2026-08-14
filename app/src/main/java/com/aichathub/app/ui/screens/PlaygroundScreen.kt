@@ -142,14 +142,14 @@ fun PlaygroundScreen(
                         GradientButton(
                             text = "Stop",
                             onClick = viewModel::stop,
-                            icon = Icons.filled.Stop,
+                            icon = Icons.Filled.Stop,
                             modifier = Modifier.weight(1f)
                         )
                     } else {
                         GradientButton(
                             text = "Run",
                             onClick = viewModel::run,
-                            icon = Icons.filled.PlayArrow,
+                            icon = Icons.Filled.PlayArrow,
                             enabled = state.selectedModelId != null && state.prompt.isNotBlank(),
                             modifier = Modifier.weight(1f)
                         )

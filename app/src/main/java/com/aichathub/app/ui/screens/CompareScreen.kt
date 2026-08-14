@@ -52,7 +52,7 @@ fun CompareScreen(
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Compare Models", style = MaterialTheme.typography.headlineMedium, color = TextPrimary, modifier = Modifier.weight(1f))
-                Icon(Icons.filled.CompareArrows, contentDescription = null, tint = Primary)
+                Icon(Icons.Filled.CompareArrows, contentDescription = null, tint = Primary)
             }
             Spacer(Modifier.height(4.dp))
             Text("Run the same prompt on your installed models.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
@@ -62,7 +62,7 @@ fun CompareScreen(
         if (state.models.isEmpty()) {
             item {
                 EmptyState(
-                    icon = Icons.filled.CompareArrows,
+                    icon = Icons.Filled.CompareArrows,
                     title = "No models to compare",
                     description = "Install at least one model from the Model Store first.",
                     modifier = Modifier.padding(vertical = 32.dp)

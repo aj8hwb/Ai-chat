@@ -95,11 +95,11 @@ fun ChatScreen(
         ) {
             if (conversationId != null) {
                 IconButton(onClick = { onNavigate(Screen.History.route) }) {
-                    Icon(Icons.filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
                 }
             } else {
                 IconButton(onClick = { viewModel.newChat() }) {
-                    Icon(Icons.filled.Add, contentDescription = "New Chat", tint = TextPrimary)
+                    Icon(Icons.Filled.Add, contentDescription = "New Chat", tint = TextPrimary)
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -118,7 +118,7 @@ fun ChatScreen(
                 }
             }
             IconButton(onClick = { onNavigate(Screen.ChatSettings.route) }) {
-                Icon(Icons.filled.Tune, contentDescription = "Chat Settings", tint = TextSecondary)
+                Icon(Icons.Filled.Tune, contentDescription = "Chat Settings", tint = TextSecondary)
             }
         }
         HorizontalDivider(color = Color(0xFF232330))
@@ -132,7 +132,7 @@ fun ChatScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
-                        Icons.filled.Tune,
+                        Icons.Filled.Tune,
                         contentDescription = null,
                         tint = TextSecondary,
                         modifier = Modifier.size(40.dp)
@@ -224,7 +224,7 @@ private fun MessageBubble(
                     modifier = Modifier.align(Alignment.End)
                 ) {
                     Icon(
-                        Icons.filled.ContentCopy,
+                        Icons.Filled.ContentCopy,
                         contentDescription = "Copy",
                         tint = TextSecondary,
                         modifier = Modifier.size(14.dp)
@@ -293,7 +293,7 @@ private fun ComposerBar(
             GradientButton(
                 text = "Stop",
                 onClick = onStop,
-                icon = Icons.filled.Stop,
+                icon = Icons.Filled.Stop,
                 enabled = !isLoadingModel
             )
         } else {

@@ -86,15 +86,16 @@ fun BenchmarkScreen(
             }
         }
 
-        if (state.result != null) {
+        val result = state.result
+        if (result != null) {
             item {
                 AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         SectionHeader(title = "Result")
-                        MetricRow("Speed", String.format("%.1f tok/s", state.result.tokensPerSecond))
-                        MetricRow("First token latency", String.format("%.0f ms", state.result.firstTokenMs))
-                        MetricRow("Total tokens", state.result.tokens.toString())
-                        MetricRow("Memory used", com.aichathub.app.util.Formatters.bytes(state.result.memoryBytes))
+                        MetricRow("Speed", String.format("%.1f tok/s", result.tokensPerSecond))
+                        MetricRow("First token latency", String.format("%.0f ms", result.firstTokenMs))
+                        MetricRow("Total tokens", result.tokens.toString())
+                        MetricRow("Memory used", com.aichathub.app.util.Formatters.bytes(result.memoryBytes))
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -105,7 +106,7 @@ fun BenchmarkScreen(
             GradientButton(
                 text = if (state.running) "Benchmarking…" else "Run Benchmark",
                 onClick = viewModel::runBenchmark,
-                icon = Icons.filled.PlayArrow,
+                icon = Icons.Filled.PlayArrow,
                 enabled = state.selectedModel != null && !state.running,
                 modifier = Modifier.fillMaxWidth()
             )

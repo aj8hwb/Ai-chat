@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.ui.components.AppCard
 import com.aichathub.app.ui.components.EmptyState
 import com.aichathub.app.ui.components.GradientButton
@@ -73,7 +74,7 @@ fun MyModelsScreen(
             if (state.models.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.filled.SmartToy,
+                        icon = Icons.Filled.SmartToy,
                         title = "No AI models yet",
                         description = "Find a model that fits your device.",
                         actionLabel = "Explore Models",
@@ -95,7 +96,7 @@ fun MyModelsScreen(
                                     onClick = { onNavigate(Screen.Chat.route) }
                                 )
                                 IconButton(onClick = { deleteTarget = model.id }) {
-                                    Icon(Icons.filled.Delete, contentDescription = "Delete", tint = Error)
+                                    Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = Error)
                                 }
                             }
                         }

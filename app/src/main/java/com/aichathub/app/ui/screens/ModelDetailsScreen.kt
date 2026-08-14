@@ -62,6 +62,7 @@ import com.aichathub.app.ui.theme.TextPrimary
 import com.aichathub.app.ui.theme.TextSecondary
 import com.aichathub.app.util.Formatters
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 
 @Composable
@@ -130,7 +131,7 @@ fun ModelDetailsScreen(
                             .padding(14.dp),
                         verticalAlignment = Alignment.Top
                     ) {
-                        Icon(Icons.filled.WarningAmber, contentDescription = null, tint = Heavy)
+                        Icon(Icons.Filled.WarningAmber, contentDescription = null, tint = Heavy)
                         Spacer(Modifier.width(10.dp))
                         Text(warning, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                     }
@@ -153,10 +154,10 @@ fun ModelDetailsScreen(
                                 Spacer(Modifier.height(8.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (d.status == DownloadStatus.DOWNLOADING) {
-                                        GradientButton(text = "Pause", onClick = viewModel::pauseDownload, icon = Icons.filled.Pause)
+                                        GradientButton(text = "Pause", onClick = viewModel::pauseDownload, icon = Icons.Filled.Pause)
                                         TextButton(onClick = viewModel::cancelDownload) { Text("Cancel", color = TextSecondary) }
                                     } else {
-                                        GradientButton(text = "Resume", onClick = viewModel::resumeDownload, icon = Icons.filled.PlayArrow)
+                                        GradientButton(text = "Resume", onClick = viewModel::resumeDownload, icon = Icons.Filled.PlayArrow)
                                         TextButton(onClick = viewModel::cancelDownload) { Text("Cancel", color = TextSecondary) }
                                     }
                                 }
@@ -223,14 +224,12 @@ fun ModelDetailsScreen(
                                 }
                             ) {
                                 Text("View repository", style = MaterialTheme.typography.labelLarge, color = Primary, modifier = Modifier.weight(1f))
-                                Icon(Icons.filled.OpenInNew, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Filled.OpenInNew, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
                 }
             }
-
-            Spacer(Modifier.height(16.dp))
         }
 
         // Bottom action bar
@@ -241,7 +240,7 @@ fun ModelDetailsScreen(
                         GradientButton(
                             text = "Open Chat",
                             onClick = onOpenChat,
-                            icon = Icons.filled.ChatBubbleOutline,
+                            icon = Icons.Filled.ChatBubbleOutline,
                             modifier = Modifier.fillMaxWidth()
                         )
                     ModelLifecycleState.DOWNLOADING -> {}
@@ -249,7 +248,7 @@ fun ModelDetailsScreen(
                         GradientButton(
                             text = "Download",
                             onClick = viewModel::startDownload,
-                            icon = Icons.filled.Download,
+                            icon = Icons.Filled.Download,
                             modifier = Modifier.fillMaxWidth()
                         )
                 }
@@ -262,7 +261,7 @@ fun ModelDetailsScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         TextButton(onClick = viewModel::deleteModel) {
-                            Icon(Icons.filled.Delete, contentDescription = null, tint = Error, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Filled.Delete, contentDescription = null, tint = Error, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
                             Text("Delete Model", color = Error)
                         }

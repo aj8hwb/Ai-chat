@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cpu
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -69,7 +68,7 @@ fun PerformanceScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Generation Speed", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.filled.Speed, contentDescription = null, tint = Secondary, modifier = Modifier.size(28.dp))
+                        Icon(Icons.Filled.Speed, contentDescription = null, tint = Secondary, modifier = Modifier.size(28.dp))
                         Spacer(Modifier.width(10.dp))
                         Text(
                             String.format("%.1f tok/s", state.tokensPerSecond),

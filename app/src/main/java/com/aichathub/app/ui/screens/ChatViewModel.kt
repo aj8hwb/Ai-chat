@@ -1,6 +1,6 @@
 package com.aichathub.app.ui.screens
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.chat.ChatCoordinator
 import com.aichathub.app.chat.GenerationConfig
@@ -8,7 +8,7 @@ import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.data.local.MessageEntity
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
-import com.aichathub.app.ui.applicationContainer
+import com.aichathub.app.ui.AiViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,9 +28,8 @@ data class ChatUiState(
     val lastStreamedText: String = ""
 )
 
-class ChatViewModel : ViewModel() {
+class ChatViewModel(application: Application) : AiViewModel(application) {
 
-    private val container = applicationContainer()
     private val coordinator: ChatCoordinator = container.chatCoordinator
 
     private val _state = MutableStateFlow(ChatUiState())

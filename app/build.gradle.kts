@@ -73,6 +73,7 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs += "-Xnon-local-break-continue"
     }
     buildFeatures {
         compose = true

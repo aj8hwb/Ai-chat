@@ -1,9 +1,9 @@
 package com.aichathub.app.ui.screens
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.data.local.ConversationEntity
-import com.aichathub.app.ui.applicationContainer
+import com.aichathub.app.ui.AiViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,9 +13,8 @@ data class HistoryUiState(
     val conversations: List<ConversationEntity> = emptyList()
 )
 
-class HistoryViewModel : ViewModel() {
+class HistoryViewModel(application: Application) : AiViewModel(application) {
 
-    private val container = applicationContainer()
     private val _state = MutableStateFlow(HistoryUiState())
     val state: StateFlow<HistoryUiState> = _state.asStateFlow()
 

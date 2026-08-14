@@ -63,7 +63,7 @@ fun DownloadsScreen(
             if (state.downloads.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.filled.Download,
+                        icon = Icons.Filled.Download,
                         title = "No Downloads",
                         description = "Your download queue is empty.\nInstall a model from the Model Store.",
                         modifier = Modifier.padding(vertical = 40.dp)
@@ -142,15 +142,15 @@ private fun ActiveDownloadCard(
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (download.status == DownloadStatus.DOWNLOADING) {
                     IconButton(onClick = onPause) {
-                        Icon(Icons.filled.Pause, contentDescription = "Pause", tint = TextSecondary)
+                        Icon(Icons.Filled.Pause, contentDescription = "Pause", tint = TextSecondary)
                     }
                 } else {
                     IconButton(onClick = onResume) {
-                        Icon(Icons.filled.PlayArrow, contentDescription = "Resume", tint = TextSecondary)
+                        Icon(Icons.Filled.PlayArrow, contentDescription = "Resume", tint = TextSecondary)
                     }
                 }
                 IconButton(onClick = onCancel) {
-                    Icon(Icons.filled.Cancel, contentDescription = "Cancel", tint = Error)
+                    Icon(Icons.Filled.Cancel, contentDescription = "Cancel", tint = Error)
                 }
                 Spacer(Modifier.width(8.dp))
                 if (download.speedBytesPerSec > 0) {

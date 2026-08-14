@@ -112,11 +112,11 @@ fun CompatibilityBadge(
     modifier: Modifier = Modifier
 ) {
     val (bg, fg, icon) = when (level) {
-        CompatibilityLevel.EXCELLENT -> Triple(SuccessContainer, Success, Icons.filled.ArrowForward)
-        CompatibilityLevel.RECOMMENDED -> Triple(SuccessContainer, Success, Icons.filled.ArrowForward)
-        CompatibilityLevel.USABLE -> Triple(SecondaryContainer, Secondary, Icons.filled.ArrowForward)
-        CompatibilityLevel.HEAVY -> Triple(HeavyContainer, Heavy, Icons.filled.WarningAmber)
-        CompatibilityLevel.NOT_RECOMMENDED -> Triple(ErrorContainer, Error, Icons.filled.ErrorOutline)
+        CompatibilityLevel.EXCELLENT -> Triple(SuccessContainer, Success, Icons.Filled.ArrowForward)
+        CompatibilityLevel.RECOMMENDED -> Triple(SuccessContainer, Success, Icons.Filled.ArrowForward)
+        CompatibilityLevel.USABLE -> Triple(SecondaryContainer, Secondary, Icons.Filled.ArrowForward)
+        CompatibilityLevel.HEAVY -> Triple(HeavyContainer, Heavy, Icons.Filled.WarningAmber)
+        CompatibilityLevel.NOT_RECOMMENDED -> Triple(ErrorContainer, Error, Icons.Filled.ErrorOutline)
     }
     Row(
         modifier = modifier
@@ -251,7 +251,7 @@ fun GradientButton(
 
 @Composable
 fun EmptyState(
-    icon: ImageVector = Icons.filled.ChatBubbleOutline,
+    icon: ImageVector = Icons.Filled.ChatBubbleOutline,
     title: String,
     description: String,
     modifier: Modifier = Modifier,
@@ -300,7 +300,7 @@ fun ErrorState(
             modifier = Modifier.size(72.dp).background(ErrorContainer, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.filled.ErrorOutline, contentDescription = null, tint = Error, modifier = Modifier.size(32.dp))
+            Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Error, modifier = Modifier.size(32.dp))
         }
         Spacer(Modifier.height(16.dp))
         Text(title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)

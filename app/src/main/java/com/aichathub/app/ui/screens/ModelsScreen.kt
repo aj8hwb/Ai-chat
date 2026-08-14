@@ -62,7 +62,7 @@ fun ModelsScreen(
                 value = state.query,
                 onValueChange = viewModel::onQueryChange,
                 placeholder = { Text("Search models…", color = TextSecondary) },
-                leadingIcon = { Icon(Icons.filled.Search, contentDescription = null, tint = TextSecondary) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = TextSecondary) },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth(),

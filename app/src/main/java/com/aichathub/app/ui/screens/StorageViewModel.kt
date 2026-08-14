@@ -1,11 +1,11 @@
 package com.aichathub.app.ui.screens
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.DeviceProfile
-import com.aichathub.app.ui.applicationContainer
+import com.aichathub.app.ui.AiViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,9 +18,8 @@ data class StorageUiState(
     val modelsTotalBytes: Long = 0
 )
 
-class StorageViewModel : ViewModel() {
+class StorageViewModel(application: Application) : AiViewModel(application) {
 
-    private val container = applicationContainer()
     private val _state = MutableStateFlow(StorageUiState())
     val state: StateFlow<StorageUiState> = _state.asStateFlow()
 

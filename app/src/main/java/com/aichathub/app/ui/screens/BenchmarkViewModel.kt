@@ -1,11 +1,11 @@
 package com.aichathub.app.ui.screens
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.chat.GenerationConfig
 import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.domain.model.CatalogModel
-import com.aichathub.app.ui.applicationContainer
+import com.aichathub.app.ui.AiViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,9 +25,8 @@ data class BenchmarkUiState(
     val result: BenchmarkResult? = null
 )
 
-class BenchmarkViewModel : ViewModel() {
+class BenchmarkViewModel(application: Application) : AiViewModel(application) {
 
-    private val container = applicationContainer()
 
     private val _state = MutableStateFlow(BenchmarkUiState())
     val state: StateFlow<BenchmarkUiState> = _state.asStateFlow()

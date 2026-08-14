@@ -92,7 +92,7 @@ fun HomeScreen(
                     )
                 }
                 IconButton(onClick = { onNavigate(Screen.SystemStatus.route) }) {
-                    Icon(Icons.filled.Speed, contentDescription = "System Status", tint = Secondary)
+                    Icon(Icons.Filled.Speed, contentDescription = "System Status", tint = Secondary)
                 }
             }
         }
@@ -131,19 +131,19 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     QuickAction(
-                        icon = Icons.filled.Add,
+                        icon = Icons.Filled.Add,
                         label = "New Chat",
                         onClick = { onNavigate(Screen.Chat.route) },
                         modifier = Modifier.weight(1f)
                     )
                     QuickAction(
-                        icon = Icons.filled.Widgets,
+                        icon = Icons.Filled.Widgets,
                         label = "Model Store",
                         onClick = { onNavigate(Screen.Models.route) },
                         modifier = Modifier.weight(1f)
                     )
                     QuickAction(
-                        icon = Icons.filled.PlayArrow,
+                        icon = Icons.Filled.PlayArrow,
                         label = "Playground",
                         onClick = { onNavigate(Screen.Playground.route) },
                         modifier = Modifier.weight(1f)
@@ -221,7 +221,7 @@ private fun HeroCard(
                 GradientButton(
                     text = if (installedCount > 0) "Open Chat" else "Explore Models",
                     onClick = if (installedCount > 0) onOpenChat else onExplore,
-                    icon = if (installedCount > 0) Icons.filled.ChatBubbleOutline else Icons.filled.Widgets,
+                    icon = if (installedCount > 0) Icons.Filled.ChatBubbleOutline else Icons.Filled.Widgets,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -269,13 +269,13 @@ private fun SystemOverview(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     MetricBox(
-                        icon = Icons.filled.Memory,
+                        icon = Icons.Filled.Memory,
                         value = "${profile.availableRamGb.toString().take(3)} / ${profile.totalRamGb.toString().take(3)} GB",
                         label = "RAM",
                         modifier = Modifier.weight(1f)
                     )
                     MetricBox(
-                        icon = Icons.filled.Storage,
+                        icon = Icons.Filled.Storage,
                         value = Formatters.bytes(profile.storageAvailableBytes),
                         label = "Storage Free",
                         modifier = Modifier.weight(1f)

@@ -67,7 +67,7 @@ fun HistoryScreen(
             if (state.conversations.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.filled.History,
+                        icon = Icons.Filled.History,
                         title = "No Conversations",
                         description = "Start your first local AI conversation.",
                         modifier = Modifier.padding(vertical = 40.dp)
@@ -130,7 +130,7 @@ private fun ConversationRow(
                 }
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.filled.Delete, contentDescription = "Delete", tint = TextSecondary)
+                Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = TextSecondary)
             }
         }
     }
