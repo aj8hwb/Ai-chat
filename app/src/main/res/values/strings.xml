@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">AI Chat Hub</string>
+    <string name="tagline">Your AI. Your Data. Your Device.</string>
+    <string name="local_ai">Local AI</string>
+</resources>
