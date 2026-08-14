@@ -121,74 +121,98 @@ class DownloadManager(
                 .apply { if (offset > 0) header("Range", "bytes=$offset-") }
                 .build()
 
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful && response.code != 206) {
-                    throw IllegalStateException("HTTP ${response.code}")
-                }
-                val total = response.body?.contentLength() ?: 0L
-                val totalBytes = if (offset + total > 0) offset + total else model.fileSizeBytes
-
-                RandomAccessFile(tmpFile, "rw").use { raf ->
-                    raf.seek(offset)
-                    val body = response.body ?: throw IllegalStateException("Empty response body")
-                    val source = body.source()
-                    val buffer = okio.Buffer()
-                    var lastUpdate = System.currentTimeMillis()
-                    var lastBytes = offset
-                    var speed = 0L
-                    while (true) {
-                        if (cancelFlags[model.id] == true) {
-                            tmpFile.delete()
-                            upsert(_downloads.value.first { it.modelId == model.id }.copy(status = DownloadStatus.CANCELLED))
-                            return
-                        }
-                        if (pauseFlags[model.id] == true) break
-                        val read = source.read(buffer, 32 * 1024)
-                        if (read == -1L) break
-                        raf.write(buffer.readByteArray())
-                        offset += read
-                        val now = System.currentTimeMillis()
-                        if (now - lastUpdate >= 500) {
-                            val dt = (now - lastUpdate) / 1000.0
-                            if (dt > 0) speed = ((offset - lastBytes) / dt).toLong()
-                            lastUpdate = now
-                            lastBytes = offset
-                            upsert(
-                                _downloads.value.first { it.modelId == model.id }.copy(
-                                    downloadedBytes = offset,
-                                    totalBytes = totalBytes,
-                                    speedBytesPerSec = speed,
-                                    status = DownloadStatus.DOWNLOADING
-                                )
-                            )
-                        }
-                    }
-                }
-
-                if (pauseFlags[model.id] == true) {
+            val outcome = readChunk(model, tmpFile, request, offset)
+            when (outcome) {
+                ChunkOutcome.CANCELLED -> return
+                ChunkOutcome.PAUSED -> {
                     upsert(_downloads.value.first { it.modelId == model.id }.copy(
                         downloadedBytes = offset,
                         status = DownloadStatus.PAUSED
                     ))
                     continue
                 }
-                if (cancelFlags[model.id] == true) continue
-
-                // Download finished: move .part to final file (atomic-ish move)
-                val finalFile = File(downloadsDir, model.fileName)
-                if (tmpFile.exists() && tmpFile.length() > 0) {
-                    if (finalFile.exists()) finalFile.delete()
-                    tmpFile.renameTo(finalFile)
-                }
-                upsert(
-                    _downloads.value.first { it.modelId == model.id }.copy(
-                        downloadedBytes = offset,
-                        totalBytes = offset,
-                        status = DownloadStatus.COMPLETED
+                ChunkOutcome.COMPLETED -> {
+                    // Download finished: move .part to final file (atomic-ish move)
+                    val finalBytes = tmpFile.length()
+                    val finalFile = File(downloadsDir, model.fileName)
+                    if (tmpFile.exists() && finalBytes > 0) {
+                        if (finalFile.exists()) finalFile.delete()
+                        tmpFile.renameTo(finalFile)
+                    }
+                    upsert(
+                        _downloads.value.first { it.modelId == model.id }.copy(
+                            downloadedBytes = finalBytes,
+                            totalBytes = finalBytes,
+                            status = DownloadStatus.COMPLETED
+                        )
                     )
-                )
-                jobs.remove(model.id)
-                return
+                    jobs.remove(model.id)
+                    return
+                }
+                ChunkOutcome.NOT_FINISHED -> offset = existingLength(tmpFile)
+            }
+        }
+    }
+
+    private enum class ChunkOutcome { PAUSED, CANCELLED, COMPLETED, NOT_FINISHED }
+
+    private suspend fun readChunk(
+        model: CatalogModel,
+        tmpFile: File,
+        request: Request,
+        offset0: Long
+    ): ChunkOutcome {
+        var offset = offset0
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful && response.code != 206) {
+                throw IllegalStateException("HTTP ${response.code}")
+            }
+            val total = response.body?.contentLength() ?: 0L
+            val totalBytes = if (offset + total > 0) offset + total else model.fileSizeBytes
+
+            RandomAccessFile(tmpFile, "rw").use { raf ->
+                raf.seek(offset)
+                val body = response.body ?: throw IllegalStateException("Empty response body")
+                val source = body.source()
+                val buffer = okio.Buffer()
+                var lastUpdate = System.currentTimeMillis()
+                var lastBytes = offset
+                var speed = 0L
+                while (true) {
+                    if (cancelFlags[model.id] == true) {
+                        tmpFile.delete()
+                        upsert(_downloads.value.first { it.modelId == model.id }.copy(status = DownloadStatus.CANCELLED))
+                        return ChunkOutcome.CANCELLED
+                    }
+                    if (pauseFlags[model.id] == true) break
+                    val read = source.read(buffer, 32 * 1024)
+                    if (read == -1L) break
+                    raf.write(buffer.readByteArray())
+                    offset += read
+                    val now = System.currentTimeMillis()
+                    if (now - lastUpdate >= 500) {
+                        val dt = (now - lastUpdate) / 1000.0
+                        if (dt > 0) speed = ((offset - lastBytes) / dt).toLong()
+                        lastUpdate = now
+                        lastBytes = offset
+                        upsert(
+                            _downloads.value.first { it.modelId == model.id }.copy(
+                                downloadedBytes = offset,
+                                totalBytes = totalBytes,
+                                speedBytesPerSec = speed,
+                                status = DownloadStatus.DOWNLOADING
+                            )
+                        )
+                    }
+                }
+
+                if (cancelFlags[model.id] == true) {
+                    tmpFile.delete()
+                    upsert(_downloads.value.first { it.modelId == model.id }.copy(status = DownloadStatus.CANCELLED))
+                    return ChunkOutcome.CANCELLED
+                }
+                if (pauseFlags[model.id] == true) return ChunkOutcome.PAUSED
+                return ChunkOutcome.COMPLETED
             }
         }
     }
