@@ -1,6 +1,7 @@
 package com.aichathub.app.chat
 
 import android.content.Context
+import android.os.Debug
 import android.util.Log
 import dev.ffmpegkit.llama.Llama
 import dev.ffmpegkit.llama.LlamaConfig
@@ -80,12 +81,15 @@ class LlamaCppRuntime(
             activeModelId = modelId
             _performance.value = InferenceRuntime.Performance(contextUsed = 0)
             Log.i(tag, "Model $modelId loaded (${Llama.getSystemInfo()})")
+            memoryLog("after load $modelId")
+            Unit
         }
     }
 
     override suspend fun unload() = nativeMutex.withLock {
         withContext(Dispatchers.IO) {
             unloadQuietly()
+            memoryLog("after unload")
         }
     }
 
@@ -111,9 +115,11 @@ class LlamaCppRuntime(
         _performance.value = _performance.value.copy(generationActive = true)
         try {
             val start = System.nanoTime()
+            memoryLog("before generate")
             val result = withContext(Dispatchers.IO) {
                 Llama.complete(m, prompt, systemPrompt.orEmpty(), config.maxTokens)
             }
+            memoryLog("after generate")
             if (cancelled.get()) throw CancellationException("Generation cancelled")
             updatePerformance(result, start)
             result.text
@@ -136,9 +142,11 @@ class LlamaCppRuntime(
         _performance.value = _performance.value.copy(generationActive = true)
         try {
             val start = System.nanoTime()
+            memoryLog("before generateStreaming")
             val result = withContext(Dispatchers.IO) {
                 Llama.complete(m, prompt, systemPrompt.orEmpty(), config.maxTokens)
             }
+            memoryLog("after generateStreaming")
             if (cancelled.get()) throw CancellationException("Generation cancelled")
             onToken(result.text)
             updatePerformance(result, start)
@@ -163,6 +171,27 @@ class LlamaCppRuntime(
 
     private fun requireModel(): LlamaModel =
         model ?: throw IllegalStateException("Model is not loaded")
+
+    /**
+     * Records the app's real memory footprint (App PSS, native heap and Java
+     * heap) to logcat with the tag AICHATHUB_MEM so a device-side test can tie
+     * the recommendation system to ACTUAL runtime memory, not just file size.
+     * Only usable when the system exposes native heap stats (it always does
+     * for the debuggable/release runs here).
+     */
+    private fun memoryLog(label: String) {
+        runCatching {
+            val info = Debug.MemoryInfo()
+            Debug.getMemoryInfo(info)
+            val runtime = Runtime.getRuntime()
+            val javaUsed = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+            val pssMb = info.totalPss / 1024
+            val nativeMb = Debug.getNativeHeapAllocatedSize() / (1024 * 1024)
+            Log.i("AICHATHUB_MEM", "$label -> PSS=${pssMb}MB nativeHeap=${nativeMb}MB javaHeap=${javaUsed}MB")
+        }.onFailure {
+            Log.i("AICHATHUB_MEM", "$label -> memory stats unavailable")
+        }
+    }
 
     private fun updatePerformance(result: LlamaResult, startNanos: Long) {
         val elapsed = (System.nanoTime() - startNanos) / 1_000_000_000f

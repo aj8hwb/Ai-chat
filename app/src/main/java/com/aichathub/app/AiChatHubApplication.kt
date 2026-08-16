@@ -36,10 +36,17 @@ class AiChatHubApplication : Application() {
             try {
                 val stack = Log.getStackTraceString(throwable)
                 Log.e("AiChatHubApp", "CRASH thread=${thread.name} cause=${throwable.javaClass.simpleName}", throwable)
+                val mem = runCatching {
+                    val info = android.os.Debug.MemoryInfo()
+                    android.os.Debug.getMemoryInfo(info)
+                    "PSS=${info.totalPss / 1024}MB nativeHeap=${android.os.Debug.getNativeHeapAllocatedSize() / (1024 * 1024)}MB javaHeap=${(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024)}MB"
+                }.getOrElse { "memory stats unavailable" }
+                Log.e("AiChatHubApp", "CRASH memory: $mem")
                 val logFile = File(filesDir, "crash_log.txt")
                 val entry = StringBuilder()
                     .append("=== ").append(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()))
                     .append(" ===\n")
+                    .append("memory: ").append(mem).append("\n")
                     .append(thread.name).append(" : ").append(throwable.toString()).append("\n")
                     .append(stack).append("\n")
                 val combined = (if (logFile.exists()) logFile.readText() + "\n" else "") + entry
