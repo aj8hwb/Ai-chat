@@ -58,12 +58,19 @@ fun AiChatHubApp() {
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
-                                navController.navigate(destination.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+                                if (currentRoute == destination.route) {
+                                    // Re-tap on the current tab: pop back to it so
+                                    // the screen is always shown on top, even when
+                                    // a stale saved state would otherwise win.
+                                    navController.popBackStack(destination.route, inclusive = false)
+                                } else {
+                                    navController.navigate(destination.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
                                     }
-                                    launchSingleTop = true
-                                    restoreState = true
                                 }
                             },
                             icon = {

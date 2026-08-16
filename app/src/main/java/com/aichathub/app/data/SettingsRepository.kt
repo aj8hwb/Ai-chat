@@ -26,7 +26,11 @@ class SettingsRepository(private val context: Context) {
         val systemPrompt: String = "You are a helpful, concise local AI assistant.",
         val autoUnload: Boolean = true,
         val batteryConscious: Boolean = false,
-        val themeDark: Boolean = true
+        val themeDark: Boolean = true,
+        /** SAF tree URI of the user's model folder, if any. */
+        val modelsFolderUri: String? = null,
+        /** Mirror downloads to the shared Downloads folder for reinstall survival. */
+        val storeInSharedDownloads: Boolean = true
     )
 
     private object Keys {
@@ -39,6 +43,8 @@ class SettingsRepository(private val context: Context) {
         val autoUnload = booleanPreferencesKey("auto_unload")
         val batteryConscious = booleanPreferencesKey("battery_conscious")
         val themeDark = booleanPreferencesKey("theme_dark")
+        val modelsFolderUri = stringPreferencesKey("models_folder_uri")
+        val storeInSharedDownloads = booleanPreferencesKey("store_in_shared_downloads")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -51,7 +57,9 @@ class SettingsRepository(private val context: Context) {
             systemPrompt = p[Keys.systemPrompt] ?: "You are a helpful, concise local AI assistant.",
             autoUnload = p[Keys.autoUnload] ?: true,
             batteryConscious = p[Keys.batteryConscious] ?: false,
-            themeDark = p[Keys.themeDark] ?: true
+            themeDark = p[Keys.themeDark] ?: true,
+            modelsFolderUri = p[Keys.modelsFolderUri],
+            storeInSharedDownloads = p[Keys.storeInSharedDownloads] ?: true
         )
     }
 
@@ -69,4 +77,8 @@ class SettingsRepository(private val context: Context) {
     suspend fun setAutoUnload(v: Boolean) = context.dataStore.edit { it[Keys.autoUnload] = v }
     suspend fun setBatteryConscious(v: Boolean) = context.dataStore.edit { it[Keys.batteryConscious] = v }
     suspend fun setThemeDark(v: Boolean) = context.dataStore.edit { it[Keys.themeDark] = v }
+    suspend fun setModelsFolderUri(uri: String?) = context.dataStore.edit { p ->
+        if (uri == null) p.remove(Keys.modelsFolderUri) else p[Keys.modelsFolderUri] = uri
+    }
+    suspend fun setStoreInSharedDownloads(v: Boolean) = context.dataStore.edit { it[Keys.storeInSharedDownloads] = v }
 }

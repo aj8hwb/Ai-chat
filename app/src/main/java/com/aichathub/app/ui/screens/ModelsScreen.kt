@@ -55,7 +55,7 @@ fun ModelsScreen(
             Text("Model Store", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
             Spacer(Modifier.height(4.dp))
             Text(
-                "${state.models.size} uncensored models · all run on-device",
+                "${state.models.size} models · all run on-device · GGUF",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary
             )

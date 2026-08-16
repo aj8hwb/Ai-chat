@@ -12,6 +12,7 @@ import com.aichathub.app.data.local.ConversationDao
 import com.aichathub.app.data.local.MessageDao
 import com.aichathub.app.device.CompatibilityEngine
 import com.aichathub.app.device.DeviceInfoProvider
+import com.aichathub.app.device.ModelScanner
 import com.aichathub.app.download.DownloadManager
 import java.io.File
 
@@ -45,7 +46,14 @@ class AppContainer(context: Context) {
         downloadsDir = downloadsDir,
         modelsDir = modelsDir,
         modelRepository = modelRepository,
-        deviceInfoProvider = deviceInfoProvider
+        deviceInfoProvider = deviceInfoProvider,
+        settingsRepository = settingsRepository
+    )
+
+    val modelScanner: ModelScanner = ModelScanner(
+        context = context.applicationContext,
+        modelsDir = modelsDir,
+        modelRepository = modelRepository
     )
 
     val inferenceRuntime: InferenceRuntime = LlamaCppRuntime(context.applicationContext)

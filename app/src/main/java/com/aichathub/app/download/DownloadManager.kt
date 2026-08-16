@@ -1,8 +1,10 @@
 package com.aichathub.app.download
 
+import android.content.ContentValues
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.provider.MediaStore
 import android.util.Log
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.model.LocalModelCatalog
@@ -17,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -81,6 +84,7 @@ class DownloadManager(
     private val modelsDir: File,
     private val modelRepository: ModelRepository,
     private val deviceInfoProvider: DeviceInfoProvider,
+    private val settingsRepository: com.aichathub.app.data.SettingsRepository? = null,
     private val client: OkHttpClient = defaultClient()
 ) {
     private val tag = "DownloadManager"
@@ -112,6 +116,12 @@ class DownloadManager(
         downloadsDir.mkdirs()
         modelsDir.mkdirs()
         scanForResumable()
+        scope.launch {
+            // Startup reconciliation: make the persisted model registry agree
+            // with the real filesystem (crash / reinstall recovery).
+            runCatching { modelRepository.reconcile() }
+                .onFailure { Log.w(tag, "Reconcile failed", it) }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -153,7 +163,8 @@ class DownloadManager(
                 networkType = currentNetworkType()
             )
         )
-        modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
+modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
+        Log.i(tag, "MODEL_DOWNLOAD_STARTED ${model.id} ($required bytes remaining)")
 
         val job = scope.launch {
             runCatching {
@@ -296,12 +307,15 @@ class DownloadManager(
         // Verify integrity before installing.
         markStatus(model.id, DownloadStatus.VERIFYING)
         modelRepository.setState(model.id, ModelLifecycleState.VERIFYING)
+        Log.i(tag, "MODEL_VERIFY_STARTED ${model.id}")
         if (!verifyChecksum(model, mergedPart)) {
             cleanupPartFiles(model)
             markStatus(model.id, DownloadStatus.FAILED, error = "Download verification failed — checksum mismatch. Please download again.")
             modelRepository.setState(model.id, ModelLifecycleState.NOT_INSTALLED)
+            Log.w(tag, "MODEL_VERIFY_FAILED ${model.id}")
             return
         }
+        Log.i(tag, "MODEL_VERIFY_SUCCESS ${model.id}")
 
         install(model, mergedPart)
     }
@@ -428,9 +442,47 @@ class DownloadManager(
         if (finalFile.exists() && finalFile.length() > 0) {
             modelRepository.markInstalled(model.id, finalFile, finalFile.length())
             markStatus(model.id, DownloadStatus.COMPLETED, downloadedBytes = finalFile.length(), totalBytes = finalFile.length())
-            modelRepository.setState(model.id, ModelLifecycleState.INSTALLED)
+            modelRepository.setState(model.id, ModelLifecycleState.READY)
+            Log.i(tag, "MODEL_REGISTERED ${model.id} -> READY (${finalFile.absolutePath})")
+            copyToSharedDownloads(model, finalFile)
         } else {
             markStatus(model.id, DownloadStatus.FAILED, error = "Could not install the model file.")
+        }
+    }
+
+    /**
+     * Mirrors the installed model into the shared Downloads folder
+     * (Download/AiChatHub/Models) via MediaStore. The copy is visible in the
+     * system file manager and survives app reinstall, so the file can be
+     * recovered with a rescan + re-import. Best-effort: failures are logged
+     * and never break the install.
+     */
+    private fun copyToSharedDownloads(model: CatalogModel, file: File) {
+        val enabled = settingsRepository == null || runCatching {
+            settingsRepository.settings.first().storeInSharedDownloads
+        }.getOrDefault(true)
+        if (!enabled) return
+        try {
+            val resolver = context.contentResolver
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, model.fileName)
+                put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
+                put(MediaStore.Downloads.RELATIVE_PATH, "Download/AiChatHub/Models")
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return
+            resolver.openOutputStream(uri)?.use { out ->
+                file.inputStream().use { it.copyTo(out) }
+            } ?: run {
+                resolver.delete(uri, null, null)
+                return
+            }
+            values.clear()
+            values.put(MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+            Log.i(tag, "MODEL_SHARED_COPY ${model.id} -> Download/AiChatHub/Models/${model.fileName}")
+        } catch (e: Exception) {
+            Log.w(tag, "Shared Downloads copy failed for ${model.id}", e)
         }
     }
 

@@ -168,6 +168,47 @@ fun ModelDetailsScreen(
                 }
             }
 
+            // Purpose
+            if (model.purposeTitle.isNotBlank()) {
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                        SectionHeader(title = "Purpose")
+                        AppCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    "${model.purposeEmoji} ${model.purposeTitle}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                if (model.primaryPurpose.isNotBlank()) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(model.primaryPurpose, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                }
+                                if (model.bestFor.isNotBlank()) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("Best for: ${model.bestFor}", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                                }
+                                if (model.strengths.isNotEmpty()) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("Strengths", style = MaterialTheme.typography.labelLarge, color = TextPrimary)
+                                    model.strengths.forEach { s ->
+                                        Text("• $s", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                    }
+                                }
+                                if (model.limitations.isNotEmpty()) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("Limitations", style = MaterialTheme.typography.labelLarge, color = TextPrimary)
+                                    model.limitations.forEach { l ->
+                                        Text("• $l", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Compatibility
             item {
                 Column(modifier = Modifier.padding(horizontal = 20.dp)) {

@@ -21,7 +21,15 @@ class CompatibilityEngine {
         val memoryScore = memoryScore(model, budget)
         val ramScore = ramScore(model, profile)
         val overall = (memoryScore * 2 + ramScore) / 3
-        return CompatibilityLevel.fromRank(overall)
+        var level = CompatibilityLevel.fromRank(overall)
+
+        // 4 GB RAM ceiling: parameter counts ≥ 1B are memory-hungry on
+        // low-RAM devices. They may still run (USABLE) but are never
+        // auto-recommended; the user must opt in.
+        if (profile.isLowRamDevice && model.parameterCount >= 1_000_000_000L) {
+            level = CompatibilityLevel.fromRank(minOf(level.rank, CompatibilityLevel.USABLE.rank))
+        }
+        return level
     }
 
     /**

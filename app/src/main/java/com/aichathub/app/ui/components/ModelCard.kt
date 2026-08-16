@@ -102,6 +102,16 @@ fun ModelCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (model.purposeTitle.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "${model.purposeEmoji} ${model.purposeTitle}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Spacer(Modifier.height(6.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),

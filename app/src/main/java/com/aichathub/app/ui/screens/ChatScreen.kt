@@ -164,9 +164,24 @@ fun ChatScreen(
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(6.dp).background(Success, RoundedCornerShape(50)))
+                    val dotColor = when {
+                        state.generating -> Primary
+                        state.isLoadingModel -> Color(0xFFFBBF24)
+                        state.activeModelId != null -> Success
+                        else -> TextSecondary
+                    }
+                    Box(modifier = Modifier.size(6.dp).background(dotColor, RoundedCornerShape(50)))
                     Spacer(Modifier.width(5.dp))
-                    Text("Local · On-device", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Text(
+                        when {
+                            state.generating -> "Generating…"
+                            state.isLoadingModel -> "Loading model…"
+                            state.activeModelId != null -> "Ready"
+                            else -> "No model loaded"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
                 }
             }
             IconButton(onClick = { onNavigate(Screen.ChatSettings.route) }) {

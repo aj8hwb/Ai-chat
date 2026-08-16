@@ -1,19 +1,26 @@
 package com.aichathub.app.ui.screens
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.chat.ChatCoordinator
+import com.aichathub.app.chat.ChatGenerationState
 import com.aichathub.app.chat.GenerationConfig
 import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.data.local.MessageEntity
+import com.aichathub.app.device.MemoryBudgetCalculator
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.ui.AiViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.io.File
 
 data class ChatUiState(
     val conversationId: Long? = null,
@@ -26,9 +33,22 @@ data class ChatUiState(
     val activeModelName: String? = null,
     val selectedConversationId: Long? = null,
     val lastStreamedText: String = "",
-    val installedModels: List<CatalogModel> = emptyList()
+    /** Only models in the READY (verified + installed) state appear here. */
+    val installedModels: List<CatalogModel> = emptyList(),
+    val isModelLoaded: Boolean = false,
+    val generationPhase: String = ChatGenerationState.IDLE.name
 )
 
+/**
+ * Chat screen state holder.
+ *
+ * Sources of truth:
+ *  - the coordinator (active model, generation state),
+ *  - the model repository (READY = verified + installed registry; ONLY these
+ *    models are selectable),
+ *  - the message DAO (persisted conversation; the user's message is written
+ *    before inference starts so it always renders).
+ */
 class ChatViewModel(application: Application) : AiViewModel(application) {
 
     private val coordinator: ChatCoordinator = container.chatCoordinator
@@ -36,18 +56,29 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
+    /** Bumped on every model selection; stale asynchronous loads are ignored. */
+    private var loadSession = 0L
+
+    private var messagesJob: Job? = null
+
     init {
+        observeCoordinator()
+        applyDefaultModelIfReady()
+    }
+
+    private fun applyDefaultModelIfReady() {
         viewModelScope.launch {
-            val settings = container.settingsRepository.settings.first()
-            val defaultModel = settings.defaultModelId?.let { LocalModelCatalog.byId(it) }
-            if (defaultModel != null) {
+            val defaultId = container.settingsRepository.settings.first().defaultModelId
+            if (defaultId == null) return@launch
+            val st = container.modelRepository.stateFor(defaultId)
+            val catalog = LocalModelCatalog.byId(defaultId)
+            if (st?.state == ModelLifecycleState.READY && st.filePath != null && catalog != null) {
                 _state.value = _state.value.copy(
-                    activeModelId = defaultModel.id,
-                    activeModelName = defaultModel.name
+                    activeModelId = catalog.id,
+                    activeModelName = catalog.name
                 )
             }
         }
-        observeCoordinator()
     }
 
     private fun observeCoordinator() {
@@ -56,9 +87,11 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                 _state.value = _state.value.copy(
                     activeModelId = s.activeModelId ?: _state.value.activeModelId,
                     activeModelName = s.activeModelName ?: _state.value.activeModelName,
-                    generating = s.generationState == com.aichathub.app.chat.ChatGenerationState.GENERATING,
+                    generating = s.generationState == ChatGenerationState.GENERATING,
                     isLoadingModel = s.isLoadingModel,
-                    error = s.error ?: _state.value.error
+                    error = s.error ?: _state.value.error,
+                    isModelLoaded = container.inferenceRuntime.isLoaded && s.activeModelId != null,
+                    generationPhase = s.generationState.name
                 )
             }
         }
@@ -69,10 +102,13 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         }
         viewModelScope.launch {
             container.modelRepository.installedModels.collect { installed ->
-                _state.value = _state.value.copy(
-                    installedModels = installed
-                        .mapNotNull { LocalModelCatalog.byId(it.modelId) }
-                )
+                // ONLY verified + installed (READY) models may appear in the
+                // Chat selector. Downloading / paused / verifying / failed
+                // models are never shown here.
+                val ready = installed
+                    .filter { it.state == ModelLifecycleState.READY && it.filePath != null }
+                    .mapNotNull { LocalModelCatalog.byId(it.modelId) }
+                _state.value = _state.value.copy(installedModels = ready)
             }
         }
     }
@@ -85,45 +121,60 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         viewModelScope.launch {
             coordinator.selectConversation(id)
             _state.value = _state.value.copy(conversationId = id, selectedConversationId = id)
-            container.messageDao.observeForConversation(id).collect { messages ->
-                _state.value = _state.value.copy(messages = messages)
-            }
+            observeMessages(id)
         }
     }
 
     fun newChat() {
         coordinator.newConversation()
+        messagesJob?.cancel()
         _state.value = _state.value.copy(
             conversationId = null,
             selectedConversationId = null,
             messages = emptyList(),
-            error = null
+            error = null,
+            lastStreamedText = ""
         )
     }
 
     fun selectModel(model: CatalogModel) {
+        val session = ++loadSession
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoadingModel = true, error = null)
-            val installed = container.modelRepository.stateFor(model.id)
-            if (installed?.filePath == null) {
+            val st = container.modelRepository.stateFor(model.id)
+            val file = st?.filePath?.let { File(it) }
+            if (st?.state != ModelLifecycleState.READY || file == null || !file.isFile) {
                 _state.value = _state.value.copy(
-                    isLoadingModel = false,
-                    error = "This model is not installed yet."
+                    error = "This model is not ready yet. Download and verify it first."
                 )
                 return@launch
             }
+            if (session != loadSession) return@launch
+            if (!memorySuitable(model)) {
+                _state.value = _state.value.copy(
+                    error = "❌ Insufficient memory to load this model safely. Try a lighter model."
+                )
+                return@launch
+            }
+            _state.value = _state.value.copy(isLoadingModel = true, error = null)
             try {
-                val file = java.io.File(installed.filePath)
                 coordinator.loadModel(model, file)
+                if (session != loadSession) return@launch
                 _state.value = _state.value.copy(
                     activeModelId = model.id,
                     activeModelName = model.name,
                     isLoadingModel = false
                 )
+            } catch (e: OutOfMemoryError) {
+                _state.value = _state.value.copy(
+                    isLoadingModel = false,
+                    error = "❌ Insufficient memory to load this model safely. Try a lighter model."
+                )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     isLoadingModel = false,
-                    error = "The model could not be loaded with the current device resources."
+                    error = "The model could not be loaded. Please select another installed model."
                 )
             }
         }
@@ -139,18 +190,38 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         }
 
         viewModelScope.launch {
-            // Ensure model is loaded
+            // The selected model must be genuinely READY before we touch it.
             val installed = container.modelRepository.stateFor(model.id)
-            if (installed?.filePath == null) {
-                _state.value = _state.value.copy(error = "This model is not installed yet.")
+            val file = installed?.filePath?.let { File(it) }
+            if (installed?.state != ModelLifecycleState.READY || file == null || !file.isFile) {
+                _state.value = _state.value.copy(
+                    error = "This model is not ready yet. Download and verify it first."
+                )
                 return@launch
             }
-            if (!container.inferenceRuntime.isLoaded || container.inferenceRuntime.activeModelId != model.id) {
-                _state.value = _state.value.copy(isLoadingModel = true)
+
+            // Load the model if it is not the active one.
+            if (container.inferenceRuntime.activeModelId != model.id) {
+                if (!memorySuitable(model)) {
+                    _state.value = _state.value.copy(
+                        error = "❌ Insufficient memory to load this model safely. Try a lighter model."
+                    )
+                    return@launch
+                }
+                _state.value = _state.value.copy(isLoadingModel = true, error = null)
                 try {
-                    coordinator.loadModel(model, java.io.File(installed.filePath))
+                    coordinator.loadModel(model, file)
+                } catch (e: OutOfMemoryError) {
+                    _state.value = _state.value.copy(
+                        isLoadingModel = false,
+                        error = "❌ Insufficient memory to load this model safely. Try a lighter model."
+                    )
+                    return@launch
                 } catch (e: Exception) {
-                    _state.value = _state.value.copy(isLoadingModel = false, error = "Couldn't start this model.")
+                    _state.value = _state.value.copy(
+                        isLoadingModel = false,
+                        error = "Couldn't start this model."
+                    )
                     return@launch
                 }
                 _state.value = _state.value.copy(isLoadingModel = false)
@@ -164,6 +235,18 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                 maxTokens = settings.maxTokens
             )
 
+            // Ensure the conversation exists BEFORE inference so the user
+            // message renders immediately and survives any crash mid-run.
+            var convId = _state.value.conversationId
+            if (convId == null) {
+                convId = coordinator.createConversation(model.id, titleFromPrompt(text))
+                _state.value = _state.value.copy(
+                    conversationId = convId,
+                    selectedConversationId = convId
+                )
+            }
+            observeMessages(convId)
+
             _state.value = _state.value.copy(input = "", generating = true, error = null)
             try {
                 coordinator.sendMessage(
@@ -175,12 +258,10 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                         _state.value = _state.value.copy(lastStreamedText = streamed)
                     }
                 )
-                // Refresh messages
-                val convId = coordinator.activeConversationId.value
-                if (convId != null) loadConversation(convId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
-                    generating = false,
                     error = "Generation failed. Please try again."
                 )
             } finally {
@@ -192,5 +273,29 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
     fun stopGeneration() {
         coordinator.stopGeneration()
         _state.value = _state.value.copy(generating = false)
+    }
+
+    /** Cancels the previous conversation observer and observes the new one. */
+    private fun observeMessages(convId: Long) {
+        messagesJob?.cancel()
+        messagesJob = viewModelScope.launch {
+            container.messageDao.observeForConversation(convId).collect { msgs ->
+                _state.value = _state.value.copy(messages = msgs)
+            }
+        }
+    }
+
+    /** Memory preflight before loading: never attempt an unsafe model load. */
+    private suspend fun memorySuitable(model: CatalogModel): Boolean {
+        return runCatching {
+            val profile = container.deviceInfoProvider.getDeviceProfile()
+            val budget = MemoryBudgetCalculator.calculate(profile)
+            model.estimatedMemoryBytes <= budget.modelMemoryBytes
+        }.getOrDefault(true)
+    }
+
+    private fun titleFromPrompt(prompt: String): String {
+        val clean = prompt.trim().replace("\n", " ")
+        return if (clean.length > 42) clean.take(42) + "…" else clean
     }
 }

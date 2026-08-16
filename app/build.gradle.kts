@@ -122,6 +122,9 @@ dependencies {
     // DataStore for settings
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
+    // SAF document tree helpers for model folder import
+    implementation("androidx.documentfile:documentfile:1.0.1")
+
     implementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-tooling")
 

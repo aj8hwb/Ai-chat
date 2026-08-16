@@ -68,7 +68,21 @@ data class CatalogModel(
     val capabilities: List<String> = emptyList(),
     val modelRank: Int = 0,
     /** SHA-256 hex digest of the exact artifact to download (checksum verification). */
-    val checksumSha256: String? = null
+    val checksumSha256: String? = null,
+    /** Emoji used for the model's primary purpose identity (e.g. "⚡", "💻", "💬", "🧪"). */
+    val purposeEmoji: String = "",
+    /** Short purpose label shown on cards (e.g. "Ultra Lightweight · Basic Chat"). */
+    val purposeTitle: String = "",
+    /** "Best for" summary, e.g. "Simple Q&A · Rewriting · Light text". */
+    val bestFor: String = "",
+    /** Longer human description of the model's primary purpose. */
+    val primaryPurpose: String = "",
+    /** Documented strengths (capabilities verified from the model card). */
+    val strengths: List<String> = emptyList(),
+    /** Documented limitations to display honestly. */
+    val limitations: List<String> = emptyList(),
+    /** Number of trainable parameters (e.g. 135_000_000). */
+    val parameterCount: Long = 0
 )
 
 /** A snapshot of the device's current capabilities. */

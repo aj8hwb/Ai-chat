@@ -12,6 +12,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -48,9 +50,14 @@ class ChatCoordinator(
 
     private var loadedModelId: String? = null
 
+    /** Serializes model load/unload so switching models never interleaves. */
+    private val loadMutex = Mutex()
+
     /**
      * Loads a model into the runtime, switching from any previously loaded
-     * model. Performs a memory preflight via the repository state.
+     * model. Performs a memory preflight via the repository state. Loading is
+     * serialized so a quick model A → model B switch cannot corrupt the
+     * single-slot native runtime.
      */
     suspend fun loadModel(model: CatalogModel, file: File) {
         _state.value = _state.value.copy(
@@ -58,11 +65,22 @@ class ChatCoordinator(
             generationState = ChatGenerationState.LOADING,
             error = null
         )
+        if (!file.exists() || file.length() == 0L) {
+            _state.value = _state.value.copy(
+                isLoadingModel = false,
+                generationState = ChatGenerationState.ERROR,
+                error = "The model file is missing or incomplete. Please re-download it."
+            )
+            throw IllegalStateException("Model file missing or empty: ${file.absolutePath}")
+        }
         try {
-            if (loadedModelId != model.id) {
-                runtime.unload()
-                runtime.load(model.id, file, model.contextLength)
-                loadedModelId = model.id
+            loadMutex.withLock {
+                if (loadedModelId != model.id) {
+                    runtime.unload()
+                    runtime.load(model.id, file, model.contextLength)
+                    loadedModelId = model.id
+                    Log.i("ChatCoordinator", "MODEL_LOAD_SUCCESS ${model.id}")
+                }
             }
             modelRepository.setState(model.id, ModelLifecycleState.READY)
             _state.value = _state.value.copy(
@@ -71,8 +89,20 @@ class ChatCoordinator(
                 isLoadingModel = false,
                 generationState = ChatGenerationState.IDLE
             )
+        } catch (e: OutOfMemoryError) {
+            Log.e("ChatCoordinator", "MODEL_LOAD_FAILED OOM ${model.id}", e)
+            runCatching { runtime.unload() }
+            loadedModelId = null
+            _state.value = _state.value.copy(
+                isLoadingModel = false,
+                generationState = ChatGenerationState.ERROR,
+                error = "❌ Insufficient memory to load this model safely. Try a lighter model."
+            )
+            throw e
         } catch (e: Exception) {
-            Log.e("ChatCoordinator", "Model load failed", e)
+            Log.e("ChatCoordinator", "MODEL_LOAD_FAILED ${model.id}", e)
+            runCatching { runtime.unload() }
+            loadedModelId = null
             _state.value = _state.value.copy(
                 isLoadingModel = false,
                 generationState = ChatGenerationState.ERROR,
@@ -83,11 +113,13 @@ class ChatCoordinator(
     }
 
     suspend fun unloadModel(modelId: String) {
-        if (loadedModelId == modelId) {
-            runtime.unload()
-            loadedModelId = null
+        loadMutex.withLock {
+            if (loadedModelId == modelId) {
+                runtime.unload()
+                loadedModelId = null
+            }
         }
-        modelRepository.setState(modelId, ModelLifecycleState.INSTALLED)
+        modelRepository.setState(modelId, ModelLifecycleState.READY)
         _state.value = _state.value.copy(
             activeModelId = null,
             activeModelName = null,
@@ -164,6 +196,7 @@ class ChatCoordinator(
                 )
 
                 _state.value = _state.value.copy(generationState = ChatGenerationState.GENERATING, error = null)
+                Log.i("ChatCoordinator", "INFERENCE_STARTED ${model.id}")
 
                 val fullPrompt = buildPrompt(prompt, systemPrompt, convId)
                 val result = runtime.generateStreaming(
@@ -188,15 +221,25 @@ class ChatCoordinator(
                 conversationDao.touch(convId, System.currentTimeMillis())
 
                 _state.value = _state.value.copy(generationState = ChatGenerationState.DONE)
+                Log.i("ChatCoordinator", "INFERENCE_COMPLETED ${model.id} tokens=${result.length}")
                 result
+            } catch (e: OutOfMemoryError) {
+                Log.e("ChatCoordinator", "INFERENCE_FAILED OOM ${model.id}", e)
+                _state.value = _state.value.copy(
+                    generationState = ChatGenerationState.ERROR,
+                    error = "Generation ran out of memory. Try a lighter model or a shorter message."
+                )
+                throw e
             } catch (e: kotlinx.coroutines.CancellationException) {
                 // User pressed Stop: the in-flight response is discarded cleanly.
                 _state.value = _state.value.copy(
                     generationState = ChatGenerationState.DONE,
                     error = null
                 )
+                Log.i("ChatCoordinator", "INFERENCE_STOPPED ${model.id}")
                 throw e
             } catch (e: Exception) {
+                Log.e("ChatCoordinator", "INFERENCE_FAILED ${model.id}", e)
                 _state.value = _state.value.copy(
                     generationState = ChatGenerationState.ERROR,
                     error = "Generation failed. Please try again."
@@ -207,6 +250,7 @@ class ChatCoordinator(
     }
 
     fun stopGeneration() {
+        Log.i("ChatCoordinator", "INFERENCE_STOPPING requested")
         _state.value = _state.value.copy(generationState = ChatGenerationState.STOPPING)
         runtime.cancelGeneration()
         _state.value = _state.value.copy(generationState = ChatGenerationState.DONE)
