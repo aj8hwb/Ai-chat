@@ -48,8 +48,6 @@ class ChatCoordinator(
     private val _activeConversationId = MutableStateFlow<Long?>(null)
     val activeConversationId: StateFlow<Long?> = _activeConversationId.asStateFlow()
 
-    private var loadedModelId: String? = null
-
     /** Serializes model load/unload so switching models never interleaves. */
     private val loadMutex = Mutex()
 
@@ -75,10 +73,12 @@ class ChatCoordinator(
         }
         try {
             loadMutex.withLock {
-                if (loadedModelId != model.id) {
+                // The runtime's activeModelId is authoritative: it is cleared by
+                // background trim-unloads, so a stale "loaded" cache can never
+                // cause us to skip a required reload.
+                if (runtime.activeModelId != model.id) {
                     runtime.unload()
                     runtime.load(model.id, file, model.contextLength)
-                    loadedModelId = model.id
                     Log.i("ChatCoordinator", "MODEL_LOAD_SUCCESS ${model.id}")
                 }
             }
@@ -92,7 +92,6 @@ class ChatCoordinator(
         } catch (e: OutOfMemoryError) {
             Log.e("ChatCoordinator", "MODEL_LOAD_FAILED OOM ${model.id}", e)
             runCatching { runtime.unload() }
-            loadedModelId = null
             _state.value = _state.value.copy(
                 isLoadingModel = false,
                 generationState = ChatGenerationState.ERROR,
@@ -102,7 +101,6 @@ class ChatCoordinator(
         } catch (e: Exception) {
             Log.e("ChatCoordinator", "MODEL_LOAD_FAILED ${model.id}", e)
             runCatching { runtime.unload() }
-            loadedModelId = null
             _state.value = _state.value.copy(
                 isLoadingModel = false,
                 generationState = ChatGenerationState.ERROR,
@@ -114,9 +112,8 @@ class ChatCoordinator(
 
     suspend fun unloadModel(modelId: String) {
         loadMutex.withLock {
-            if (loadedModelId == modelId) {
+            if (runtime.activeModelId == modelId) {
                 runtime.unload()
-                loadedModelId = null
             }
         }
         modelRepository.setState(modelId, ModelLifecycleState.READY)
@@ -171,9 +168,13 @@ class ChatCoordinator(
         model: CatalogModel,
         onStream: (String) -> Unit
     ): String {
+        // Set the in-flight flag SYNCHRONOUSLY (before any suspension point).
+        // This closes the check-then-set race: a second caller cannot observe
+        // a non-GENERATING state while the first call is being set up.
         if (_state.value.generationState == ChatGenerationState.GENERATING) {
             throw IllegalStateException("Already generating")
         }
+        _state.value = _state.value.copy(generationState = ChatGenerationState.GENERATING, error = null)
 
         var conversationId = _activeConversationId.value
         val streamed = StringBuilder()
@@ -195,7 +196,6 @@ class ChatCoordinator(
                     )
                 )
 
-                _state.value = _state.value.copy(generationState = ChatGenerationState.GENERATING, error = null)
                 Log.i("ChatCoordinator", "INFERENCE_STARTED ${model.id}")
 
                 val fullPrompt = buildPrompt(prompt, systemPrompt, convId)
@@ -225,6 +225,9 @@ class ChatCoordinator(
                 result
             } catch (e: OutOfMemoryError) {
                 Log.e("ChatCoordinator", "INFERENCE_FAILED OOM ${model.id}", e)
+                // Native state may be corrupt after an OOM; drop the model so the
+                // next attempt reloads from a clean state instead of crashing.
+                runCatching { runtime.unload() }
                 _state.value = _state.value.copy(
                     generationState = ChatGenerationState.ERROR,
                     error = "Generation ran out of memory. Try a lighter model or a shorter message."

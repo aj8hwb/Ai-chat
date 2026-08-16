@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -37,6 +39,16 @@ class LlamaCppRuntime(
     @Volatile
     private var model: LlamaModel? = null
 
+    /**
+     * Serializes ALL native llama.cpp operations. llama.cpp (via llama-android)
+     * is NOT safe to call from two threads at once: two concurrent
+     * [Llama.complete] calls, or a [Llama.releaseModel] during a [Llama.complete],
+     * crash the whole process with a native SIGSEGV that Kotlin cannot catch.
+     * This mutex makes load / unload / generate mutually exclusive so the
+     * process can never run two native operations at the same time.
+     */
+    private val nativeMutex = Mutex()
+
     override var isLoaded: Boolean = false
         private set
 
@@ -47,7 +59,7 @@ class LlamaCppRuntime(
     private val generating = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
 
-    override suspend fun load(modelId: String, file: File, contextLength: Int) {
+    override suspend fun load(modelId: String, file: File, contextLength: Int) = nativeMutex.withLock {
         withContext(Dispatchers.IO) {
             check(!closed.get()) { "Runtime already released" }
             unloadQuietly()
@@ -71,7 +83,7 @@ class LlamaCppRuntime(
         }
     }
 
-    override suspend fun unload() {
+    override suspend fun unload() = nativeMutex.withLock {
         withContext(Dispatchers.IO) {
             unloadQuietly()
         }
@@ -91,14 +103,17 @@ class LlamaCppRuntime(
         prompt: String,
         config: GenerationConfig,
         systemPrompt: String?
-    ): String = withContext(Dispatchers.IO) {
+    ): String = nativeMutex.withLock {
+        check(!closed.get()) { "Runtime already released" }
         val m = requireModel()
         cancelled.set(false)
         generating.set(true)
         _performance.value = _performance.value.copy(generationActive = true)
         try {
             val start = System.nanoTime()
-            val result = Llama.complete(m, prompt, systemPrompt.orEmpty(), config.maxTokens)
+            val result = withContext(Dispatchers.IO) {
+                Llama.complete(m, prompt, systemPrompt.orEmpty(), config.maxTokens)
+            }
             if (cancelled.get()) throw CancellationException("Generation cancelled")
             updatePerformance(result, start)
             result.text
@@ -113,12 +128,13 @@ class LlamaCppRuntime(
         config: GenerationConfig,
         systemPrompt: String?,
         onToken: (String) -> Unit
-    ): String {
+    ): String = nativeMutex.withLock {
+        check(!closed.get()) { "Runtime already released" }
         val m = requireModel()
         cancelled.set(false)
         generating.set(true)
         _performance.value = _performance.value.copy(generationActive = true)
-        return try {
+        try {
             val start = System.nanoTime()
             val result = withContext(Dispatchers.IO) {
                 Llama.complete(m, prompt, systemPrompt.orEmpty(), config.maxTokens)

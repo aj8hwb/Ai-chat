@@ -59,6 +59,17 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
     /** Bumped on every model selection; stale asynchronous loads are ignored. */
     private var loadSession = 0L
 
+    /** Bumped on every send; a finished older send must not clear the state of a newer one. */
+    private var sendSeq = 0L
+
+    /**
+     * Main-thread in-flight guard. Unlike `_state.generating` it cannot be
+     * overwritten by the coordinator-state observer, so a rapid double-tap on
+     * Send is rejected deterministically.
+     */
+    @Volatile
+    private var sendInFlight = false
+
     private var messagesJob: Job? = null
 
     init {
@@ -182,73 +193,81 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
 
     fun send() {
         val text = _state.value.input.trim()
-        if (text.isEmpty() || _state.value.generating) return
+        if (text.isEmpty() || sendInFlight || _state.value.generating) return
         val model = _state.value.activeModelId?.let { LocalModelCatalog.byId(it) }
         if (model == null) {
             _state.value = _state.value.copy(error = "Select a model to start chatting.")
             return
         }
 
+        // Set the in-flight flag SYNCHRONOUSLY so a rapid double-tap on Send is
+        // rejected before it can launch a second coroutine. All native
+        // generation is additionally serialized inside the runtime, so two
+        // concurrent llama.cpp calls can never overlap (that would SIGSEGV).
+        sendInFlight = true
+        val seq = ++sendSeq
+        _state.value = _state.value.copy(generating = true, error = null, lastStreamedText = "")
+
         viewModelScope.launch {
-            // The selected model must be genuinely READY before we touch it.
-            val installed = container.modelRepository.stateFor(model.id)
-            val file = installed?.filePath?.let { File(it) }
-            if (installed?.state != ModelLifecycleState.READY || file == null || !file.isFile) {
-                _state.value = _state.value.copy(
-                    error = "This model is not ready yet. Download and verify it first."
-                )
-                return@launch
-            }
-
-            // Load the model if it is not the active one.
-            if (container.inferenceRuntime.activeModelId != model.id) {
-                if (!memorySuitable(model)) {
-                    _state.value = _state.value.copy(
-                        error = "❌ Insufficient memory to load this model safely. Try a lighter model."
-                    )
-                    return@launch
-                }
-                _state.value = _state.value.copy(isLoadingModel = true, error = null)
-                try {
-                    coordinator.loadModel(model, file)
-                } catch (e: OutOfMemoryError) {
-                    _state.value = _state.value.copy(
-                        isLoadingModel = false,
-                        error = "❌ Insufficient memory to load this model safely. Try a lighter model."
-                    )
-                    return@launch
-                } catch (e: Exception) {
-                    _state.value = _state.value.copy(
-                        isLoadingModel = false,
-                        error = "Couldn't start this model."
-                    )
-                    return@launch
-                }
-                _state.value = _state.value.copy(isLoadingModel = false)
-            }
-
-            val settings = container.settingsRepository.settings.first()
-            val config = GenerationConfig(
-                temperature = settings.temperature,
-                topK = settings.topK,
-                topP = settings.topP,
-                maxTokens = settings.maxTokens
-            )
-
-            // Ensure the conversation exists BEFORE inference so the user
-            // message renders immediately and survives any crash mid-run.
-            var convId = _state.value.conversationId
-            if (convId == null) {
-                convId = coordinator.createConversation(model.id, titleFromPrompt(text))
-                _state.value = _state.value.copy(
-                    conversationId = convId,
-                    selectedConversationId = convId
-                )
-            }
-            observeMessages(convId)
-
-            _state.value = _state.value.copy(input = "", generating = true, error = null)
             try {
+                // The selected model must be genuinely READY before we touch it.
+                val installed = container.modelRepository.stateFor(model.id)
+                val file = installed?.filePath?.let { File(it) }
+                if (installed?.state != ModelLifecycleState.READY || file == null || !file.isFile) {
+                    _state.value = _state.value.copy(
+                        error = "This model is not ready yet. Download and verify it first."
+                    )
+                    return@launch
+                }
+
+                // Load the model if it is not the active one.
+                if (container.inferenceRuntime.activeModelId != model.id) {
+                    if (!memorySuitable(model)) {
+                        _state.value = _state.value.copy(
+                            error = "❌ Insufficient memory to load this model safely. Try a lighter model."
+                        )
+                        return@launch
+                    }
+                    _state.value = _state.value.copy(isLoadingModel = true, error = null)
+                    try {
+                        coordinator.loadModel(model, file)
+                    } catch (e: OutOfMemoryError) {
+                        _state.value = _state.value.copy(
+                            isLoadingModel = false,
+                            error = "❌ Insufficient memory to load this model safely. Try a lighter model."
+                        )
+                        return@launch
+                    } catch (e: Exception) {
+                        _state.value = _state.value.copy(
+                            isLoadingModel = false,
+                            error = "Couldn't start this model."
+                        )
+                        return@launch
+                    }
+                    _state.value = _state.value.copy(isLoadingModel = false)
+                }
+
+                val settings = container.settingsRepository.settings.first()
+                val config = GenerationConfig(
+                    temperature = settings.temperature,
+                    topK = settings.topK,
+                    topP = settings.topP,
+                    maxTokens = settings.maxTokens
+                )
+
+                // Ensure the conversation exists BEFORE inference so the user
+                // message renders immediately and survives any crash mid-run.
+                var convId = _state.value.conversationId
+                if (convId == null) {
+                    convId = coordinator.createConversation(model.id, titleFromPrompt(text))
+                    _state.value = _state.value.copy(
+                        conversationId = convId,
+                        selectedConversationId = convId
+                    )
+                }
+                observeMessages(convId)
+
+                _state.value = _state.value.copy(input = "")
                 coordinator.sendMessage(
                     prompt = text,
                     config = config,
@@ -258,6 +277,13 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                         _state.value = _state.value.copy(lastStreamedText = streamed)
                     }
                 )
+            } catch (e: OutOfMemoryError) {
+                // OOM is an Error, not an Exception — catch it explicitly or the
+                // coroutine would propagate it to the uncaught handler and crash
+                // the whole app.
+                _state.value = _state.value.copy(
+                    error = "Generation ran out of memory. Try a lighter model or a shorter message."
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -265,14 +291,26 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                     error = "Generation failed. Please try again."
                 )
             } finally {
-                _state.value = _state.value.copy(generating = false, lastStreamedText = "")
+                // Only the LATEST send clears the in-flight flag, so a stopped
+                // (cancelled) older send can never wipe the state of a newer one.
+                if (seq == sendSeq) {
+                    sendInFlight = false
+                    _state.value = _state.value.copy(
+                        generating = false,
+                        isLoadingModel = false,
+                        lastStreamedText = ""
+                    )
+                }
             }
         }
     }
 
     fun stopGeneration() {
+        // The coordinator flips to DONE and observes into the UI; the in-flight
+        // coroutine clears `generating` in its finally once the native call
+        // returns. We do NOT clear it here, or the UI state could be raced by a
+        // subsequent send.
         coordinator.stopGeneration()
-        _state.value = _state.value.copy(generating = false)
     }
 
     /** Cancels the previous conversation observer and observes the new one. */
