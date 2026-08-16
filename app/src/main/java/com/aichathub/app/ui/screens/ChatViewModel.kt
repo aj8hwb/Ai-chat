@@ -7,6 +7,7 @@ import com.aichathub.app.chat.ChatCoordinator
 import com.aichathub.app.chat.ChatGenerationState
 import com.aichathub.app.chat.GenerationConfig
 import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageEntity
 import com.aichathub.app.device.MemoryBudgetCalculator
 import com.aichathub.app.domain.model.CatalogModel
@@ -14,7 +15,6 @@ import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.ui.AiViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +35,8 @@ data class ChatUiState(
     val lastStreamedText: String = "",
     /** Only models in the READY (verified + installed) state appear here. */
     val installedModels: List<CatalogModel> = emptyList(),
+    /** All saved conversations, newest first — shown in the history drawer. */
+    val conversations: List<ConversationEntity> = emptyList(),
     val isModelLoaded: Boolean = false,
     val generationPhase: String = ChatGenerationState.IDLE.name
 )
@@ -74,22 +76,45 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
 
     init {
         observeCoordinator()
-        applyDefaultModelIfReady()
+        autoSelectDefaultModel()
     }
 
-    private fun applyDefaultModelIfReady() {
+    /**
+     * Prepares the chat on startup: drops ghost (empty) conversations and
+     * picks the best model to use by default. The default is the user's saved
+     * default model when it is installed and READY, otherwise the most
+     * compatible installed model (falls back to the first installed model).
+     * The user can still override it from the model selector at any time.
+     */
+    private fun autoSelectDefaultModel() {
         viewModelScope.launch {
-            val defaultId = container.settingsRepository.settings.first().defaultModelId
-            if (defaultId == null) return@launch
-            val st = container.modelRepository.stateFor(defaultId)
-            val catalog = LocalModelCatalog.byId(defaultId)
-            if (st?.state == ModelLifecycleState.READY && st.filePath != null && catalog != null) {
+            runCatching { container.conversationDao.pruneEmpty() }
+            val ready = readyModels()
+            val best = pickBestModel(ready)
+            if (best != null && _state.value.activeModelId == null) {
                 _state.value = _state.value.copy(
-                    activeModelId = catalog.id,
-                    activeModelName = catalog.name
+                    activeModelId = best.id,
+                    activeModelName = best.name
                 )
             }
         }
+    }
+
+    private suspend fun readyModels(): List<CatalogModel> =
+        container.modelRepository.installedModels.first()
+            .filter { it.state == ModelLifecycleState.READY && it.filePath != null }
+            .mapNotNull { LocalModelCatalog.byId(it.modelId) }
+
+    private suspend fun pickBestModel(ready: List<CatalogModel>): CatalogModel? {
+        if (ready.isEmpty()) return null
+        val savedDefault = container.settingsRepository.settings.first().defaultModelId
+        savedDefault?.let { id -> ready.firstOrNull { it.id == id }?.let { return it } }
+        return runCatching {
+            val profile = container.deviceInfoProvider.getDeviceProfile()
+            val budget = MemoryBudgetCalculator.calculate(profile)
+            container.compatibilityEngine.recommendAll(ready, profile, budget)
+                .firstOrNull()?.model
+        }.getOrNull() ?: ready.first()
     }
 
     private fun observeCoordinator() {
@@ -120,6 +145,22 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                     .filter { it.state == ModelLifecycleState.READY && it.filePath != null }
                     .mapNotNull { LocalModelCatalog.byId(it.modelId) }
                 _state.value = _state.value.copy(installedModels = ready)
+                // If nothing is selected yet, auto-select the best installed
+                // model so a freshly downloaded model is immediately usable.
+                if (_state.value.activeModelId == null && ready.isNotEmpty()) {
+                    val best = pickBestModel(ready)
+                    if (best != null) {
+                        _state.value = _state.value.copy(
+                            activeModelId = best.id,
+                            activeModelName = best.name
+                        )
+                    }
+                }
+            }
+        }
+        viewModelScope.launch {
+            container.conversationDao.observeAll().collect { conversations ->
+                _state.value = _state.value.copy(conversations = conversations)
             }
         }
     }
@@ -133,6 +174,25 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
             coordinator.selectConversation(id)
             _state.value = _state.value.copy(conversationId = id, selectedConversationId = id)
             observeMessages(id)
+            // Switch to the conversation's model when it is still installed so
+            // the reply continues in the same model the user originally used.
+            val conv = container.conversationDao.byId(id)
+            if (conv != null) {
+                val catalog = LocalModelCatalog.byId(conv.modelId)
+                val st = container.modelRepository.stateFor(conv.modelId)
+                if (catalog != null && st?.state == ModelLifecycleState.READY && st.filePath != null
+                    && _state.value.activeModelId != catalog.id
+                ) {
+                    selectModel(catalog)
+                }
+            }
+        }
+    }
+
+    fun deleteConversation(id: Long) {
+        viewModelScope.launch {
+            coordinator.deleteConversation(id)
+            if (_state.value.conversationId == id) newChat()
         }
     }
 
@@ -258,6 +318,14 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                 // Ensure the conversation exists BEFORE inference so the user
                 // message renders immediately and survives any crash mid-run.
                 var convId = _state.value.conversationId
+                if (convId != null && container.conversationDao.byId(convId) == null) {
+                    // The saved id was pruned/deleted — start a fresh chat.
+                    convId = null
+                    _state.value = _state.value.copy(
+                        conversationId = null,
+                        selectedConversationId = null
+                    )
+                }
                 if (convId == null) {
                     convId = coordinator.createConversation(model.id, titleFromPrompt(text))
                     _state.value = _state.value.copy(
@@ -300,6 +368,9 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                         isLoadingModel = false,
                         lastStreamedText = ""
                     )
+                    // Guarantee the coordinator returns to IDLE so the next
+                    // message can always start a fresh generation.
+                    runCatching { coordinator.resetToIdle() }
                 }
             }
         }

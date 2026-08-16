@@ -179,8 +179,13 @@ class ChatCoordinator(
         var conversationId = _activeConversationId.value
         val streamed = StringBuilder()
 
-        return withContext(Dispatchers.IO) {
-            try {
+        return try {
+            withContext(Dispatchers.IO) {
+                // A previously selected conversation may have been pruned (it
+                // never received a message) or deleted — fall back to a fresh one.
+                if (conversationId != null && conversationDao.byId(conversationId) == null) {
+                    conversationId = null
+                }
                 if (conversationId == null) {
                     conversationId = createConversation(model.id, titleFromPrompt(prompt))
                 }
@@ -223,31 +228,38 @@ class ChatCoordinator(
                 _state.value = _state.value.copy(generationState = ChatGenerationState.DONE)
                 Log.i("ChatCoordinator", "INFERENCE_COMPLETED ${model.id} tokens=${result.length}")
                 result
-            } catch (e: OutOfMemoryError) {
-                Log.e("ChatCoordinator", "INFERENCE_FAILED OOM ${model.id}", e)
-                // Native state may be corrupt after an OOM; drop the model so the
-                // next attempt reloads from a clean state instead of crashing.
-                runCatching { runtime.unload() }
-                _state.value = _state.value.copy(
-                    generationState = ChatGenerationState.ERROR,
-                    error = "Generation ran out of memory. Try a lighter model or a shorter message."
-                )
-                throw e
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                // User pressed Stop: the in-flight response is discarded cleanly.
-                _state.value = _state.value.copy(
-                    generationState = ChatGenerationState.DONE,
-                    error = null
-                )
-                Log.i("ChatCoordinator", "INFERENCE_STOPPED ${model.id}")
-                throw e
-            } catch (e: Exception) {
-                Log.e("ChatCoordinator", "INFERENCE_FAILED ${model.id}", e)
-                _state.value = _state.value.copy(
-                    generationState = ChatGenerationState.ERROR,
-                    error = "Generation failed. Please try again."
-                )
-                throw e
+            }
+        } catch (e: OutOfMemoryError) {
+            Log.e("ChatCoordinator", "INFERENCE_FAILED OOM ${model.id}", e)
+            // Native state may be corrupt after an OOM; drop the model so the
+            // next attempt reloads from a clean state instead of crashing.
+            runCatching { runtime.unload() }
+            _state.value = _state.value.copy(
+                generationState = ChatGenerationState.ERROR,
+                error = "Generation ran out of memory. Try a lighter model or a shorter message."
+            )
+            throw e
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // User pressed Stop: the in-flight response is discarded cleanly.
+            _state.value = _state.value.copy(
+                generationState = ChatGenerationState.DONE,
+                error = null
+            )
+            Log.i("ChatCoordinator", "INFERENCE_STOPPED ${model.id}")
+            throw e
+        } catch (e: Exception) {
+            Log.e("ChatCoordinator", "INFERENCE_FAILED ${model.id}", e)
+            _state.value = _state.value.copy(
+                generationState = ChatGenerationState.ERROR,
+                error = "Generation failed. Please try again."
+            )
+            throw e
+        } finally {
+            // Safety net: no matter what happened, the coordinator must never
+            // stay stuck in GENERATING — otherwise every later send would be
+            // rejected with "Already generating" and the chat would go silent.
+            if (_state.value.generationState == ChatGenerationState.GENERATING) {
+                _state.value = _state.value.copy(generationState = ChatGenerationState.IDLE)
             }
         }
     }

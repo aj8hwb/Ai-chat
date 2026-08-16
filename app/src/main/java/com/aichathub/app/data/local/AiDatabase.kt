@@ -71,6 +71,9 @@ interface ConversationDao {
     @Query("SELECT * FROM conversations ORDER BY updatedAt DESC")
     fun observeAll(): Flow<List<ConversationEntity>>
 
+    @Query("SELECT * FROM conversations ORDER BY updatedAt DESC")
+    suspend fun getAll(): List<ConversationEntity>
+
     @Query("SELECT * FROM conversations WHERE id = :id")
     suspend fun byId(id: Long): ConversationEntity?
 
@@ -88,6 +91,14 @@ interface ConversationDao {
 
     @Query("UPDATE conversations SET updatedAt = :updatedAt WHERE id = :id")
     suspend fun touch(id: Long, updatedAt: Long)
+
+    /**
+     * Removes "ghost" conversations that were created but never received a
+     * message (e.g. a failed send). A chat is only worth keeping once the user
+     * actually exchanged a message in it.
+     */
+    @Query("DELETE FROM conversations WHERE id NOT IN (SELECT DISTINCT conversationId FROM messages)")
+    suspend fun pruneEmpty()
 }
 
 @Dao

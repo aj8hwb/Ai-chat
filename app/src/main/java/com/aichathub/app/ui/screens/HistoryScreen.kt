@@ -40,9 +40,7 @@ import com.aichathub.app.ui.theme.Error
 import com.aichathub.app.ui.theme.Primary
 import com.aichathub.app.ui.theme.TextPrimary
 import com.aichathub.app.ui.theme.TextSecondary
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.aichathub.app.util.ConversationGroups
 
 @Composable
 fun HistoryScreen(
@@ -74,12 +72,25 @@ fun HistoryScreen(
                     )
                 }
             } else {
-                items(state.conversations, key = { it.id }) { conv ->
-                    ConversationRow(
-                        conv = conv,
-                        onClick = { onNavigate(Screen.Conversation.routeFor(conv.id)) },
-                        onDelete = { deleteTarget = conv.id }
-                    )
+                val groups = remember(state.conversations) {
+                    ConversationGroups.groupByDay(state.conversations)
+                }
+                groups.forEach { group ->
+                    item(key = "header_${group.label}") {
+                        Text(
+                            group.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Primary,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                        )
+                    }
+                    items(group.conversations, key = { it.id }) { conv ->
+                        ConversationRow(
+                            conv = conv,
+                            onClick = { onNavigate(Screen.Conversation.routeFor(conv.id)) },
+                            onDelete = { deleteTarget = conv.id }
+                        )
+                    }
                 }
             }
         }
@@ -109,7 +120,6 @@ private fun ConversationRow(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val timeFormat = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault())
     AppCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -126,7 +136,11 @@ private fun ConversationRow(
                 Row {
                     Text(conv.modelId, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                     Spacer(Modifier.width(10.dp))
-                    Text(timeFormat.format(Date(conv.updatedAt)), style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Text(
+                        ConversationGroups.timeLabel(conv.updatedAt),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
                 }
             }
             IconButton(onClick = onDelete) {

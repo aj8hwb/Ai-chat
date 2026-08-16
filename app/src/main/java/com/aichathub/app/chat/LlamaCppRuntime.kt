@@ -110,6 +110,9 @@ class LlamaCppRuntime(
     ): String = nativeMutex.withLock {
         check(!closed.get()) { "Runtime already released" }
         val m = requireModel()
+        // A stale cancellation (e.g. the Playground was left mid-run) must bail
+        // out BEFORE touching native code, so it never wastes a generation.
+        if (cancelled.get()) throw CancellationException("Generation cancelled")
         cancelled.set(false)
         generating.set(true)
         _performance.value = _performance.value.copy(generationActive = true)
@@ -137,6 +140,9 @@ class LlamaCppRuntime(
     ): String = nativeMutex.withLock {
         check(!closed.get()) { "Runtime already released" }
         val m = requireModel()
+        // A stale cancellation (e.g. the Playground was left mid-run) must bail
+        // out BEFORE touching native code, so it never wastes a generation.
+        if (cancelled.get()) throw CancellationException("Generation cancelled")
         cancelled.set(false)
         generating.set(true)
         _performance.value = _performance.value.copy(generationActive = true)

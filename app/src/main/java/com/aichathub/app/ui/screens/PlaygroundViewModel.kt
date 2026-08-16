@@ -42,11 +42,35 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
     private fun observeInstalled() {
         viewModelScope.launch {
             container.modelRepository.installedModels.collect { installed ->
+                val states = installed.associate { it.modelId to it.state }
                 _state.value = _state.value.copy(
-                    states = installed.associate { it.modelId to it.state }
+                    states = states,
+                    // Installed models first so a freshly downloaded model is
+                    // visible immediately, not buried at the end of the list.
+                    models = LocalModelCatalog.models.sortedByDescending { it.id in states.keys }
                 )
+                // Auto-select a usable model when none is selected yet, so a
+                // freshly downloaded model is immediately ready to run without
+                // hunting for it in the list. The newest READY model wins.
+                if (_state.value.selectedModelId == null) {
+                    val newest = installed
+                        .filter { it.state == ModelLifecycleState.READY }
+                        .maxByOrNull { it.installedAt }
+                    if (newest != null) {
+                        _state.value = _state.value.copy(selectedModelId = newest.modelId)
+                    }
+                }
             }
         }
+    }
+
+    override fun onCleared() {
+        // Leaving the page mid-run: flag the generation as cancelled so its
+        // result is discarded once the (uninterruptible) native call returns,
+        // and the next Chat send never waits on a stale Playground run.
+        container.inferenceRuntime.cancelGeneration()
+        _state.value = _state.value.copy(running = false)
+        super.onCleared()
     }
 
     private fun observePerformance() {
