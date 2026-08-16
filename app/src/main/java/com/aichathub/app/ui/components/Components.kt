@@ -111,12 +111,12 @@ fun CompatibilityBadge(
     level: CompatibilityLevel,
     modifier: Modifier = Modifier
 ) {
-    val (bg, fg, icon) = when (level) {
-        CompatibilityLevel.EXCELLENT -> Triple(SuccessContainer, Success, Icons.Filled.ArrowForward)
-        CompatibilityLevel.RECOMMENDED -> Triple(SuccessContainer, Success, Icons.Filled.ArrowForward)
-        CompatibilityLevel.USABLE -> Triple(SecondaryContainer, Secondary, Icons.Filled.ArrowForward)
-        CompatibilityLevel.HEAVY -> Triple(HeavyContainer, Heavy, Icons.Filled.WarningAmber)
-        CompatibilityLevel.NOT_RECOMMENDED -> Triple(ErrorContainer, Error, Icons.Filled.ErrorOutline)
+    val (bg, fg, emoji) = when (level) {
+        CompatibilityLevel.EXCELLENT -> Triple(SuccessContainer, Success, "🟢")
+        CompatibilityLevel.RECOMMENDED -> Triple(SuccessContainer, Success, "🟢")
+        CompatibilityLevel.USABLE -> Triple(SecondaryContainer, Secondary, "🟡")
+        CompatibilityLevel.HEAVY -> Triple(HeavyContainer, Heavy, "🟠")
+        CompatibilityLevel.NOT_RECOMMENDED -> Triple(ErrorContainer, Error, "🔴")
     }
     Row(
         modifier = modifier
@@ -124,7 +124,7 @@ fun CompatibilityBadge(
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(14.dp))
+        Text(emoji, style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.width(6.dp))
         Text(
             text = level.label,

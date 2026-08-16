@@ -2,6 +2,7 @@ package com.aichathub.app.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,11 +22,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -73,6 +77,7 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
+    var modelMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(conversationId) {
         if (conversationId != null) viewModel.loadConversation(conversationId)
@@ -103,13 +108,60 @@ fun ChatScreen(
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        state.activeModelName ?: "Select a model",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                Box {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { modelMenu = true }
+                    ) {
+                        Text(
+                            state.activeModelName ?: "Select a model",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TextPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                        Icon(
+                            Icons.Filled.ArrowDropDown,
+                            contentDescription = "Switch model",
+                            tint = TextSecondary
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = modelMenu,
+                        onDismissRequest = { modelMenu = false }
+                    ) {
+                        if (state.installedModels.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("No models installed yet", style = MaterialTheme.typography.bodySmall, color = TextSecondary) },
+                                onClick = { modelMenu = false }
+                            )
+                        } else {
+                            state.installedModels.forEach { model ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                model.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = if (model.id == state.activeModelId) Primary else TextPrimary
+                                            )
+                                            if (model.id == state.activeModelId) {
+                                                Spacer(Modifier.width(6.dp))
+                                                Text("●", style = MaterialTheme.typography.labelMedium, color = Primary)
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        modelMenu = false
+                                        if (model.id != state.activeModelId) {
+                                            viewModel.selectModel(model)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(6.dp).background(Success, RoundedCornerShape(50)))

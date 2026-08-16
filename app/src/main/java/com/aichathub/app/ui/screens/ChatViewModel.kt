@@ -25,7 +25,8 @@ data class ChatUiState(
     val activeModelId: String? = null,
     val activeModelName: String? = null,
     val selectedConversationId: Long? = null,
-    val lastStreamedText: String = ""
+    val lastStreamedText: String = "",
+    val installedModels: List<CatalogModel> = emptyList()
 )
 
 class ChatViewModel(application: Application) : AiViewModel(application) {
@@ -64,6 +65,14 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         viewModelScope.launch {
             coordinator.activeConversationId.collect { id ->
                 _state.value = _state.value.copy(selectedConversationId = id)
+            }
+        }
+        viewModelScope.launch {
+            container.modelRepository.installedModels.collect { installed ->
+                _state.value = _state.value.copy(
+                    installedModels = installed
+                        .mapNotNull { LocalModelCatalog.byId(it.modelId) }
+                )
             }
         }
     }

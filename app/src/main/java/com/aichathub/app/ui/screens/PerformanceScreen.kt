@@ -109,7 +109,7 @@ fun PerformanceScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     MetricRow("Active Model", state.activeModelName ?: "None")
-                    MetricRow("Runtime", "LiteRT-LM")
+                    MetricRow("Runtime", "llama.cpp")
                 }
             }
         }

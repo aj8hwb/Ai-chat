@@ -36,7 +36,8 @@ enum class ModelLifecycleState {
 enum class ModelFormat(val extension: String) {
     TASK(".task"),
     LITERTLM(".litertlm"),
-    TFLITE(".tflite")
+    TFLITE(".tflite"),
+    GGUF(".gguf")
 }
 
 /**
@@ -65,7 +66,9 @@ data class CatalogModel(
     val runtime: String,
     val sourceNote: String? = null,
     val capabilities: List<String> = emptyList(),
-    val modelRank: Int = 0
+    val modelRank: Int = 0,
+    /** SHA-256 hex digest of the exact artifact to download (checksum verification). */
+    val checksumSha256: String? = null
 )
 
 /** A snapshot of the device's current capabilities. */

@@ -20,8 +20,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -45,11 +43,11 @@ import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.download.DownloadStatus
 import com.aichathub.app.ui.components.AppCard
 import com.aichathub.app.ui.components.CompatibilityBadge
+import com.aichathub.app.ui.components.DownloadProgressBlock
 import com.aichathub.app.ui.components.ErrorState
 import com.aichathub.app.ui.components.GradientButton
 import com.aichathub.app.ui.components.MetricRow
 import com.aichathub.app.ui.components.ModelIcon
-import com.aichathub.app.ui.components.ProgressBlock
 import com.aichathub.app.ui.components.SectionHeader
 import com.aichathub.app.ui.navigation.Screen
 import com.aichathub.app.ui.theme.Error
@@ -140,27 +138,22 @@ fun ModelDetailsScreen(
 
             // Download progress
             state.download?.let { d ->
-                if (d.status == DownloadStatus.DOWNLOADING || d.status == DownloadStatus.PAUSED) {
+                if (d.status == DownloadStatus.DOWNLOADING ||
+                    d.status == DownloadStatus.PAUSED ||
+                    d.status == DownloadStatus.QUEUED ||
+                    d.status == DownloadStatus.VERIFYING
+                ) {
                     item {
                         AppCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text("Downloading", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                                 Spacer(Modifier.height(10.dp))
-                                ProgressBlock(
-                                    label = "${Formatters.bytes(d.downloadedBytes)} / ${Formatters.bytes(d.totalBytes)}",
-                                    progress = d.progress / 100f,
-                                    valueText = "${d.progress}%"
+                                DownloadProgressBlock(
+                                    download = d,
+                                    onPause = viewModel::pauseDownload,
+                                    onResume = viewModel::resumeDownload,
+                                    onCancel = viewModel::cancelDownload
                                 )
-                                Spacer(Modifier.height(8.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    if (d.status == DownloadStatus.DOWNLOADING) {
-                                        GradientButton(text = "Pause", onClick = viewModel::pauseDownload, icon = Icons.Filled.Pause)
-                                        TextButton(onClick = viewModel::cancelDownload) { Text("Cancel", color = TextSecondary) }
-                                    } else {
-                                        GradientButton(text = "Resume", onClick = viewModel::resumeDownload, icon = Icons.Filled.PlayArrow)
-                                        TextButton(onClick = viewModel::cancelDownload) { Text("Cancel", color = TextSecondary) }
-                                    }
-                                }
                             }
                         }
                     }
@@ -182,9 +175,13 @@ fun ModelDetailsScreen(
                     AppCard(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             MetricRow("RAM", levelText(state.compatibility), valueColor = levelColor(state.compatibility))
+                            MetricRow("Estimated RAM", Formatters.bytes(model.estimatedMemoryBytes))
                             MetricRow("Runtime", model.runtime)
                             MetricRow("Format", model.format.extension.uppercase())
                             MetricRow("Storage", Formatters.bytes(model.fileSizeBytes))
+                            if (model.checksumSha256 != null) {
+                                MetricRow("Checksum", "SHA-256 verified", valueColor = com.aichathub.app.ui.theme.Success)
+                            }
                             state.recommendation?.quantizationNote?.let {
                                 MetricRow("Note", it, valueColor = Heavy)
                             }
@@ -243,10 +240,10 @@ fun ModelDetailsScreen(
                             icon = Icons.Filled.ChatBubbleOutline,
                             modifier = Modifier.fillMaxWidth()
                         )
-                    ModelLifecycleState.DOWNLOADING -> {}
+                    ModelLifecycleState.DOWNLOADING, ModelLifecycleState.VERIFYING -> {}
                     else ->
                         GradientButton(
-                            text = "Download",
+                            text = if (state.insufficientMemory) "Download Anyway" else "Download",
                             onClick = viewModel::startDownload,
                             icon = Icons.Filled.Download,
                             modifier = Modifier.fillMaxWidth()
@@ -272,7 +269,14 @@ fun ModelDetailsScreen(
     }
 }
 
-private fun levelText(level: CompatibilityLevel?): String = level?.label ?: "Unknown"
+private fun levelText(level: CompatibilityLevel?): String = when (level) {
+    CompatibilityLevel.EXCELLENT -> "🟢 Excellent"
+    CompatibilityLevel.RECOMMENDED -> "🟢 Recommended"
+    CompatibilityLevel.USABLE -> "🟡 Good"
+    CompatibilityLevel.HEAVY -> "🟠 Heavy"
+    CompatibilityLevel.NOT_RECOMMENDED -> "🔴 Not Recommended"
+    null -> "Unknown"
+}
 private fun levelColor(level: CompatibilityLevel?): Color = when (level) {
     CompatibilityLevel.EXCELLENT, CompatibilityLevel.RECOMMENDED -> Color(0xFF34D399)
     CompatibilityLevel.USABLE -> Color(0xFF22D3EE)

@@ -8,7 +8,7 @@ import java.io.File
  *
  * The UI and business logic depend ONLY on this interface — never on a
  * specific native engine. This keeps the app decoupled from the concrete
- * runtime (MediaPipe tasks-genai / LiteRT-LM today, something else later).
+ * runtime (llama.cpp via llama-android today, something else later).
  */
 interface InferenceRuntime {
 

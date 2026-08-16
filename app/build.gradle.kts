@@ -34,7 +34,8 @@ android {
             useSupportLibrary = true
         }
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // llama-android ships native libraries for arm64-v8a only.
+            abiFilters += listOf("arm64-v8a")
         }
     }
 
@@ -111,8 +112,9 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
-    // On-device LLM inference runtime (MediaPipe LLM Inference API)
-    implementation("com.google.mediapipe:tasks-genai:0.10.27")
+    // On-device LLM inference runtime (llama.cpp via llama-android).
+    // Loads GGUF models directly; Q4_K_M uncensored models run fully local.
+    implementation("dev.ffmpegkit-maintained:llama-android:0.1.1")
 
     // Networking for model downloads
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

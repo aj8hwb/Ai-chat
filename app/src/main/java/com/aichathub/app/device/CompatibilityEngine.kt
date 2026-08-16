@@ -62,13 +62,14 @@ class CompatibilityEngine {
     }
 
     private fun ramScore(model: CatalogModel, profile: DeviceProfile): Int {
-        val totalGb = profile.totalRamGb
+        // Compare the model's expected memory footprint against total device RAM.
+        val totalGb = profile.totalRamGb.toDouble()
+        val requiredGb = model.estimatedMemoryBytes / (1024.0 * 1024.0 * 1024.0)
         return when {
-            model.estimatedMemoryBytes <= 1_000_000_000 && totalGb < 4 -> 4
-            model.estimatedMemoryBytes <= 1_600_000_000 && totalGb >= 4 -> 5
-            model.estimatedMemoryBytes <= 2_500_000_000 && totalGb >= 6 -> 5
-            model.estimatedMemoryBytes <= 3_000_000_000 && totalGb >= 8 -> 4
-            model.estimatedMemoryBytes <= 4_500_000_000 && totalGb >= 8 -> 3
+            requiredGb <= totalGb * 0.6 -> 5
+            requiredGb <= totalGb * 0.75 -> 4
+            requiredGb <= totalGb * 0.9 -> 3
+            requiredGb <= totalGb * 1.1 -> 2
             else -> 1
         }
     }

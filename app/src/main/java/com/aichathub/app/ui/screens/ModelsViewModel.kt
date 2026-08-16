@@ -9,7 +9,11 @@ import com.aichathub.app.domain.model.CompatibilityLevel
 import com.aichathub.app.domain.model.DeviceProfile
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.domain.model.Recommendation
+import com.aichathub.app.download.DownloadInfo
+import com.aichathub.app.download.DownloadStartResult
+import com.aichathub.app.download.DownloadStatus
 import com.aichathub.app.ui.AiViewModel
+import com.aichathub.app.util.Formatters
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,10 +23,12 @@ data class ModelsUiState(
     val models: List<CatalogModel> = LocalModelCatalog.models,
     val states: Map<String, ModelLifecycleState> = emptyMap(),
     val compatibility: Map<String, CompatibilityLevel> = emptyMap(),
+    val downloads: Map<String, DownloadInfo> = emptyMap(),
     val query: String = "",
     val selectedCategory: String = "All",
     val profile: DeviceProfile? = null,
-    val loading: Boolean = true
+    val loading: Boolean = true,
+    val error: String? = null
 ) {
     val filtered: List<CatalogModel>
         get() = models.filter { model ->
@@ -46,6 +52,7 @@ class ModelsViewModel(application: Application) : AiViewModel(application) {
     init {
         refresh()
         observeInstalled()
+        observeDownloads()
     }
 
     private fun observeInstalled() {
@@ -53,6 +60,16 @@ class ModelsViewModel(application: Application) : AiViewModel(application) {
             container.modelRepository.installedModels.collect { installed ->
                 _state.value = _state.value.copy(
                     states = installed.associate { it.modelId to it.state }
+                )
+            }
+        }
+    }
+
+    private fun observeDownloads() {
+        viewModelScope.launch {
+            container.downloadManager.downloads.collect { downloads ->
+                _state.value = _state.value.copy(
+                    downloads = downloads.associateBy { it.modelId }
                 )
             }
         }
@@ -82,6 +99,34 @@ class ModelsViewModel(application: Application) : AiViewModel(application) {
 
     fun onCategoryChange(c: String) {
         _state.value = _state.value.copy(selectedCategory = c)
+    }
+
+    fun download(model: CatalogModel) {
+        viewModelScope.launch {
+            when (val result = container.downloadManager.startDownload(model)) {
+                is DownloadStartResult.Started -> {
+                    container.modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
+                    _state.value = _state.value.copy(error = null)
+                }
+                is DownloadStartResult.AlreadyActive -> Unit
+                is DownloadStartResult.NoStorage -> {
+                    _state.value = _state.value.copy(
+                        error = "Not enough free space. You need ${Formatters.bytes(result.requiredBytes)} free (${Formatters.bytes(result.availableBytes)} available)."
+                    )
+                }
+                is DownloadStartResult.Failed -> {
+                    _state.value = _state.value.copy(error = result.message)
+                }
+            }
+        }
+    }
+
+    fun pause(modelId: String) = container.downloadManager.pause(modelId)
+    fun resume(modelId: String) = container.downloadManager.resume(modelId)
+    fun cancel(modelId: String) = container.downloadManager.cancel(modelId)
+
+    fun clearError() {
+        _state.value = _state.value.copy(error = null)
     }
 
     val categories: List<String> =

@@ -9,6 +9,7 @@ import com.aichathub.app.domain.model.CompatibilityLevel
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.domain.model.Recommendation
 import com.aichathub.app.download.DownloadInfo
+import com.aichathub.app.download.DownloadStartResult
 import com.aichathub.app.download.DownloadStatus
 import com.aichathub.app.ui.AiViewModel
 import com.aichathub.app.util.Formatters
@@ -66,9 +67,9 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
             insufficientMemory = rec?.level == CompatibilityLevel.NOT_RECOMMENDED,
             warningMessage = when (rec?.level) {
                 CompatibilityLevel.HEAVY ->
-                    "This model may perform slowly and use significant memory on your device."
+                    "This model may perform slowly and use significant memory on your device. You can still download and try it."
                 CompatibilityLevel.NOT_RECOMMENDED ->
-                    "Your device currently doesn't have enough safe memory for this model."
+                    "Your device may not have enough safe memory for this model. You can still download and try it."
                 else -> null
             }
         )
@@ -79,9 +80,22 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
             container.downloadManager.downloads.collect { downloads ->
                 val d = downloads.firstOrNull { it.modelId == model.id }
                 _state.value = _state.value.copy(download = d)
-                if (d?.status == DownloadStatus.COMPLETED) {
-                    // Move download to installed
-                    installCompleted(model, d)
+                when (d?.status) {
+                    DownloadStatus.DOWNLOADING, DownloadStatus.QUEUED ->
+                        _state.value = _state.value.copy(lifecycle = ModelLifecycleState.DOWNLOADING)
+                    DownloadStatus.PAUSED ->
+                        _state.value = _state.value.copy(lifecycle = ModelLifecycleState.DOWNLOADING)
+                    DownloadStatus.VERIFYING ->
+                        _state.value = _state.value.copy(lifecycle = ModelLifecycleState.VERIFYING)
+                    DownloadStatus.COMPLETED -> installCompleted(model, d)
+                    DownloadStatus.FAILED ->
+                        _state.value = _state.value.copy(
+                            lifecycle = ModelLifecycleState.NOT_INSTALLED,
+                            warningMessage = d.error
+                        )
+                    DownloadStatus.CANCELLED ->
+                        _state.value = _state.value.copy(lifecycle = ModelLifecycleState.NOT_INSTALLED)
+                    else -> {}
                 }
             }
         }
@@ -90,20 +104,25 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
     fun startDownload() {
         val model = _state.value.model ?: return
         viewModelScope.launch {
-            // Storage preflight
-            val profile = container.deviceInfoProvider.getDeviceProfile()
-            if (profile.storageAvailableBytes < model.fileSizeBytes) {
-                _state.value = _state.value.copy(
-                    warningMessage = "You need ${Formatters.bytes(model.fileSizeBytes)} free space to download this model."
-                )
-                return@launch
+            when (val result = container.downloadManager.startDownload(model)) {
+                is DownloadStartResult.Started -> {
+                    container.modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
+                    _state.value = _state.value.copy(
+                        lifecycle = ModelLifecycleState.DOWNLOADING,
+                        warningMessage = null,
+                        download = null
+                    )
+                }
+                is DownloadStartResult.AlreadyActive -> Unit
+                is DownloadStartResult.NoStorage -> {
+                    _state.value = _state.value.copy(
+                        warningMessage = "Not enough free space. You need ${Formatters.bytes(result.requiredBytes)} free (${Formatters.bytes(result.availableBytes)} available)."
+                    )
+                }
+                is DownloadStartResult.Failed -> {
+                    _state.value = _state.value.copy(warningMessage = result.message)
+                }
             }
-            container.downloadManager.startDownload(model)
-            container.modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
-            _state.value = _state.value.copy(
-                lifecycle = ModelLifecycleState.DOWNLOADING,
-                warningMessage = null
-            )
         }
     }
 
@@ -138,7 +157,8 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
             container.modelRepository.markInstalled(model.id, file, d.totalBytes)
             _state.value = _state.value.copy(
                 lifecycle = ModelLifecycleState.INSTALLED,
-                filePath = file.absolutePath
+                filePath = file.absolutePath,
+                warningMessage = null
             )
         }
     }

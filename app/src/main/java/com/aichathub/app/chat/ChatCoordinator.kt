@@ -189,6 +189,13 @@ class ChatCoordinator(
 
                 _state.value = _state.value.copy(generationState = ChatGenerationState.DONE)
                 result
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // User pressed Stop: the in-flight response is discarded cleanly.
+                _state.value = _state.value.copy(
+                    generationState = ChatGenerationState.DONE,
+                    error = null
+                )
+                throw e
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     generationState = ChatGenerationState.ERROR,

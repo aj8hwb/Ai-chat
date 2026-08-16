@@ -14,6 +14,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AiChatHub"
         android:largeHeap="true"
+        android:extractNativeLibs="true"
         tools:targetApi="26">
 
         <activity
