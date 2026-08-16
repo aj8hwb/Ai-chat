@@ -457,10 +457,10 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
      * recovered with a rescan + re-import. Best-effort: failures are logged
      * and never break the install.
      */
-    private fun copyToSharedDownloads(model: CatalogModel, file: File) {
-        val enabled = settingsRepository == null || runCatching {
-            settingsRepository.settings.first().storeInSharedDownloads
-        }.getOrDefault(true)
+    private suspend fun copyToSharedDownloads(model: CatalogModel, file: File) {
+        val enabled = settingsRepository?.let { repo ->
+            runCatching { repo.settings.first().storeInSharedDownloads }.getOrDefault(true)
+        } ?: true
         if (!enabled) return
         try {
             val resolver = context.contentResolver
