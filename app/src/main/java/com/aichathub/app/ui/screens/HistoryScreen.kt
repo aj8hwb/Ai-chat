@@ -57,6 +57,10 @@ fun HistoryScreen(
             Spacer(Modifier.height(8.dp))
         }
 
+        val groups = remember(state.conversations) {
+            ConversationGroups.groupByDay(state.conversations)
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 20.dp),
@@ -72,9 +76,6 @@ fun HistoryScreen(
                     )
                 }
             } else {
-                val groups = remember(state.conversations) {
-                    ConversationGroups.groupByDay(state.conversations)
-                }
                 groups.forEach { group ->
                     item(key = "header_${group.label}") {
                         Text(
