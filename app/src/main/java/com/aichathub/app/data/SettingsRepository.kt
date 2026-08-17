@@ -30,7 +30,9 @@ class SettingsRepository(private val context: Context) {
         /** SAF tree URI of the user's model folder, if any. */
         val modelsFolderUri: String? = null,
         /** Mirror downloads to the shared Downloads folder for reinstall survival. */
-        val storeInSharedDownloads: Boolean = true
+        val storeInSharedDownloads: Boolean = true,
+        /** Chat thinking depth: INSTANT / DEFAULT / HARD. */
+        val thinkingMode: String = "DEFAULT"
     )
 
     private object Keys {
@@ -45,6 +47,7 @@ class SettingsRepository(private val context: Context) {
         val themeDark = booleanPreferencesKey("theme_dark")
         val modelsFolderUri = stringPreferencesKey("models_folder_uri")
         val storeInSharedDownloads = booleanPreferencesKey("store_in_shared_downloads")
+        val thinkingMode = stringPreferencesKey("thinking_mode")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -59,7 +62,8 @@ class SettingsRepository(private val context: Context) {
             batteryConscious = p[Keys.batteryConscious] ?: false,
             themeDark = p[Keys.themeDark] ?: true,
             modelsFolderUri = p[Keys.modelsFolderUri],
-            storeInSharedDownloads = p[Keys.storeInSharedDownloads] ?: true
+            storeInSharedDownloads = p[Keys.storeInSharedDownloads] ?: true,
+            thinkingMode = p[Keys.thinkingMode] ?: "DEFAULT"
         )
     }
 
@@ -81,4 +85,5 @@ class SettingsRepository(private val context: Context) {
         if (uri == null) p.remove(Keys.modelsFolderUri) else p[Keys.modelsFolderUri] = uri
     }
     suspend fun setStoreInSharedDownloads(v: Boolean) = context.dataStore.edit { it[Keys.storeInSharedDownloads] = v }
+    suspend fun setThinkingMode(v: String) = context.dataStore.edit { it[Keys.thinkingMode] = v }
 }

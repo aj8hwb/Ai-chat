@@ -60,30 +60,52 @@ class LlamaCppRuntime(
     private val generating = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
 
+    /** Source of the current load, so the context can be rebuilt fresh. */
+    @Volatile
+    private var reloadModelId: String? = null
+    @Volatile
+    private var reloadFile: File? = null
+    @Volatile
+    private var reloadContextLength: Int = 512
+    /**
+     * Set once the model has produced a generation. llama.cpp reuses the KV
+     * cache across [Llama.complete] calls; after one generation the context is
+     * dirty and a second call can overflow it, which makes the model go silent
+     * or crash natively. So the NEXT generation reloads from a clean context.
+     */
+    @Volatile
+    private var generatedSinceLoad = false
+
     override suspend fun load(modelId: String, file: File, contextLength: Int) = nativeMutex.withLock {
         withContext(Dispatchers.IO) {
             check(!closed.get()) { "Runtime already released" }
+            reloadModelId = modelId
+            reloadFile = file
+            reloadContextLength = contextLength
             unloadQuietly()
-
-            Log.i(tag, "Loading model $modelId from ${file.absolutePath}")
-            val config = LlamaConfig(
-                contextSize = contextLength.coerceAtLeast(512),
-                threads = 4,
-                gpuLayers = 0,
-                temperature = 0.7f,
-                topP = 0.9f,
-                topK = 40,
-                seed = -1
-            )
-            val loaded = Llama.loadModel(file.absolutePath, config)
-            model = loaded
-            isLoaded = true
-            activeModelId = modelId
-            _performance.value = InferenceRuntime.Performance(contextUsed = 0)
-            Log.i(tag, "Model $modelId loaded (${Llama.getSystemInfo()})")
-            memoryLog("after load $modelId")
-            Unit
+            doLoad(modelId, file, contextLength)
         }
+    }
+
+    private fun doLoad(modelId: String, file: File, contextLength: Int) {
+        Log.i(tag, "Loading model $modelId from ${file.absolutePath}")
+        val config = LlamaConfig(
+            contextSize = contextLength.coerceAtLeast(512),
+            threads = 4,
+            gpuLayers = 0,
+            temperature = 0.7f,
+            topP = 0.9f,
+            topK = 40,
+            seed = -1
+        )
+        val loaded = Llama.loadModel(file.absolutePath, config)
+        model = loaded
+        isLoaded = true
+        activeModelId = modelId
+        generatedSinceLoad = false
+        _performance.value = InferenceRuntime.Performance(contextUsed = 0)
+        Log.i(tag, "Model $modelId loaded (${Llama.getSystemInfo()})")
+        memoryLog("after load $modelId")
     }
 
     override suspend fun unload() = nativeMutex.withLock {
@@ -100,7 +122,22 @@ class LlamaCppRuntime(
         model = null
         isLoaded = false
         activeModelId = null
+        generatedSinceLoad = false
         _performance.value = InferenceRuntime.Performance()
+    }
+
+    /**
+     * Rebuilds the native model from a clean state when a previous generation
+     * dirtied the KV cache, so consecutive messages never overflow the context.
+     * No-op on the first generation after a load. Must run on the IO dispatcher.
+     */
+    private fun ensureFreshContext() {
+        val file = reloadFile ?: return
+        val id = reloadModelId ?: return
+        if (!generatedSinceLoad) return
+        Log.i(tag, "Fresh context: reloading $id before next generation")
+        unloadQuietly()
+        doLoad(id, file, reloadContextLength)
     }
 
     override suspend fun generate(
@@ -109,11 +146,12 @@ class LlamaCppRuntime(
         systemPrompt: String?
     ): String = nativeMutex.withLock {
         check(!closed.get()) { "Runtime already released" }
-        val m = requireModel()
         // A stale cancellation (e.g. the Playground was left mid-run) must bail
         // out BEFORE touching native code, so it never wastes a generation.
         if (cancelled.get()) throw CancellationException("Generation cancelled")
         cancelled.set(false)
+        withContext(Dispatchers.IO) { ensureFreshContext() }
+        val m = requireModel()
         generating.set(true)
         _performance.value = _performance.value.copy(generationActive = true)
         try {
@@ -128,6 +166,7 @@ class LlamaCppRuntime(
             result.text
         } finally {
             generating.set(false)
+            generatedSinceLoad = true
             _performance.value = _performance.value.copy(generationActive = false)
         }
     }
@@ -139,11 +178,12 @@ class LlamaCppRuntime(
         onToken: (String) -> Unit
     ): String = nativeMutex.withLock {
         check(!closed.get()) { "Runtime already released" }
-        val m = requireModel()
         // A stale cancellation (e.g. the Playground was left mid-run) must bail
         // out BEFORE touching native code, so it never wastes a generation.
         if (cancelled.get()) throw CancellationException("Generation cancelled")
         cancelled.set(false)
+        withContext(Dispatchers.IO) { ensureFreshContext() }
+        val m = requireModel()
         generating.set(true)
         _performance.value = _performance.value.copy(generationActive = true)
         try {
@@ -159,6 +199,7 @@ class LlamaCppRuntime(
             result.text
         } finally {
             generating.set(false)
+            generatedSinceLoad = true
             _performance.value = _performance.value.copy(generationActive = false)
         }
     }

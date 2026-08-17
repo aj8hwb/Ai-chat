@@ -280,8 +280,9 @@ class ChatCoordinator(
 
     /**
      * Builds a context-aware prompt from the recent messages so the model
-     * can continue the conversation. Keeps the prompt within a reasonable
-     * token budget (simple heuristic).
+     * can continue the conversation. The prompt is kept within a strict size
+     * budget: an oversized prompt overflows llama.cpp's native context and
+     * crashes the whole process, so older turns are dropped first.
      */
     private suspend fun buildPrompt(
         newPrompt: String,
@@ -294,14 +295,42 @@ class ChatCoordinator(
 
         val sb = StringBuilder()
         if (systemPrompt.isNotBlank()) {
-            sb.append("System: ").append(systemPrompt).append("\n\n")
+            sb.append("System: ").append(systemPrompt.take(MAX_SYSTEM_PROMPT_CHARS)).append("\n\n")
         }
         recent.forEach { m ->
             val role = if (m.role == "user") "User" else "Assistant"
             sb.append(role).append(": ").append(m.content).append("\n")
         }
         sb.append("Assistant: ")
-        return sb.toString()
+        // Drop the OLDEST turns first until the whole prompt fits the budget,
+        // keeping the newest message (the one the user just sent) intact.
+        val full = sb.toString()
+        if (full.length <= MAX_FULL_PROMPT_CHARS) return full
+        // Budget exceeded: rebuild with fewer turns, then drop the OLDEST turns
+        // (line by line) until the whole prompt fits — the newest message, the
+        // one the user just sent, always stays intact.
+        val trimmed = StringBuilder()
+        if (systemPrompt.isNotBlank()) {
+            trimmed.append("System: ").append(systemPrompt.take(MAX_SYSTEM_PROMPT_CHARS)).append("\n\n")
+        }
+        recent.takeLast(MAX_HISTORY_TURNS).forEach { m ->
+            val role = if (m.role == "user") "User" else "Assistant"
+            trimmed.append(role).append(": ").append(m.content).append("\n")
+        }
+        trimmed.append("Assistant: ")
+        var cut = trimmed.toString()
+        while (cut.length > MAX_FULL_PROMPT_CHARS) {
+            val idx = cut.indexOf('\n')
+            if (idx < 0 || idx > cut.length / 2) break
+            cut = cut.substring(idx + 1)
+        }
+        return cut.take(MAX_FULL_PROMPT_CHARS)
+    }
+
+    private companion object {
+        const val MAX_SYSTEM_PROMPT_CHARS = 500
+        const val MAX_HISTORY_TURNS = 4
+        const val MAX_FULL_PROMPT_CHARS = 2200
     }
 
     private fun titleFromPrompt(prompt: String): String {

@@ -37,9 +37,26 @@ data class ChatUiState(
     val installedModels: List<CatalogModel> = emptyList(),
     /** All saved conversations, newest first — shown in the history drawer. */
     val conversations: List<ConversationEntity> = emptyList(),
+    /** Thinking depth chosen by the user: INSTANT / DEFAULT / HARD. */
+    val thinkingMode: String = "DEFAULT",
+    /** Real generation stats of the last completed reply (Hard thinking trace). */
+    val lastThinking: ThinkingInfo? = null,
     val isModelLoaded: Boolean = false,
     val generationPhase: String = ChatGenerationState.IDLE.name
 )
+
+/** Real, measured data about the last completed generation, shown in the
+ *  "How the AI thought" panel when Hard thinking is enabled. */
+data class ThinkingInfo(
+    val mode: String,
+    val tokens: Int,
+    val elapsedMs: Long,
+    val tokensPerSecond: Float,
+    val responseChars: Int
+) {
+    val elapsedSec: Float get() = elapsedMs / 1000f
+    val tps: Float get() = tokensPerSecond
+}
 
 /**
  * Chat screen state holder.
@@ -52,6 +69,12 @@ data class ChatUiState(
  *    before inference starts so it always renders).
  */
 class ChatViewModel(application: Application) : AiViewModel(application) {
+
+    /** Local prompts beyond this size are rejected: sending a huge prompt into
+     *  llama.cpp can overflow the native context and crash the whole process. */
+    companion object {
+        const val MAX_MESSAGE_CHARS = 1500
+    }
 
     private val coordinator: ChatCoordinator = container.chatCoordinator
 
@@ -77,6 +100,25 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
     init {
         observeCoordinator()
         autoSelectDefaultModel()
+        viewModelScope.launch {
+            container.settingsRepository.settings.first().thinkingMode.let { mode ->
+                _state.value = _state.value.copy(thinkingMode = mode)
+            }
+        }
+    }
+
+    fun setThinkingMode(mode: String) {
+        if (mode == _state.value.thinkingMode) return
+        _state.value = _state.value.copy(thinkingMode = mode)
+        viewModelScope.launch {
+            container.settingsRepository.setThinkingMode(mode)
+        }
+    }
+
+    fun updateMessage(message: MessageEntity) {
+        viewModelScope.launch {
+            container.messageDao.update(message)
+        }
     }
 
     /**
@@ -254,6 +296,12 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
     fun send() {
         val text = _state.value.input.trim()
         if (text.isEmpty() || sendInFlight || _state.value.generating) return
+        if (text.length > MAX_MESSAGE_CHARS) {
+            _state.value = _state.value.copy(
+                error = "That message is too long (max $MAX_MESSAGE_CHARS characters). Please shorten it."
+            )
+            return
+        }
         val model = _state.value.activeModelId?.let { LocalModelCatalog.byId(it) }
         if (model == null) {
             _state.value = _state.value.copy(error = "Select a model to start chatting.")
@@ -308,11 +356,18 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                 }
 
                 val settings = container.settingsRepository.settings.first()
+                val mode = _state.value.thinkingMode
+                // Instant answers cheap, Hard thinking gives the model more room.
+                val maxTokens = when (mode) {
+                    "INSTANT" -> 96
+                    "HARD" -> 1024
+                    else -> settings.maxTokens
+                }
                 val config = GenerationConfig(
                     temperature = settings.temperature,
                     topK = settings.topK,
                     topP = settings.topP,
-                    maxTokens = settings.maxTokens
+                    maxTokens = maxTokens
                 )
 
                 // Ensure the conversation exists BEFORE inference so the user
@@ -336,7 +391,8 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                 observeMessages(convId)
 
                 _state.value = _state.value.copy(input = "")
-                coordinator.sendMessage(
+                val startNanos = System.nanoTime()
+                val result = coordinator.sendMessage(
                     prompt = text,
                     config = config,
                     systemPrompt = settings.systemPrompt,
@@ -344,6 +400,19 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                     onStream = { streamed ->
                         _state.value = _state.value.copy(lastStreamedText = streamed)
                     }
+                )
+                // Capture the real generation stats for the "How the AI thought"
+                // panel (Hard mode) — honest measured data, not a simulation.
+                val elapsedMs = (System.nanoTime() - startNanos) / 1_000_000
+                val perf = container.inferenceRuntime.performance.value
+                _state.value = _state.value.copy(
+                    lastThinking = ThinkingInfo(
+                        mode = mode,
+                        tokens = perf.tokensGenerated,
+                        elapsedMs = elapsedMs,
+                        tokensPerSecond = perf.tokensPerSecond,
+                        responseChars = result.length
+                    )
                 )
             } catch (e: OutOfMemoryError) {
                 // OOM is an Error, not an Exception — catch it explicitly or the
