@@ -87,7 +87,7 @@ class LlamaCppRuntime(
         }
     }
 
-    private fun doLoad(modelId: String, file: File, contextLength: Int) {
+    private suspend fun doLoad(modelId: String, file: File, contextLength: Int) {
         Log.i(tag, "Loading model $modelId from ${file.absolutePath}")
         val config = LlamaConfig(
             contextSize = contextLength.coerceAtLeast(512),
@@ -131,7 +131,7 @@ class LlamaCppRuntime(
      * dirtied the KV cache, so consecutive messages never overflow the context.
      * No-op on the first generation after a load. Must run on the IO dispatcher.
      */
-    private fun ensureFreshContext() {
+    private suspend fun ensureFreshContext() {
         val file = reloadFile ?: return
         val id = reloadModelId ?: return
         if (!generatedSinceLoad) return
