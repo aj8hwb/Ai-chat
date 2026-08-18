@@ -34,7 +34,10 @@ data class ConversationEntity(
     val updatedAt: Long
 )
 
-@Entity(tableName = "messages")
+@Entity(
+    tableName = "messages",
+    indices = [Index(value = ["conversationId"])]
+)
 data class MessageEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val conversationId: Long,
@@ -135,11 +138,24 @@ interface MessageDao {
         ConversationEntity::class,
         MessageEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AiDatabase : RoomDatabase() {
     abstract fun installedModelDao(): InstalledModelDao
     abstract fun conversationDao(): ConversationDao
     abstract fun messageDao(): MessageDao
+
+    companion object {
+        /**
+         * v1 → v2: index the `messages.conversationId` column. Every chat screen
+         * reads messages filtered by conversation id, so the index turns those
+         * queries into index lookups as the message table grows.
+         */
+        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_messages_conversationId` ON `messages` (`conversationId`)")
+            }
+        }
+    }
 }

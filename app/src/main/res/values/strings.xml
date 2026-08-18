@@ -2,4 +2,11 @@
     <string name="app_name">AI Chat Hub</string>
     <string name="tagline">Your AI. Your Data. Your Device.</string>
     <string name="local_ai">Local AI</string>
+
+    <string name="notification_channel_downloads">Model downloads</string>
+    <string name="notification_channel_downloads_desc">Shows progress while models download in the background.</string>
+    <string name="notification_download_title">Downloading model</string>
+    <string name="notification_download_ticker">Downloading model in background</string>
+    <string name="notification_download_paused">Download paused — will resume automatically</string>
+    <string name="notification_download_verifying">Verifying downloaded model</string>
 </resources>

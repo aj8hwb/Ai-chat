@@ -104,6 +104,15 @@ class CompareViewModel(application: Application) : AiViewModel(application) {
                         tokensPerSecond = perf.tokensPerSecond,
                         tokens = perf.tokensGenerated
                     )
+                } catch (e: com.aichathub.app.chat.ModelLoadRefusedException) {
+                    results += CompareResult(
+                        modelId = model.id,
+                        modelName = model.name,
+                        output = e.message ?: "Cannot be loaded on this device.",
+                        tokensPerSecond = 0f,
+                        tokens = 0,
+                        failed = true
+                    )
                 } catch (e: Exception) {
                     results += CompareResult(
                         modelId = model.id,

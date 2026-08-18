@@ -6,7 +6,9 @@ import com.aichathub.app.data.local.ConversationDao
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageDao
 import com.aichathub.app.data.local.MessageEntity
+import com.aichathub.app.device.LoadDecision
 import com.aichathub.app.domain.model.CatalogModel
+import com.aichathub.app.domain.model.ChatTemplate
 import com.aichathub.app.domain.model.ModelLifecycleState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +31,9 @@ data class ChatSessionState(
     val isLoadingModel: Boolean = false
 )
 
+/** Thrown when the memory preflight refuses a model load (native crash risk). */
+class ModelLoadRefusedException(message: String) : Exception(message)
+
 /**
  * Coordinates the chat experience: model load/unload lifecycle, prompt
  * formatting, streaming generation and conversation persistence.
@@ -40,7 +45,10 @@ class ChatCoordinator(
     private val runtime: InferenceRuntime,
     private val conversationDao: ConversationDao,
     private val messageDao: MessageDao,
-    private val modelRepository: ModelRepository
+    private val modelRepository: ModelRepository,
+    /** Memory preflight decision for a model, supplied by the container so the
+     *  gate is enforced identically on EVERY screen that loads a model. */
+    private val preflight: (suspend (CatalogModel) -> LoadDecision)? = null
 ) {
     private val _state = MutableStateFlow(ChatSessionState())
     val state: StateFlow<ChatSessionState> = _state.asStateFlow()
@@ -75,6 +83,26 @@ class ChatCoordinator(
                 error = "The model file is missing or incomplete. Please re-download it."
             )
             throw IllegalStateException("Model file missing or empty: ${file.absolutePath}")
+        }
+        // Centralized memory preflight: the SAME decision the compatibility
+        // badge shows, enforced on every caller (Chat, Playground, Benchmark,
+        // Compare). A model the UI calls HEAVY/NOT_RECOMMENDED is handled
+        // exactly as promised on screen — never refused after a 2 GB download.
+        preflight?.let { decide ->
+            when (decide(model)) {
+                LoadDecision.SAFE -> Unit
+                LoadDecision.HEAVY -> Unit // allowed (badge warns it may be slow)
+                LoadDecision.BLOCKED -> {
+                    val msg = "❌ This model needs more memory than your device can safely provide. " +
+                        "It cannot be loaded. Try a lighter model."
+                    _state.value = _state.value.copy(
+                        isLoadingModel = false,
+                        generationState = ChatGenerationState.ERROR,
+                        error = msg
+                    )
+                    throw ModelLoadRefusedException(msg)
+                }
+            }
         }
         try {
             loadMutex.withLock {
@@ -208,7 +236,7 @@ class ChatCoordinator(
 
                 Log.i("ChatCoordinator", "INFERENCE_STARTED ${model.id}")
 
-                val fullPrompt = buildPrompt(prompt, systemPrompt, convId)
+                val fullPrompt = buildPrompt(model, convId)
                 val result = runtime.generateStreaming(
                     prompt = fullPrompt,
                     config = config,
@@ -285,49 +313,108 @@ class ChatCoordinator(
 
     /**
      * Builds a context-aware prompt from the recent messages so the model
-     * can continue the conversation. The prompt is kept within a strict size
-     * budget: an oversized prompt overflows llama.cpp's native context and
-     * crashes the whole process, so older turns are dropped first.
+     * can continue the conversation. Turns are wrapped in the model's OWN
+     * chat template (ChatML / Gemma / Llama3 / Llama2) instead of a flat
+     * "User:/Assistant:" transcript — instruct models answer measurably
+     * better inside the format they were fine-tuned with.
+     *
+     * The prompt is kept within a strict size budget: an oversized prompt
+     * overflows llama.cpp's native context and crashes the whole process,
+     * so older turns are dropped first.
      *
      * The system prompt is intentionally NOT embedded here — the engine
      * receives it through its own [systemPrompt] channel, so duplicating it
      * here would make the model see it twice.
      */
     private suspend fun buildPrompt(
-        newPrompt: String,
-        systemPrompt: String,
+        model: CatalogModel,
         conversationId: Long
     ): String {
         val recent = messageDao.forConversation(conversationId)
             .filter { it.role == "user" || it.role == "assistant" }
             .takeLast(8)
 
-        val sb = StringBuilder()
-        recent.forEach { m ->
-            val role = if (m.role == "user") "User" else "Assistant"
-            sb.append(role).append(": ").append(m.content).append("\n")
-        }
-        sb.append("Assistant: ")
-        // Drop the OLDEST turns first until the whole prompt fits the budget,
-        // keeping the newest message (the one the user just sent) intact.
-        val full = sb.toString()
+        // Render all turns (up to the budget) with the model's chat template,
+        // then drop the OLDEST turns first until the whole prompt fits — the
+        // newest message (the one the user just sent) always stays intact.
+        var full = renderPrompt(model.chatTemplate, recent)
         if (full.length <= MAX_FULL_PROMPT_CHARS) return full
-        // Budget exceeded: rebuild with fewer turns, then drop the OLDEST turns
-        // (line by line) until the whole prompt fits — the newest message, the
-        // one the user just sent, always stays intact.
-        val trimmed = StringBuilder()
-        recent.takeLast(MAX_HISTORY_TURNS).forEach { m ->
-            val role = if (m.role == "user") "User" else "Assistant"
-            trimmed.append(role).append(": ").append(m.content).append("\n")
-        }
-        trimmed.append("Assistant: ")
-        var cut = trimmed.toString()
+
+        val trimmed = renderPrompt(model.chatTemplate, recent.takeLast(MAX_HISTORY_TURNS))
+        var cut = trimmed
         while (cut.length > MAX_FULL_PROMPT_CHARS) {
-            val idx = cut.indexOf('\n')
+            // Drop the oldest rendered turn (first template block) until it fits.
+            val idx = nextTurnBoundary(model.chatTemplate, cut)
             if (idx < 0 || idx > cut.length / 2) break
-            cut = cut.substring(idx + 1)
+            cut = cut.substring(idx)
         }
         return cut.take(MAX_FULL_PROMPT_CHARS)
+    }
+
+    private fun renderPrompt(template: ChatTemplate, messages: List<MessageEntity>): String {
+        val sb = StringBuilder()
+        when (template) {
+            ChatTemplate.CHATML -> {
+                messages.forEach { m ->
+                    val role = if (m.role == "user") "user" else "assistant"
+                    sb.append("<|im_start|>$role\n").append(m.content).append("\n<|im_end|>\n")
+                }
+                sb.append("<|im_start|>assistant\n")
+            }
+            ChatTemplate.GEMMA -> {
+                messages.forEach { m ->
+                    val role = if (m.role == "user") "user" else "model"
+                    sb.append("<start_of_turn>$role\n").append(m.content).append("\n<end_of_turn>\n")
+                }
+                sb.append("<start_of_turn>model\n")
+            }
+            ChatTemplate.LLAMA3 -> {
+                messages.forEach { m ->
+                    val role = if (m.role == "user") "user" else "assistant"
+                    sb.append("<|start_header_id|>$role<|end_header_id|>\n\n")
+                        .append(m.content).append("\n<|eot_id|>")
+                }
+                sb.append("<|start_header_id|>assistant<|end_header_id|>\n\n")
+            }
+            ChatTemplate.LLAMA2 -> {
+                messages.forEach { m ->
+                    val content = m.content
+                    if (m.role == "user") {
+                        sb.append("[INST] ").append(content).append(" [/INST] ")
+                    } else {
+                        sb.append(content).append(" </s><s>")
+                    }
+                }
+                sb.append(" ")
+            }
+            ChatTemplate.GENERIC -> {
+                messages.forEach { m ->
+                    val role = if (m.role == "user") "User" else "Assistant"
+                    sb.append(role).append(": ").append(m.content).append("\n")
+                }
+                sb.append("Assistant: ")
+            }
+        }
+        return sb.toString()
+    }
+
+    /** Finds where the oldest turn in a template-wrapped prompt ends, so the
+     *  prompt can be trimmed turn-by-turn (newest message always kept). */
+    private fun nextTurnBoundary(template: ChatTemplate, prompt: String): Int {
+        val marker = when (template) {
+            ChatTemplate.CHATML -> "<|im_start|>"
+            ChatTemplate.GEMMA -> "<start_of_turn>"
+            ChatTemplate.LLAMA3 -> "<|start_header_id|>"
+            ChatTemplate.LLAMA2 -> "[INST] "
+            ChatTemplate.GENERIC -> "\n"
+        }
+        var from = marker.length
+        if (template == ChatTemplate.GENERIC) {
+            val nl = prompt.indexOf('\n')
+            return if (nl < 0) -1 else nl + 1
+        }
+        val next = prompt.indexOf(marker, from)
+        return if (next < 0) -1 else next
     }
 
     private companion object {

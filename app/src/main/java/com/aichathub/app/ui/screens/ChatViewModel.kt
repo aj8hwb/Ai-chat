@@ -6,9 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.aichathub.app.chat.ChatCoordinator
 import com.aichathub.app.chat.ChatGenerationState
 import com.aichathub.app.chat.GenerationConfig
+import com.aichathub.app.chat.ModelLoadRefusedException
 import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageEntity
+import com.aichathub.app.device.LoadDecision
 import com.aichathub.app.device.MemoryBudgetCalculator
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
@@ -42,7 +44,9 @@ data class ChatUiState(
     /** Real generation stats of the last completed reply (Hard thinking trace). */
     val lastThinking: ThinkingInfo? = null,
     val isModelLoaded: Boolean = false,
-    val generationPhase: String = ChatGenerationState.IDLE.name
+    val generationPhase: String = ChatGenerationState.IDLE.name,
+    /** Live "thinking" timer — ticks every second while the model generates. */
+    val liveThinkingSec: Int = 0
 )
 
 /** Real, measured data about the last completed generation, shown in the
@@ -284,9 +288,11 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                 return@launch
             }
             if (session != loadSession) return@launch
-            if (!memorySuitable(model)) {
+            // Align with the compatibility badge: HEAVY is allowed (warned on
+            // screen), only the unsafe >1.35× band is refused.
+            if (preflightDecision(model) == LoadDecision.BLOCKED) {
                 _state.value = _state.value.copy(
-                    error = "❌ Insufficient memory to load this model safely. Try a lighter model."
+                    error = "❌ This model needs more memory than your device can safely provide. Try a lighter model."
                 )
                 return@launch
             }
@@ -309,6 +315,11 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                     activeModelId = model.id,
                     activeModelName = model.name,
                     isLoadingModel = false
+                )
+            } catch (e: ModelLoadRefusedException) {
+                _state.value = _state.value.copy(
+                    isLoadingModel = false,
+                    error = e.message
                 )
             } catch (e: OutOfMemoryError) {
                 _state.value = _state.value.copy(
@@ -383,9 +394,9 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
 
                 // Load the model if it is not the active one.
                 if (container.inferenceRuntime.activeModelId != model.id) {
-                    if (!memorySuitable(model)) {
+                    if (preflightDecision(model) == LoadDecision.BLOCKED) {
                         _state.value = _state.value.copy(
-                            error = "❌ Insufficient memory to load this model safely. Try a lighter model."
+                            error = "❌ This model needs more memory than your device can safely provide. Try a lighter model."
                         )
                         return@launch
                     }
@@ -403,6 +414,12 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                             ),
                             threads = nativeThreads(settings)
                         )
+                    } catch (e: ModelLoadRefusedException) {
+                        _state.value = _state.value.copy(
+                            isLoadingModel = false,
+                            error = e.message
+                        )
+                        return@launch
                     } catch (e: OutOfMemoryError) {
                         _state.value = _state.value.copy(
                             isLoadingModel = false,
@@ -456,29 +473,42 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
 
                 _state.value = _state.value.copy(input = "")
                 val startNanos = System.nanoTime()
-                val result = coordinator.sendMessage(
-                    prompt = text,
-                    config = config,
-                    systemPrompt = settings.systemPrompt,
-                    model = model,
-                    onStream = { streamed ->
-                        _state.value = _state.value.copy(lastStreamedText = streamed)
+                // Live "thinking" ticker: real-time feedback while the native call runs
+                // (the free-tier engine returns the full reply at once, so this timer is
+                // what makes "the AI is thinking" visible immediately).
+                val thinkingTicker = viewModelScope.launch {
+                    var tick = 0
+                    while (isActive) {
+                        _state.value = _state.value.copy(liveThinkingSec = tick)
+                        tick++
+                        kotlinx.coroutines.delay(1000)
                     }
-                )
-                // Capture the real generation stats for the "How the AI thought"
-                // panel (Hard mode) — honest measured data, not a simulation.
-                val elapsedMs = (System.nanoTime() - startNanos) / 1_000_000
-                val perf = container.inferenceRuntime.performance.value
-                _state.value = _state.value.copy(
-                    lastThinking = ThinkingInfo(
-                        mode = mode,
-                        tokens = perf.tokensGenerated,
-                        elapsedMs = elapsedMs,
-                        tokensPerSecond = perf.tokensPerSecond,
-                        responseChars = result.length
+                }
+                try {
+                    val result = coordinator.sendMessage(
+                        prompt = text,
+                        config = config,
+                        systemPrompt = settings.systemPrompt,
+                        model = model,
+                        onStream = { streamed ->
+                            _state.value = _state.value.copy(lastStreamedText = streamed)
+                        }
                     )
-                )
-            } catch (e: OutOfMemoryError) {
+                    // Capture the real generation stats for the "How the AI thought"
+                    // panel (Hard mode) — honest measured data, not a simulation.
+                    val elapsedMs = (System.nanoTime() - startNanos) / 1_000_000
+                    val perf = container.inferenceRuntime.performance.value
+                    _state.value = _state.value.copy(
+                        lastThinking = ThinkingInfo(
+                            mode = mode,
+                            tokens = perf.tokensGenerated,
+                            elapsedMs = elapsedMs,
+                            tokensPerSecond = perf.tokensPerSecond,
+                            responseChars = result.length
+                        ),
+                        liveThinkingSec = 0
+                    )
+                } catch (e: OutOfMemoryError) {
                 // OOM is an Error, not an Exception — catch it explicitly or the
                 // coroutine would propagate it to the uncaught handler and crash
                 // the whole app.
@@ -499,12 +529,14 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                     _state.value = _state.value.copy(
                         generating = false,
                         isLoadingModel = false,
-                        lastStreamedText = ""
+                        lastStreamedText = "",
+                        liveThinkingSec = 0
                     )
                     // Guarantee the coordinator returns to IDLE so the next
                     // message can always start a fresh generation.
                     runCatching { coordinator.resetToIdle() }
                 }
+                thinkingTicker.cancel()
             }
         }
     }
@@ -527,15 +559,16 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         }
     }
 
-    /** Memory preflight before loading: never attempt an unsafe model load. */
-    private suspend fun memorySuitable(model: CatalogModel): Boolean {
+    /** Memory preflight before loading — the SAME decision the compatibility
+     *  badge shows, computed by the shared engine. Only the unsafe >1.35× band
+     *  (BLOCKED) refuses a load; HEAVY is allowed with the on-screen warning. */
+    private suspend fun preflightDecision(model: CatalogModel): LoadDecision {
         return runCatching {
             val profile = container.deviceInfoProvider.getDeviceProfile()
             val budget = MemoryBudgetCalculator.calculate(profile)
             val measured = container.settingsRepository.measuredMemoryOnce()
-            val effectiveMemory = measured[model.id] ?: model.estimatedMemoryBytes
-            effectiveMemory <= budget.modelMemoryBytes
-        }.getOrDefault(true)
+            container.compatibilityEngine.loadDecision(model, budget, measured)
+        }.getOrDefault(LoadDecision.SAFE)
     }
 
     /** Battery-conscious mode throttles the native thread count to save power;

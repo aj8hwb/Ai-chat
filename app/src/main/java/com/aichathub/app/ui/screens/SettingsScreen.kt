@@ -47,6 +47,7 @@ fun SettingsScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var saved by remember { mutableStateOf(false) }
+    var showDefaultModelPicker by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -66,7 +67,7 @@ fun SettingsScreen(
                         title = "Default Model",
                         value = state.installedModels.firstOrNull { it.id == state.defaultModelId }?.name
                             ?: (state.defaultModelId ?: "Not set"),
-                        onClick = { onNavigate(Screen.Models.route) }
+                        onClick = { showDefaultModelPicker = true }
                     )
                     HorizontalDivider(color = SurfaceHigh)
                     SettingRow(
@@ -203,6 +204,61 @@ fun SettingsScreen(
         }
 
         item { Spacer(Modifier.height(24.dp)) }
+    }
+
+    // The default model is the one the chat auto-selects on launch. Pick it
+    // directly here from the installed models instead of hiding the setting.
+    if (showDefaultModelPicker) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDefaultModelPicker = false },
+            title = { Text("Default Model") },
+            text = {
+                Column {
+                    Text(
+                        "The model the chat opens with when you start a new conversation.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.RadioButton(
+                            selected = state.defaultModelId == null,
+                            onClick = {
+                                viewModel.setDefaultModel(null)
+                                showDefaultModelPicker = false
+                            }
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Not set (auto-pick best)", color = TextPrimary)
+                    }
+                    state.installedModels.forEach { model ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.RadioButton(
+                                selected = state.defaultModelId == model.id,
+                                onClick = {
+                                    viewModel.setDefaultModel(model.id)
+                                    showDefaultModelPicker = false
+                                }
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(model.name, color = TextPrimary)
+                        }
+                    }
+                    if (state.installedModels.isEmpty()) {
+                        Text(
+                            "No models installed yet. Install a model first.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showDefaultModelPicker = false }) {
+                    Text("Done", color = Primary)
+                }
+            }
+        )
     }
 }
 

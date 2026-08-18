@@ -41,6 +41,25 @@ enum class ModelFormat(val extension: String) {
 }
 
 /**
+ * Prompt chat template the model was fine-tuned with. Using the model's own
+ * template (instead of a generic "User:/Assistant:" transcript) measurably
+ * improves output quality and instruction-following for template-trained
+ * instruct models (Qwen3/Gemma/SmolLM2 etc.).
+ */
+enum class ChatTemplate {
+    /** Flat "User: / Assistant:" transcript — used when no template is known. */
+    GENERIC,
+    /** ChatML (<|im_start|> / <|im_end|>) — Qwen2.5, Qwen3, SmolLM2. */
+    CHATML,
+    /** Gemma <start_of_turn>user<end_of_turn> format. */
+    GEMMA,
+    /** Llama 3 / Mistral <|start_header_id|> format (Dolphin 8B). */
+    LLAMA3,
+    /** Llama 2 [INST] format (TinyLlama). */
+    LLAMA2
+}
+
+/**
  * A model as defined in the built-in catalog.
  * This is the static, product-level metadata used for discovery,
  * compatibility analysis and download.
@@ -82,7 +101,9 @@ data class CatalogModel(
     /** Documented limitations to display honestly. */
     val limitations: List<String> = emptyList(),
     /** Number of trainable parameters (e.g. 135_000_000). */
-    val parameterCount: Long = 0
+    val parameterCount: Long = 0,
+    /** Prompt template the model was trained with (quality of replies). */
+    val chatTemplate: ChatTemplate = ChatTemplate.GENERIC
 )
 
 /** A snapshot of the device's current capabilities. */

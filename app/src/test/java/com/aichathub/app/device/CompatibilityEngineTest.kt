@@ -154,4 +154,61 @@ class CompatibilityEngineTest {
         )
         assertEquals(CompatibilityLevel.EXCELLENT, level)
     }
+
+    @Test
+    fun `load decision is safe within the safe budget`() {
+        // 1.5GB model, 2GB usable budget: ≤ 1.0x -> SAFE. Same threshold the
+        // badge calls USABLE or better — the gate can never refuse a model the
+        // badge recommends.
+        assertEquals(
+            LoadDecision.SAFE,
+            engine.loadDecision(model(1536), budget(2048))
+        )
+    }
+
+    @Test
+    fun `load decision is heavy but allowed up to 1_35x`() {
+        // 2.4GB model, 2GB usable budget: 1.2x -> HEAVY band, still loadable.
+        assertEquals(
+            LoadDecision.HEAVY,
+            engine.loadDecision(model(2458), budget(2048))
+        )
+        // Boundary: exactly 1.35x is still HEAVY (allowed).
+        val boundary = (2048.0 * 1.35).toInt()
+        assertEquals(
+            LoadDecision.HEAVY,
+            engine.loadDecision(model(boundary), budget(2048))
+        )
+    }
+
+    @Test
+    fun `load decision blocks beyond 1_35x`() {
+        // 3.5GB model, 2GB usable budget: > 1.35x -> BLOCKED. This is the
+        // exact band the badge calls NOT_RECOMMENDED — on-screen promise and
+        // the load gate finally agree.
+        assertEquals(
+            LoadDecision.BLOCKED,
+            engine.loadDecision(model(3584), budget(2048))
+        )
+        // Just past the boundary must flip to BLOCKED.
+        val justOver = (2048.0 * 1.35 + 1).toInt()
+        assertEquals(
+            LoadDecision.BLOCKED,
+            engine.loadDecision(model(justOver), budget(2048))
+        )
+    }
+
+    @Test
+    fun `load decision uses measured memory when available`() {
+        // Catalog estimate 200MB (SAFE) but the model really measures 5GB on
+        // this device: the gate must refuse based on the REAL footprint.
+        assertEquals(
+            LoadDecision.BLOCKED,
+            engine.loadDecision(
+                model(200),
+                budget(2048),
+                measuredMemory = mapOf("test-model" to (5L * 1024 * 1024 * 1024))
+            )
+        )
+    }
 }

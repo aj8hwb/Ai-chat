@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -303,6 +304,22 @@ fun ModelDetailsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center
                     ) {
+                        TextButton(onClick = {
+                            if (state.isDefaultModel) viewModel.clearDefault() else viewModel.setAsDefault()
+                        }) {
+                            Icon(
+                                Icons.Filled.Star,
+                                contentDescription = null,
+                                tint = if (state.isDefaultModel) Primary else TextSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                if (state.isDefaultModel) "Default model" else "Set as default",
+                                color = if (state.isDefaultModel) Primary else TextSecondary
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
                         TextButton(onClick = viewModel::deleteModel) {
                             Icon(Icons.Filled.Delete, contentDescription = null, tint = Error, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))

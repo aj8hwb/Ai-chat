@@ -158,6 +158,11 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
                     running = false,
                     stats = "Completed in ${elapsedMs / 1000f}s · ~${_state.value.tokensPerSecond} tok/s · ${_state.value.generatedTokens} tokens"
                 )
+            } catch (e: com.aichathub.app.chat.ModelLoadRefusedException) {
+                _state.value = _state.value.copy(
+                    running = false,
+                    error = e.message
+                )
             } catch (e: OutOfMemoryError) {
                 _state.value = _state.value.copy(
                     running = false,

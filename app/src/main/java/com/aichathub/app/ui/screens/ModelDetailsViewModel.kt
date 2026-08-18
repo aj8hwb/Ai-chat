@@ -26,7 +26,10 @@ data class ModelDetailsUiState(
     val download: DownloadInfo? = null,
     val warningMessage: String? = null,
     val insufficientMemory: Boolean = false,
-    val filePath: String? = null
+    val filePath: String? = null,
+    val isDefaultModel: Boolean = false,
+    /** True when the current default model is NOT installed (edge case). */
+    val defaultModelMissing: Boolean = false
 )
 
 class ModelDetailsViewModel(application: Application) : AiViewModel(application) {
@@ -48,6 +51,34 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
             )
             analyzeCompatibility(model)
             observeDownload(model)
+            observeDefaultModel()
+        }
+    }
+
+    /** Keep the "Set as default" toggle in sync with the stored preference. */
+    private fun observeDefaultModel() {
+        viewModelScope.launch {
+            container.settingsRepository.settings.collect { s ->
+                val current = _state.value
+                _state.value = current.copy(
+                    isDefaultModel = s.defaultModelId == current.model?.id,
+                    defaultModelMissing = s.defaultModelId != null &&
+                        LocalModelCatalog.byId(s.defaultModelId!!) == null
+                )
+            }
+        }
+    }
+
+    fun setAsDefault() {
+        val model = _state.value.model ?: return
+        viewModelScope.launch {
+            container.settingsRepository.setDefaultModel(model.id)
+        }
+    }
+
+    fun clearDefault() {
+        viewModelScope.launch {
+            container.settingsRepository.setDefaultModel(null)
         }
     }
 
@@ -69,9 +100,9 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
             insufficientMemory = rec?.level == CompatibilityLevel.NOT_RECOMMENDED,
             warningMessage = when (rec?.level) {
                 CompatibilityLevel.HEAVY ->
-                    "This model may perform slowly and use significant memory on your device. You can still download and try it."
+                    "This model uses more memory than is safely available right now. It will still load and run, but it may be slow or unstable."
                 CompatibilityLevel.NOT_RECOMMENDED ->
-                    "Your device may not have enough safe memory for this model. You can still download and try it."
+                    "Your device cannot safely load this model — it needs more memory than is available. You can still download the file, but it cannot be started here. Try a lighter model."
                 else -> null
             }
         )

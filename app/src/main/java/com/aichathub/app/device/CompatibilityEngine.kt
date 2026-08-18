@@ -6,6 +6,16 @@ import com.aichathub.app.domain.model.CompatibilityLevel
 import com.aichathub.app.domain.model.DeviceProfile
 import com.aichathub.app.domain.model.Recommendation
 
+/** Result of the memory preflight: is it safe / possible to load this model? */
+enum class LoadDecision {
+    /** Fits the safe memory budget (≤ 1.0× usable) — load unconditionally. */
+    SAFE,
+    /** Uses more than the safe budget but ≤ 1.35× usable — load with warning. */
+    HEAVY,
+    /** Exceeds 1.35× usable — refuse to load (native OOM/crash risk). */
+    BLOCKED
+}
+
 /**
  * Evaluates how compatible a model is with the current device state.
  * Pure logic — no Android dependencies, unit-testable.
@@ -34,6 +44,32 @@ class CompatibilityEngine {
     }
 
     /**
+     * The load gate. This is the SINGLE source of truth used by every screen
+     * (Chat, Playground, Benchmark, Compare) before touching the native
+     * runtime, and it shares the exact same bands as [memoryScore] — so the
+     * compatibility badge and the load gate can never disagree.
+     *
+     *  - ≤ 1.0× usable budget → SAFE (matches USABLE and above).
+     *  - ≤ 1.35× usable budget → HEAVY (the badge's "you can still try it"
+     *    promise is real: the load is allowed, just warned).
+     *  - > 1.35× usable budget → BLOCKED (NOT_RECOMMENDED; loading it would
+     *    risk a native OutOfMemoryError / SIGSEGV that Kotlin cannot catch).
+     */
+    fun loadDecision(
+        model: CatalogModel,
+        budget: AiMemoryBudget,
+        measuredMemory: Map<String, Long> = emptyMap()
+    ): LoadDecision {
+        val usable = budget.modelMemoryBytes
+        val required = effectiveMemory(model, measuredMemory)
+        return when {
+            required <= usable * 1.0 -> LoadDecision.SAFE
+            required <= usable * 1.35 -> LoadDecision.HEAVY
+            else -> LoadDecision.BLOCKED
+        }
+    }
+
+    /**
      * Returns a list of recommendations for all catalog models, ranked.
      * Static device-analysis is combined with model characteristics.
      *
@@ -53,7 +89,7 @@ class CompatibilityEngine {
                     model = model,
                     level = level,
                     score = level.rank,
-                    reason = reasonFor(model, level, budget),
+                    reason = reasonFor(model, level, budget, measuredMemory),
                     quantizationNote = quantizationNote(model, budget, measuredMemory)
                 )
             }
@@ -65,9 +101,9 @@ class CompatibilityEngine {
     /**
      * Memory headroom against the SAME budget the load preflight uses
      * ([AiMemoryBudget.modelMemoryBytes]). The compatibility badge, the
-     * "Download Anyway" warning and the actual load gate therefore always
-     * agree — a model can never be recommended on screen and then refused
-     * at load time.
+     * "Download Anyway" warning and the actual load gate ([loadDecision])
+     * therefore always agree — a model can never be recommended on screen
+     * and then refused at load time.
      */
     private fun memoryScore(model: CatalogModel, budget: AiMemoryBudget, measuredMemory: Map<String, Long>): Int {
         val usable = budget.modelMemoryBytes
@@ -102,21 +138,33 @@ class CompatibilityEngine {
     private fun effectiveMemory(model: CatalogModel, measuredMemory: Map<String, Long>): Long =
         measuredMemory[model.id] ?: model.estimatedMemoryBytes
 
+    /**
+     * Data-backed reason: the message quotes the real numbers (estimated or
+     * measured on THIS device) that produced the level, not just a slogan.
+     */
     private fun reasonFor(
         model: CatalogModel,
         level: CompatibilityLevel,
-        budget: AiMemoryBudget
-    ): String = when (level) {
-        CompatibilityLevel.EXCELLENT ->
-            "Fits your current memory budget with room to spare."
-        CompatibilityLevel.RECOMMENDED ->
-            "This model is well suited to your device."
-        CompatibilityLevel.USABLE ->
-            "Will run, but performance may be limited."
-        CompatibilityLevel.HEAVY ->
-            "Requires more memory than is safely available right now."
-        CompatibilityLevel.NOT_RECOMMENDED ->
-            "Too heavy for your current device memory."
+        budget: AiMemoryBudget,
+        measuredMemory: Map<String, Long>
+    ): String {
+        val required = effectiveMemory(model, measuredMemory)
+        val requiredMb = (required / (1024.0 * 1024.0)).round1()
+        val usableMb = (budget.modelMemoryBytes / (1024.0 * 1024.0)).round1()
+        val measured = measuredMemory[model.id]
+        val source = if (measured != null) "measured on your device" else "estimated"
+        return when (level) {
+            CompatibilityLevel.EXCELLENT ->
+                "Fits your memory budget with room to spare. (~$requiredMb MB $source vs ${usableMb}MB safe budget.)"
+            CompatibilityLevel.RECOMMENDED ->
+                "This model is well suited to your device. (~$requiredMb MB $source vs ${usableMb}MB safe budget.)"
+            CompatibilityLevel.USABLE ->
+                "Will run, but performance may be limited. (~$requiredMb MB $source vs ${usableMb}MB safe budget.)"
+            CompatibilityLevel.HEAVY ->
+                "Uses more memory than is safely available right now. (~$requiredMb MB $source vs ${usableMb}MB safe budget.)"
+            CompatibilityLevel.NOT_RECOMMENDED ->
+                "Too heavy for your current device memory. (~$requiredMb MB $source vs ${usableMb}MB safe budget.)"
+        }
     }
 
     private fun quantizationNote(model: CatalogModel, budget: AiMemoryBudget, measuredMemory: Map<String, Long>): String? {
@@ -126,3 +174,5 @@ class CompatibilityEngine {
         } else null
     }
 }
+
+private fun Double.round1(): String = (kotlin.math.round(this * 10) / 10).toString()

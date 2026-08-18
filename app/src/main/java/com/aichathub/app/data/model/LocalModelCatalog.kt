@@ -1,6 +1,7 @@
 package com.aichathub.app.data.model
 
 import com.aichathub.app.domain.model.CatalogModel
+import com.aichathub.app.domain.model.ChatTemplate
 import com.aichathub.app.domain.model.ModelFormat
 
 /**
@@ -62,7 +63,8 @@ object LocalModelCatalog {
                 "multilingual conversations with very low refusal behaviour.",
             strengths = listOf("Low-refusal", "Multilingual", "Good reasoning", "Apache 2.0"),
             limitations = listOf("Needs roughly 6–8 GB of RAM"),
-            parameterCount = 4_000_000_000
+            parameterCount = 4_000_000_000,
+            chatTemplate = ChatTemplate.CHATML
         ),
 
         // ---------------------------------------------------------------
@@ -102,7 +104,8 @@ object LocalModelCatalog {
                 "low-refusal conversations on high-end devices.",
             strengths = listOf("Very low refusal", "Creative", "Strong comprehension"),
             limitations = listOf("Needs 12 GB+ RAM", "Slow on mid-range phones"),
-            parameterCount = 4_000_000_000
+            parameterCount = 4_000_000_000,
+            chatTemplate = ChatTemplate.GEMMA
         ),
 
         // ---------------------------------------------------------------
@@ -143,7 +146,8 @@ object LocalModelCatalog {
                 "with low refusal behaviour.",
             strengths = listOf("Coding", "Cyber/security", "Low-refusal"),
             limitations = listOf("Needs 8 GB+ RAM"),
-            parameterCount = 8_000_000_000
+            parameterCount = 8_000_000_000,
+            chatTemplate = ChatTemplate.LLAMA3
         ),
 
         // ---------------------------------------------------------------
@@ -184,7 +188,8 @@ object LocalModelCatalog {
                 "long local conversations.",
             strengths = listOf("Reliable", "Reasoning", "Low-refusal"),
             limitations = listOf("Needs 8 GB+ RAM"),
-            parameterCount = 8_000_000_000
+            parameterCount = 8_000_000_000,
+            chatTemplate = ChatTemplate.LLAMA3
         ),
 
         // ---------------------------------------------------------------
@@ -225,7 +230,8 @@ object LocalModelCatalog {
                 "with moderate headroom.",
             strengths = listOf("Balanced", "Low-refusal", "Apache 2.0"),
             limitations = listOf("Needs ~7 GB of RAM"),
-            parameterCount = 7_000_000_000
+            parameterCount = 7_000_000_000,
+            chatTemplate = ChatTemplate.CHATML
         ),
 
         // ---------------------------------------------------------------
@@ -265,7 +271,8 @@ object LocalModelCatalog {
                 "very low-resource devices.",
             strengths = listOf("Tiny download (~105 MB)", "Runs on any device", "Apache 2.0"),
             limitations = listOf("Limited reasoning depth"),
-            parameterCount = 135_000_000
+            parameterCount = 135_000_000,
+            chatTemplate = ChatTemplate.CHATML
         ),
 
         // ---------------------------------------------------------------
@@ -306,7 +313,8 @@ object LocalModelCatalog {
                 "low-to-mid resource devices.",
             strengths = listOf("Better reasoning than 135M", "Runs on most devices", "Apache 2.0"),
             limitations = listOf("Small model — keep expectations modest"),
-            parameterCount = 360_000_000
+            parameterCount = 360_000_000,
+            chatTemplate = ChatTemplate.CHATML
         ),
 
         // ---------------------------------------------------------------
@@ -347,7 +355,8 @@ object LocalModelCatalog {
                 "on very constrained phones.",
             strengths = listOf("Tiny (~106 MB)", "Mobile-first design", "Fast on CPU"),
             limitations = listOf("Non-commercial license", "Very basic capabilities"),
-            parameterCount = 125_000_000
+            parameterCount = 125_000_000,
+            chatTemplate = ChatTemplate.GENERIC
         ),
 
         // ---------------------------------------------------------------
@@ -386,7 +395,8 @@ object LocalModelCatalog {
             "Meta's MobileLLM 350M — lightweight general-purpose generation for modest devices.",
             strengths = listOf("Efficient architecture", "Runs on low-RAM phones"),
             limitations = listOf("Non-commercial license", "Basic capabilities"),
-            parameterCount = 350_000_000
+            parameterCount = 350_000_000,
+            chatTemplate = ChatTemplate.GENERIC
         ),
 
         // ---------------------------------------------------------------
@@ -427,7 +437,8 @@ object LocalModelCatalog {
                 "for on-device use.",
             strengths = listOf("More capable than 125M/350M", "On-device friendly"),
             limitations = listOf("Non-commercial license"),
-            parameterCount = 600_000_000
+            parameterCount = 600_000_000,
+            chatTemplate = ChatTemplate.GENERIC
         ),
 
         // ---------------------------------------------------------------
@@ -467,7 +478,8 @@ object LocalModelCatalog {
                 "coding/math capability.",
             strengths = listOf("Multilingual", "Light coding & math", "Apache 2.0"),
             limitations = listOf("Small model — shallow reasoning"),
-            parameterCount = 500_000_000
+            parameterCount = 500_000_000,
+            chatTemplate = ChatTemplate.CHATML
         ),
 
         // ---------------------------------------------------------------
@@ -507,7 +519,8 @@ object LocalModelCatalog {
                 "small programming tasks.",
             strengths = listOf("Code-focused", "Debugging", "Apache 2.0"),
             limitations = listOf("0.5B — best for short snippets"),
-            parameterCount = 500_000_000
+            parameterCount = 500_000_000,
+            chatTemplate = ChatTemplate.CHATML
         ),
 
         // ---------------------------------------------------------------
@@ -548,7 +561,8 @@ object LocalModelCatalog {
                 "and experimentation on low-resource devices.",
             strengths = listOf("Very light", "Efficient architecture"),
             limitations = listOf("Not chat-tuned", "Experimental"),
-            parameterCount = 270_000_000
+            parameterCount = 270_000_000,
+            chatTemplate = ChatTemplate.GENERIC
         ),
 
         // ---------------------------------------------------------------
@@ -589,7 +603,8 @@ object LocalModelCatalog {
                 "experimentation.",
             strengths = listOf("More capable than 270M", "Efficient"),
             limitations = listOf("Not chat-tuned", "Experimental"),
-            parameterCount = 450_000_000
+            parameterCount = 450_000_000,
+            chatTemplate = ChatTemplate.GENERIC
         ),
 
         // ---------------------------------------------------------------
@@ -630,7 +645,8 @@ object LocalModelCatalog {
                 "more memory — medium tier.",
             strengths = listOf("Better conversations than small models", "Apache 2.0"),
             limitations = listOf("Needs ~1.8 GB RAM", "Not auto-recommended on 4 GB phones"),
-            parameterCount = 1_100_000_000
+            parameterCount = 1_100_000_000,
+            chatTemplate = ChatTemplate.LLAMA2
         )
     )
 

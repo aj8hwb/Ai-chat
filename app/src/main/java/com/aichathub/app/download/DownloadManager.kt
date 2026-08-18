@@ -124,6 +124,22 @@ class DownloadManager(
             runCatching { modelRepository.reconcile() }
                 .onFailure { Log.w(tag, "Reconcile failed", it) }
         }
+        // Auto-resume: any download found half-done on disk is resumed the
+        // moment the app starts (unless Wi-Fi-only mode blocks mobile data).
+        scope.launch {
+            delay(1500)
+            val resumable = _downloads.value
+                .filter { it.status == DownloadStatus.PAUSED && it.downloadedBytes > 0 }
+                .mapNotNull { LocalModelCatalog.byId(it.modelId) }
+            resumable.forEach { model ->
+                if (networkBlocked()) {
+                    Log.i(tag, "Auto-resume deferred for ${model.id} (Wi-Fi-only + mobile data)")
+                    return@forEach
+                }
+                Log.i(tag, "AUTO_RESUME ${model.id}")
+                resume(model.id)
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -179,6 +195,9 @@ class DownloadManager(
             )
         )
 modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
+        // Promote the process to foreground so the OS never kills the
+        // download when the app is backgrounded or swiped away.
+        DownloadForegroundService.start(context)
         Log.i(tag, "MODEL_DOWNLOAD_STARTED ${model.id} ($required bytes remaining)")
 
         val job = scope.launch {
@@ -216,6 +235,7 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
         if (job == null || !job.isActive) {
             upsert(info.copy(status = DownloadStatus.DOWNLOADING, error = null))
             scope.launch { modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING) }
+            DownloadForegroundService.start(context)
             jobs[modelId] = scope.launch {
                 runCatching {
                     withContext(Dispatchers.IO) { downloadLoop(model) }

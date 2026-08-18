@@ -14,6 +14,10 @@ import java.util.Locale
 
 class AiChatHubApplication : Application() {
 
+    companion object {
+        private const val CRASH_LOG_MAX_LINES = 4000
+    }
+
     lateinit var container: AppContainer
         private set
 
@@ -50,7 +54,15 @@ class AiChatHubApplication : Application() {
                     .append(thread.name).append(" : ").append(throwable.toString()).append("\n")
                     .append(stack).append("\n")
                 val combined = (if (logFile.exists()) logFile.readText() + "\n" else "") + entry
-                runCatching { logFile.writeText(combined) }
+                runCatching {
+                    // Bound the file to the last 20 crashes so it can never grow
+                    // without limit on a device that crashes repeatedly.
+                    val lines = combined.split("\n")
+                    val capped = if (lines.size > CRASH_LOG_MAX_LINES) {
+                        lines.takeLast(CRASH_LOG_MAX_LINES).joinToString("\n")
+                    } else combined
+                    logFile.writeText(capped)
+                }
             } catch (ignored: Throwable) {
             } finally {
                 // Always let the system terminate the process as normal.

@@ -196,7 +196,6 @@ class LlamaCppRuntime(
             result.text
         } finally {
             generating.set(false)
-            generatedSinceLoad = true
             _performance.value = _performance.value.copy(generationActive = false)
         }
     }
@@ -229,15 +228,9 @@ class LlamaCppRuntime(
             result.text
         } finally {
             generating.set(false)
-            generatedSinceLoad = true
             _performance.value = _performance.value.copy(generationActive = false)
         }
     }
-
-    /** True once the model has produced at least one generation (used by the
-     *  context-pressure reload decision). */
-    @Volatile
-    private var generatedSinceLoad = false
 
     override fun cancelGeneration() {
         // Native generation cannot be interrupted mid-call on the free tier;

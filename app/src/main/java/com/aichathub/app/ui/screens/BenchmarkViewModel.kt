@@ -96,6 +96,12 @@ class BenchmarkViewModel(application: Application) : AiViewModel(application) {
                         memoryBytes = memoryBytes
                     )
                 )
+            } catch (e: com.aichathub.app.chat.ModelLoadRefusedException) {
+                _state.value = _state.value.copy(
+                    running = false,
+                    statusText = e.message ?: "Model cannot be loaded on this device.",
+                    result = null
+                )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     running = false,

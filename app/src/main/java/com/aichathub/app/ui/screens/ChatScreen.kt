@@ -292,12 +292,12 @@ fun ChatScreen(
                             }
                             if (state.generating && state.lastStreamedText.isNotEmpty()) {
                                 item(key = "streaming") {
-                                    StreamingBubble(text = state.lastStreamedText)
+                                    StreamingBubble(text = state.lastStreamedText, thinkingSec = state.liveThinkingSec)
                                 }
                             }
                             if (state.generating && state.lastStreamedText.isEmpty()) {
                                 item(key = "thinking") {
-                                    ThinkingBubble()
+                                    ThinkingBubble(thinkingSec = state.liveThinkingSec)
                                 }
                             }
                             val trace = state.lastThinking
@@ -561,7 +561,7 @@ private fun MessageBubble(
 }
 
 @Composable
-private fun ThinkingBubble() {
+private fun ThinkingBubble(thinkingSec: Int) {
     val transition = rememberInfiniteTransition(label = "thinking")
     val d1 by transition.animateFloat(
         initialValue = 0.2f,
@@ -599,6 +599,17 @@ private fun ThinkingBubble() {
                     Dot(alpha = d3)
                 }
             }
+            if (thinkingSec > 0) {
+                Spacer(Modifier.height(4.dp))
+                // Real-time feedback while the native model works. The free-tier
+                // engine returns the whole reply at once, so the live timer is
+                // what makes "the AI is thinking" visible immediately.
+                Text(
+                    "thinking… ${thinkingSec}s",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary
+                )
+            }
         }
     }
 }
@@ -613,7 +624,7 @@ private fun Dot(alpha: Float) {
 }
 
 @Composable
-private fun StreamingBubble(text: String) {
+private fun StreamingBubble(text: String, thinkingSec: Int) {
     Row(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
@@ -626,7 +637,11 @@ private fun StreamingBubble(text: String) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(6.dp).background(Success, RoundedCornerShape(50)))
                 Spacer(Modifier.width(5.dp))
-                Text("Generating…", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                Text(
+                    if (thinkingSec > 0) "Generating… ${thinkingSec}s" else "Generating…",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary
+                )
             }
         }
     }
