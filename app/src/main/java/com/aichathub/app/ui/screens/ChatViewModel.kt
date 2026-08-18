@@ -115,9 +115,21 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         }
     }
 
+    /**
+     * Persists an edited message. When a USER message is edited, every message
+     * that followed it was generated from the OLD text, so those replies are
+     * now inconsistent with the edit. They are removed (the user can re-send);
+     * editing an assistant message is a manual correction and is kept as-is.
+     */
     fun updateMessage(message: MessageEntity) {
         viewModelScope.launch {
             container.messageDao.update(message)
+            if (message.role == "user") {
+                val convId = message.conversationId
+                val later = container.messageDao.forConversation(convId)
+                    .filter { it.createdAt > message.createdAt }
+                later.forEach { container.messageDao.delete(it.id) }
+            }
         }
     }
 
@@ -154,7 +166,8 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         return runCatching {
             val profile = container.deviceInfoProvider.getDeviceProfile()
             val budget = MemoryBudgetCalculator.calculate(profile)
-            container.compatibilityEngine.recommendAll(ready, profile, budget)
+            val measured = container.settingsRepository.measuredMemoryOnce()
+            container.compatibilityEngine.recommendAll(ready, profile, budget, measured)
                 .firstOrNull()?.model
         }.getOrNull() ?: ready.first()
     }
@@ -167,7 +180,16 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                     activeModelName = s.activeModelName ?: _state.value.activeModelName,
                     generating = s.generationState == ChatGenerationState.GENERATING,
                     isLoadingModel = s.isLoadingModel,
-                    error = s.error ?: _state.value.error,
+                    // Coordinator errors are shown as-is; while the coordinator is
+                    // IDLE/DONE (no active operation) a stale error is never
+                    // resurrected and never wipes a message error shown by the VM.
+                    error = if (s.generationState == ChatGenerationState.LOADING ||
+                        s.generationState == ChatGenerationState.GENERATING
+                    ) {
+                        s.error
+                    } else {
+                        _state.value.error
+                    },
                     isModelLoaded = container.inferenceRuntime.isLoaded && s.activeModelId != null,
                     generationPhase = s.generationState.name
                 )
@@ -270,7 +292,18 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
             }
             _state.value = _state.value.copy(isLoadingModel = true, error = null)
             try {
-                coordinator.loadModel(model, file)
+                val settings = container.settingsRepository.settings.first()
+                coordinator.loadModel(
+                    model,
+                    file,
+                    GenerationConfig(
+                        temperature = settings.temperature,
+                        topK = settings.topK,
+                        topP = settings.topP,
+                        maxTokens = settings.maxTokens
+                    ),
+                    threads = nativeThreads(settings)
+                )
                 if (session != loadSession) return@launch
                 _state.value = _state.value.copy(
                     activeModelId = model.id,
@@ -290,6 +323,26 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                     error = "The model could not be loaded. Please select another installed model."
                 )
             }
+        }
+    }
+
+    /**
+     * Selects a model by its catalog id (used when the Model Store / My Models
+     * "Chat" button opens the chat with a specific model pre-selected).
+     */
+    fun selectModelById(modelId: String) {
+        if (modelId.isBlank()) return
+        if (modelId == _state.value.activeModelId) return
+        val catalog = LocalModelCatalog.byId(modelId) ?: return
+        viewModelScope.launch {
+            val st = container.modelRepository.stateFor(modelId)
+            if (st?.state != ModelLifecycleState.READY || st.filePath == null) {
+                _state.value = _state.value.copy(
+                    error = "This model is not ready yet. Download and verify it first."
+                )
+                return@launch
+            }
+            selectModel(catalog)
         }
     }
 
@@ -338,7 +391,18 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                     }
                     _state.value = _state.value.copy(isLoadingModel = true, error = null)
                     try {
-                        coordinator.loadModel(model, file)
+                        val settings = container.settingsRepository.settings.first()
+                        coordinator.loadModel(
+                            model,
+                            file,
+                            GenerationConfig(
+                                temperature = settings.temperature,
+                                topK = settings.topK,
+                                topP = settings.topP,
+                                maxTokens = settings.maxTokens
+                            ),
+                            threads = nativeThreads(settings)
+                        )
                     } catch (e: OutOfMemoryError) {
                         _state.value = _state.value.copy(
                             isLoadingModel = false,
@@ -468,9 +532,16 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         return runCatching {
             val profile = container.deviceInfoProvider.getDeviceProfile()
             val budget = MemoryBudgetCalculator.calculate(profile)
-            model.estimatedMemoryBytes <= budget.modelMemoryBytes
+            val measured = container.settingsRepository.measuredMemoryOnce()
+            val effectiveMemory = measured[model.id] ?: model.estimatedMemoryBytes
+            effectiveMemory <= budget.modelMemoryBytes
         }.getOrDefault(true)
     }
+
+    /** Battery-conscious mode throttles the native thread count to save power;
+     *  otherwise the count scales with the device's CPU core count. */
+    private fun nativeThreads(settings: com.aichathub.app.data.SettingsRepository.Settings): Int =
+        com.aichathub.app.util.ModelThreads.recommended(settings.batteryConscious)
 
     private fun titleFromPrompt(prompt: String): String {
         val clean = prompt.trim().replace("\n", " ")

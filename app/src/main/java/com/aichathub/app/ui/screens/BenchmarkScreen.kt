@@ -93,7 +93,7 @@ fun BenchmarkScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         SectionHeader(title = "Result")
                         MetricRow("Speed", String.format("%.1f tok/s", result.tokensPerSecond))
-                        MetricRow("First token latency", String.format("%.0f ms", result.firstTokenMs))
+                        MetricRow("Total time", String.format("%.0f ms", result.generationMs))
                         MetricRow("Total tokens", result.tokens.toString())
                         MetricRow("Memory used", com.aichathub.app.util.Formatters.bytes(result.memoryBytes))
                     }

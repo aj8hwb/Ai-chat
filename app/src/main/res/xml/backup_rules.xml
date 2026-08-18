@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Backup rules for Android 11 and below (android:fullBackupContent).
+
+    Multi-GB model files and resumable download partials are rebuilt from the
+    catalog and must NOT be uploaded to cloud backups. Conversations (the Room
+    database) stay backed up.
+-->
+<full-backup-content>
+    <exclude
+        domain="file"
+        path="models/" />
+    <exclude
+        domain="file"
+        path="downloads/" />
+    <exclude
+        domain="sharedpref"
+        path="settings.xml" />
+</full-backup-content>

@@ -1,8 +1,11 @@
 package com.aichathub.app.data
 
 import android.content.Context
+import android.os.Build
+import android.provider.MediaStore
 import com.aichathub.app.data.local.AiDatabase
 import com.aichathub.app.data.local.InstalledModelEntity
+import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +22,7 @@ class ModelRepository(
     context: Context,
     private val database: AiDatabase
 ) {
+    private val context = context.applicationContext
     private val modelsDir = File(context.filesDir, "models")
 
     data class ModelState(
@@ -145,6 +149,24 @@ class ModelRepository(
         val existing = database.installedModelDao().byId(modelId)
         if (existing != null && deleteFile && existing.filePath.isNotBlank()) {
             runCatching { File(existing.filePath).delete() }
+        }
+        // Also delete the shared Downloads mirror copy (Download/AiChatHub/Models)
+        // so removing a model does not leave a multi-GB orphan behind. The
+        // MediaStore.Downloads class only exists on API 29+, hence the guard.
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val model = LocalModelCatalog.byId(modelId)
+                if (model != null) {
+                    val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ? AND " +
+                        "${MediaStore.Downloads.RELATIVE_PATH} LIKE ?"
+                    val args = arrayOf(model.fileName, "Download/AiChatHub/Models/%")
+                    context.contentResolver.delete(
+                        MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                        selection,
+                        args
+                    )
+                }
+            }
         }
         database.installedModelDao().delete(modelId)
     }

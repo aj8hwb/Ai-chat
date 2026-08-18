@@ -55,10 +55,12 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
         if (model == null) return
         val profile = container.deviceInfoProvider.getDeviceProfile()
         val budget = MemoryBudgetCalculator.calculate(profile)
+        val measured = container.settingsRepository.measuredMemoryOnce()
         val rec = container.compatibilityEngine.recommendAll(
             listOf(model),
             profile,
-            budget
+            budget,
+            measured
         ).firstOrNull()
         val heavy = (rec?.level == CompatibilityLevel.HEAVY || rec?.level == CompatibilityLevel.NOT_RECOMMENDED)
         _state.value = _state.value.copy(
@@ -141,6 +143,9 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
     fun deleteModel() {
         val model = _state.value.model ?: return
         viewModelScope.launch {
+            // Unload FIRST: llama.cpp maps the model file into native memory;
+            // deleting it while loaded can crash the process (native SIGSEGV).
+            container.chatCoordinator.unloadModel(model.id)
             container.downloadManager.clearForModel(model.id)
             container.modelRepository.remove(model.id)
             _state.value = _state.value.copy(

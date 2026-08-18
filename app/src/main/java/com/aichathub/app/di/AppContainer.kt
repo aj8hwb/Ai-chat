@@ -14,6 +14,9 @@ import com.aichathub.app.device.CompatibilityEngine
 import com.aichathub.app.device.DeviceInfoProvider
 import com.aichathub.app.device.ModelScanner
 import com.aichathub.app.download.DownloadManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 
 /**
@@ -56,7 +59,16 @@ class AppContainer(context: Context) {
         modelRepository = modelRepository
     )
 
-    val inferenceRuntime: InferenceRuntime = LlamaCppRuntime(context.applicationContext)
+    val inferenceRuntime: InferenceRuntime = LlamaCppRuntime(
+        context = context.applicationContext,
+        onModelMemoryMeasured = { modelId, bytes ->
+            // Persist the real measured footprint so the recommendation system
+            // can score this model on what actually happens on THIS device.
+            CoroutineScope(Dispatchers.IO).launch {
+                runCatching { settingsRepository.setMeasuredMemory(modelId, bytes) }
+            }
+        }
+    )
 
     val chatCoordinator: ChatCoordinator = ChatCoordinator(
         runtime = inferenceRuntime,
@@ -64,4 +76,10 @@ class AppContainer(context: Context) {
         messageDao = messageDao,
         modelRepository = modelRepository
     )
+
+    init {
+        // Mirror persisted settings into synchronous caches used by components
+        // that cannot suspend (Application.onTrimMemory etc.).
+        settingsRepository.startCaching()
+    }
 }

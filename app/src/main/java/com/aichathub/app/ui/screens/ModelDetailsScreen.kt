@@ -27,10 +27,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -74,6 +78,7 @@ fun ModelDetailsScreen(
     val state by viewModel.state.collectAsState()
     val model = state.model
     val uriHandler = LocalUriHandler.current
+    var pendingDownload by remember { mutableStateOf(false) }
 
     if (model == null) {
         ErrorState(title = "Model not found", message = "This model is not in the catalog.", actionLabel = "Back", onAction = onBack)
@@ -285,7 +290,7 @@ fun ModelDetailsScreen(
                     else ->
                         GradientButton(
                             text = if (state.insufficientMemory) "Download Anyway" else "Download",
-                            onClick = viewModel::startDownload,
+                            onClick = { pendingDownload = true },
                             icon = Icons.Filled.Download,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -307,6 +312,30 @@ fun ModelDetailsScreen(
                 }
             }
         }
+    }
+
+    // Large downloads consume significant storage (and possibly mobile data) —
+    // confirm before starting them.
+    if (pendingDownload && model != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDownload = false },
+            title = { Text("Download ${model.name}?") },
+            text = {
+                Text(
+                    "This is a ${Formatters.bytes(model.fileSizeBytes)} file. It will use storage (and mobile data if you're not on Wi-Fi). Continue?",
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.startDownload()
+                    pendingDownload = false
+                }) { Text("Download", color = Primary) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDownload = false }) { Text("Cancel", color = TextSecondary) }
+            }
+        )
     }
 }
 

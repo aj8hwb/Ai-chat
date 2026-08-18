@@ -7,6 +7,7 @@ import com.aichathub.app.ui.AiViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 data class PerformanceUiState(
@@ -36,14 +37,19 @@ class PerformanceViewModel(application: Application) : AiViewModel(application) 
             }
         }
         viewModelScope.launch {
-            container.chatCoordinator.state.collect { s ->
+            combine(
+                container.chatCoordinator.state,
+                container.settingsRepository.measuredMemory
+            ) { s, measured ->
                 val model = s.activeModelId?.let { LocalModelCatalog.byId(it) }
                 _state.value = _state.value.copy(
                     activeModelName = s.activeModelName,
-                    modelMemoryBytes = model?.estimatedMemoryBytes ?: 0,
+                    // Prefer the REAL measured footprint over the catalog estimate
+                    // so the monitor shows what the model actually uses on-device.
+                    modelMemoryBytes = model?.let { measured[it.id] ?: it.estimatedMemoryBytes } ?: 0,
                     contextMax = model?.contextLength ?: 0
                 )
-            }
+            }.collect { /* state updated inside the transform */ }
         }
     }
 }

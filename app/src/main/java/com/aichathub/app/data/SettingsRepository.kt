@@ -7,8 +7,14 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
@@ -16,6 +22,37 @@ private val Context.dataStore by preferencesDataStore(name = "settings")
  * App settings, persisted locally. Local-first: all settings stay on device.
  */
 class SettingsRepository(private val context: Context) {
+
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    /**
+     * Last-read values of settings that must be consulted SYNCHRONOUSLY from
+     * places that cannot suspend (e.g. [android.app.Application.onTrimMemory]).
+     * Kept in sync by [startCaching].
+     */
+    @Volatile
+    var cachedAutoUnload: Boolean = true
+        private set
+
+    @Volatile
+    var cachedBatteryConscious: Boolean = false
+        private set
+
+    /** Wi-Fi-only downloads, mirrored for synchronous checks inside the downloader. */
+    @Volatile
+    var cachedWifiOnlyDownloads: Boolean = false
+        private set
+
+    /** Starts mirroring persisted settings into the synchronous caches. */
+    fun startCaching() {
+        scope.launch {
+            settings.collect { s ->
+                cachedAutoUnload = s.autoUnload
+                cachedBatteryConscious = s.batteryConscious
+                cachedWifiOnlyDownloads = s.wifiOnlyDownloads
+            }
+        }
+    }
 
     data class Settings(
         val defaultModelId: String? = null,
@@ -32,7 +69,11 @@ class SettingsRepository(private val context: Context) {
         /** Mirror downloads to the shared Downloads folder for reinstall survival. */
         val storeInSharedDownloads: Boolean = true,
         /** Chat thinking depth: INSTANT / DEFAULT / HARD. */
-        val thinkingMode: String = "DEFAULT"
+        val thinkingMode: String = "DEFAULT",
+        /** Only download model files over Wi-Fi (never mobile data). */
+        val wifiOnlyDownloads: Boolean = false,
+        /** User dismissed the first-run "How it works" card on Home. */
+        val helpDismissed: Boolean = false
     )
 
     private object Keys {
@@ -48,6 +89,9 @@ class SettingsRepository(private val context: Context) {
         val modelsFolderUri = stringPreferencesKey("models_folder_uri")
         val storeInSharedDownloads = booleanPreferencesKey("store_in_shared_downloads")
         val thinkingMode = stringPreferencesKey("thinking_mode")
+        val wifiOnlyDownloads = booleanPreferencesKey("wifi_only_downloads")
+        val helpDismissed = booleanPreferencesKey("help_dismissed")
+        val measuredMemory = stringPreferencesKey("measured_memory")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -63,8 +107,30 @@ class SettingsRepository(private val context: Context) {
             themeDark = p[Keys.themeDark] ?: true,
             modelsFolderUri = p[Keys.modelsFolderUri],
             storeInSharedDownloads = p[Keys.storeInSharedDownloads] ?: true,
-            thinkingMode = p[Keys.thinkingMode] ?: "DEFAULT"
+            thinkingMode = p[Keys.thinkingMode] ?: "DEFAULT",
+            wifiOnlyDownloads = p[Keys.wifiOnlyDownloads] ?: false,
+            helpDismissed = p[Keys.helpDismissed] ?: false
         )
+    }
+
+    /**
+     * Measured runtime memory (App PSS) of each model, keyed by model id. This
+     * is REAL memory measured on this device after loading the model, persisted
+     * so recommendations can prefer measurements over catalog estimates.
+     */
+    val measuredMemory: Flow<Map<String, Long>> = context.dataStore.data.map { p ->
+        com.aichathub.app.util.MeasuredMemory.decode(p[Keys.measuredMemory])
+    }
+
+    suspend fun measuredMemoryOnce(): Map<String, Long> = measuredMemory.first()
+
+    suspend fun setMeasuredMemory(modelId: String, bytes: Long) {
+        if (bytes <= 0) return
+        context.dataStore.edit { p ->
+            val updated = com.aichathub.app.util.MeasuredMemory.decode(p[Keys.measuredMemory]) +
+                (modelId to bytes)
+            p[Keys.measuredMemory] = com.aichathub.app.util.MeasuredMemory.encode(updated)
+        }
     }
 
     suspend fun setDefaultModel(id: String?) {
@@ -86,4 +152,6 @@ class SettingsRepository(private val context: Context) {
     }
     suspend fun setStoreInSharedDownloads(v: Boolean) = context.dataStore.edit { it[Keys.storeInSharedDownloads] = v }
     suspend fun setThinkingMode(v: String) = context.dataStore.edit { it[Keys.thinkingMode] = v }
+    suspend fun setWifiOnlyDownloads(v: Boolean) = context.dataStore.edit { it[Keys.wifiOnlyDownloads] = v }
+    suspend fun setHelpDismissed(v: Boolean) = context.dataStore.edit { it[Keys.helpDismissed] = v }
 }

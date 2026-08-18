@@ -98,6 +98,7 @@ import kotlinx.coroutines.launch
 fun ChatScreen(
     onNavigate: (String) -> Unit,
     conversationId: Long? = null,
+    modelId: String? = null,
     viewModel: ChatViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -110,9 +111,16 @@ fun ChatScreen(
     var longPressMessage by remember { mutableStateOf<MessageEntity?>(null) }
     var editingMessage by remember { mutableStateOf<MessageEntity?>(null) }
     var traceExpanded by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(conversationId) {
         if (conversationId != null) viewModel.loadConversation(conversationId)
+    }
+
+    // A model id supplied by navigation (Model Store / My Models "Chat" button)
+    // pre-selects that model for the chat.
+    LaunchedEffect(modelId) {
+        if (modelId != null && modelId.isNotBlank()) viewModel.selectModelById(modelId)
     }
 
     // Auto-scroll to bottom when messages change (never past the last item).
@@ -133,7 +141,7 @@ fun ChatScreen(
                     scope.launch { drawerState.close() }
                     if (state.conversationId != it) viewModel.loadConversation(it)
                 },
-                onDelete = { viewModel.deleteConversation(it) },
+                onDelete = { deleteTarget = it },
                 onNewChat = {
                     scope.launch { drawerState.close() }
                     viewModel.newChat()
@@ -219,16 +227,17 @@ fun ChatScreen(
                             val dotColor = when {
                                 state.generating -> Primary
                                 state.isLoadingModel -> Color(0xFFFBBF24)
-                                state.activeModelId != null -> Success
+                                state.isModelLoaded -> Success
                                 else -> TextSecondary
                             }
                             Box(modifier = Modifier.size(6.dp).background(dotColor, RoundedCornerShape(50)))
                             Spacer(Modifier.width(5.dp))
                             Text(
                                 when {
-                                    state.generating -> "Thinking…"
+                                    state.generating -> "Generating…"
                                     state.isLoadingModel -> "Loading model…"
-                                    state.activeModelId != null -> "Ready"
+                                    state.isModelLoaded -> "Model ready"
+                                    state.activeModelId != null -> "Model unloaded · reloads on send"
                                     else -> "No model loaded"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
@@ -371,6 +380,24 @@ fun ChatScreen(
                     longPressMessage = null
                     editingMessage = msg
                 }) { Text("Edit", color = Primary) }
+            }
+        )
+    }
+
+    // Delete confirmation (avoids an accidental tap wiping a whole chat)
+    deleteTarget?.let { id ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete conversation?") },
+            text = { Text("This conversation and all of its messages will be permanently removed.", color = TextSecondary) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteConversation(id)
+                    deleteTarget = null
+                }) { Text("Delete", color = androidx.compose.ui.graphics.Color(0xFFF87171)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = TextSecondary) }
             }
         )
     }
@@ -562,7 +589,7 @@ private fun ThinkingBubble() {
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Thinking", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                Text("Generating", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                 Spacer(Modifier.width(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Dot(alpha = d1)
@@ -628,10 +655,9 @@ private fun ThinkingTracePanel(
         AnimatedVisibility(visible = expanded) {
             AppCard(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    TraceRow("Read the question and loaded the conversation context.")
-                    TraceRow("Reasoned about the best answer (Hard thinking).")
                     TraceRow("Generated ${info.tokens} tokens in ${info.elapsedSec}s at ${info.tps} tok/s.")
                     TraceRow("Response length: ${info.responseChars} characters.")
+                    TraceRow("Ran entirely on-device with llama.cpp.")
                     TraceRow("Memory usage was recorded in the device logs (AICHATHUB_MEM).")
                 }
             }

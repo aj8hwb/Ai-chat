@@ -53,6 +53,16 @@ class ModelsViewModel(application: Application) : AiViewModel(application) {
         refresh()
         observeInstalled()
         observeDownloads()
+        observeMeasuredMemory()
+    }
+
+    /** Re-runs the compatibility analysis when a model's real memory is measured. */
+    private fun observeMeasuredMemory() {
+        viewModelScope.launch {
+            container.settingsRepository.measuredMemory.collect {
+                refresh()
+            }
+        }
     }
 
     private fun observeInstalled() {
@@ -80,10 +90,12 @@ class ModelsViewModel(application: Application) : AiViewModel(application) {
         viewModelScope.launch {
             val profile = container.deviceInfoProvider.getDeviceProfile()
             val budget = MemoryBudgetCalculator.calculate(profile)
+            val measured = container.settingsRepository.measuredMemoryOnce()
             val recommendations = container.compatibilityEngine.recommendAll(
                 LocalModelCatalog.models,
                 profile,
-                budget
+                budget,
+                measured
             )
             _state.value = _state.value.copy(
                 compatibility = recommendations.associate { it.model.id to it.level },

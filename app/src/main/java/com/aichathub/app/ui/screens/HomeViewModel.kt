@@ -12,6 +12,7 @@ import com.aichathub.app.ui.AiViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class HomeUiState(
@@ -19,7 +20,8 @@ data class HomeUiState(
     val memoryBudget: AiMemoryBudget? = null,
     val recommendations: List<Recommendation> = emptyList(),
     val analyzing: Boolean = true,
-    val installedStates: Map<String, ModelLifecycleState> = emptyMap()
+    val installedStates: Map<String, ModelLifecycleState> = emptyMap(),
+    val showHelp: Boolean = false
 )
 
 class HomeViewModel(application: Application) : AiViewModel(application) {
@@ -30,6 +32,21 @@ class HomeViewModel(application: Application) : AiViewModel(application) {
     init {
         analyze()
         observeInstalled()
+        observeMeasuredMemory()
+        viewModelScope.launch {
+            val s = container.settingsRepository.settings.first()
+            _state.value = _state.value.copy(showHelp = !s.helpDismissed)
+        }
+    }
+
+    /** Re-analyzes whenever a model's real memory footprint is measured, so
+     *  recommendations reflect what actually happens on this device. */
+    private fun observeMeasuredMemory() {
+        viewModelScope.launch {
+            container.settingsRepository.measuredMemory.collect {
+                analyze()
+            }
+        }
     }
 
     private fun observeInstalled() {
@@ -42,21 +59,30 @@ class HomeViewModel(application: Application) : AiViewModel(application) {
         }
     }
 
+    fun dismissHelp() {
+        _state.value = _state.value.copy(showHelp = false)
+        viewModelScope.launch { container.settingsRepository.setHelpDismissed(true) }
+    }
+
     fun analyze() {
         _state.value = _state.value.copy(analyzing = true)
         viewModelScope.launch {
             val profile = container.deviceInfoProvider.getDeviceProfile()
             val budget = MemoryBudgetCalculator.calculate(profile)
+            val measured = container.settingsRepository.measuredMemoryOnce()
             val recommendations = container.compatibilityEngine.recommendAll(
                 LocalModelCatalog.models,
                 profile,
-                budget
+                budget,
+                measured
             )
             _state.value = HomeUiState(
                 deviceProfile = profile,
                 memoryBudget = budget,
                 recommendations = recommendations,
-                analyzing = false
+                analyzing = false,
+                installedStates = _state.value.installedStates,
+                showHelp = _state.value.showHelp
             )
         }
     }

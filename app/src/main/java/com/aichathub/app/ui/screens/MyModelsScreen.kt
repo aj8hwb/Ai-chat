@@ -166,7 +166,7 @@ fun MyModelsScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 GradientButton(
                                     text = "Chat",
-                                    onClick = { onNavigate(Screen.Chat.route) }
+                                    onClick = { onNavigate(Screen.Chat.routeFor(model.id)) }
                                 )
                                 IconButton(onClick = { deleteTarget = model.id }) {
                                     Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = Error)

@@ -67,10 +67,12 @@ class AiChatHubApplication : Application() {
      * instant "app stopped" after backgrounding. Unload the model as soon as
      * the UI is hidden so the backgrounded process stays small and stable.
      * The model reloads lazily on the next message (it is still READY).
+     * Respects the user's "Auto Unload Model" setting.
      */
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
         if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN && ::container.isInitialized) {
+            if (!container.settingsRepository.cachedAutoUnload) return
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching {
                     container.inferenceRuntime.unload()

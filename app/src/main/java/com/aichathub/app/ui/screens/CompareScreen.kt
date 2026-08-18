@@ -102,6 +102,17 @@ fun CompareScreen(
                 Spacer(Modifier.height(16.dp))
             }
 
+            state.error?.let { err ->
+                item {
+                    Text(
+                        err,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Error,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            }
+
             state.results.forEach { result ->
                 item {
                     AppCard(modifier = Modifier.fillMaxWidth()) {

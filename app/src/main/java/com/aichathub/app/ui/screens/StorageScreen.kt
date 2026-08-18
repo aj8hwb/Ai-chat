@@ -105,6 +105,26 @@ fun StorageScreen(
                     }
                 }
             }
+            if (state.orphanFiles.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                AppCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Unknown Files", style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
+                            Text(
+                                "${state.orphanFiles.size} file${if (state.orphanFiles.size == 1) "" else "s"} not used by any catalog model.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                        androidx.compose.material3.TextButton(onClick = viewModel::deleteUnknownFiles) {
+                            Icon(Icons.Filled.DeleteSweep, contentDescription = null, tint = TextSecondary)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Remove", color = TextSecondary)
+                        }
+                    }
+                }
+            }
         }
     }
 }

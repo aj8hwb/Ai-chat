@@ -57,7 +57,12 @@ class ChatCoordinator(
      * serialized so a quick model A → model B switch cannot corrupt the
      * single-slot native runtime.
      */
-    suspend fun loadModel(model: CatalogModel, file: File) {
+    suspend fun loadModel(
+        model: CatalogModel,
+        file: File,
+        config: GenerationConfig? = null,
+        threads: Int = 4
+    ) {
         _state.value = _state.value.copy(
             isLoadingModel = true,
             generationState = ChatGenerationState.LOADING,
@@ -78,7 +83,7 @@ class ChatCoordinator(
                 // cause us to skip a required reload.
                 if (runtime.activeModelId != model.id) {
                     runtime.unload()
-                    runtime.load(model.id, file, model.contextLength)
+                    runtime.load(model.id, file, model.contextLength, config, threads)
                     Log.i("ChatCoordinator", "MODEL_LOAD_SUCCESS ${model.id}")
                 }
             }
@@ -283,6 +288,10 @@ class ChatCoordinator(
      * can continue the conversation. The prompt is kept within a strict size
      * budget: an oversized prompt overflows llama.cpp's native context and
      * crashes the whole process, so older turns are dropped first.
+     *
+     * The system prompt is intentionally NOT embedded here — the engine
+     * receives it through its own [systemPrompt] channel, so duplicating it
+     * here would make the model see it twice.
      */
     private suspend fun buildPrompt(
         newPrompt: String,
@@ -294,9 +303,6 @@ class ChatCoordinator(
             .takeLast(8)
 
         val sb = StringBuilder()
-        if (systemPrompt.isNotBlank()) {
-            sb.append("System: ").append(systemPrompt.take(MAX_SYSTEM_PROMPT_CHARS)).append("\n\n")
-        }
         recent.forEach { m ->
             val role = if (m.role == "user") "User" else "Assistant"
             sb.append(role).append(": ").append(m.content).append("\n")
@@ -310,9 +316,6 @@ class ChatCoordinator(
         // (line by line) until the whole prompt fits — the newest message, the
         // one the user just sent, always stays intact.
         val trimmed = StringBuilder()
-        if (systemPrompt.isNotBlank()) {
-            trimmed.append("System: ").append(systemPrompt.take(MAX_SYSTEM_PROMPT_CHARS)).append("\n\n")
-        }
         recent.takeLast(MAX_HISTORY_TURNS).forEach { m ->
             val role = if (m.role == "user") "User" else "Assistant"
             trimmed.append(role).append(": ").append(m.content).append("\n")
@@ -328,7 +331,6 @@ class ChatCoordinator(
     }
 
     private companion object {
-        const val MAX_SYSTEM_PROMPT_CHARS = 500
         const val MAX_HISTORY_TURNS = 4
         const val MAX_FULL_PROMPT_CHARS = 2200
     }

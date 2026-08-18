@@ -30,7 +30,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * the [InferenceRuntime] interface, so the engine can be swapped later.
  */
 class LlamaCppRuntime(
-    private val context: Context
+    private val context: Context,
+    private val onModelMemoryMeasured: ((modelId: String, pssBytes: Long) -> Unit)? = null
 ) : InferenceRuntime {
 
     private val tag = "LlamaCppRuntime"
@@ -67,21 +68,36 @@ class LlamaCppRuntime(
     private var reloadFile: File? = null
     @Volatile
     private var reloadContextLength: Int = 512
+    @Volatile
+    private var reloadSampling: GenerationConfig? = null
+    @Volatile
+    private var reloadThreads: Int = 4
+
     /**
-     * Set once the model has produced a generation. llama.cpp reuses the KV
-     * cache across [Llama.complete] calls; after one generation the context is
-     * dirty and a second call can overflow it, which makes the model go silent
-     * or crash natively. So the NEXT generation reloads from a clean context.
+     * Running estimate of the tokens currently held in the native KV cache.
+     * llama.cpp reuses the KV cache across [Llama.complete] calls; once the
+     * accumulated prompt+generation tokens approach the model's context size a
+     * next call can overflow it, which makes the model go silent or crash
+     * natively. So the model is rebuilt fresh BEFORE that overflow, instead of
+     * reloading before every single message.
      */
     @Volatile
-    private var generatedSinceLoad = false
+    private var estimatedContextUsed = 0
 
-    override suspend fun load(modelId: String, file: File, contextLength: Int) = nativeMutex.withLock {
+    override suspend fun load(
+        modelId: String,
+        file: File,
+        contextLength: Int,
+        sampling: GenerationConfig?,
+        threads: Int
+    ) = nativeMutex.withLock {
         withContext(Dispatchers.IO) {
             check(!closed.get()) { "Runtime already released" }
             reloadModelId = modelId
             reloadFile = file
             reloadContextLength = contextLength
+            reloadSampling = sampling
+            reloadThreads = threads.coerceAtLeast(1)
             unloadQuietly()
             doLoad(modelId, file, contextLength)
         }
@@ -89,22 +105,29 @@ class LlamaCppRuntime(
 
     private suspend fun doLoad(modelId: String, file: File, contextLength: Int) {
         Log.i(tag, "Loading model $modelId from ${file.absolutePath}")
+        val s = reloadSampling ?: GenerationConfig()
         val config = LlamaConfig(
             contextSize = contextLength.coerceAtLeast(512),
-            threads = 4,
+            threads = reloadThreads.coerceAtLeast(1),
             gpuLayers = 0,
-            temperature = 0.7f,
-            topP = 0.9f,
-            topK = 40,
-            seed = -1
+            temperature = s.temperature,
+            topP = s.topP,
+            topK = s.topK,
+            seed = if (s.randomSeed == 0) -1 else s.randomSeed
         )
+        val pssBefore = pssBytes()
         val loaded = Llama.loadModel(file.absolutePath, config)
         model = loaded
         isLoaded = true
         activeModelId = modelId
-        generatedSinceLoad = false
+        estimatedContextUsed = 0
         _performance.value = InferenceRuntime.Performance(contextUsed = 0)
-        Log.i(tag, "Model $modelId loaded (${Llama.getSystemInfo()})")
+        // Report the REAL memory this model consumes on this device (App PSS
+        // delta around the load). This feeds the recommendation system so it
+        // scores models on measured footprint, not just the catalog estimate.
+        val pssDelta = (pssBytes() - pssBefore).coerceAtLeast(0)
+        if (pssDelta > 0) onModelMemoryMeasured?.invoke(modelId, pssDelta)
+        Log.i(tag, "Model $modelId loaded (threads=${reloadThreads}, temp=${config.temperature}) ${Llama.getSystemInfo()}")
         memoryLog("after load $modelId")
     }
 
@@ -122,20 +145,24 @@ class LlamaCppRuntime(
         model = null
         isLoaded = false
         activeModelId = null
-        generatedSinceLoad = false
+        estimatedContextUsed = 0
         _performance.value = InferenceRuntime.Performance()
     }
 
     /**
-     * Rebuilds the native model from a clean state when a previous generation
-     * dirtied the KV cache, so consecutive messages never overflow the context.
-     * No-op on the first generation after a load. Must run on the IO dispatcher.
+     * Rebuilds the native model from a clean state only when the accumulated
+     * context is about to overflow the model's KV cache. No-op for a fresh
+     * load and for short conversations — consecutive messages reuse the loaded
+     * model (fast multi-turn) until the estimated context pressure makes a
+     * reload necessary. Must run on the IO dispatcher.
      */
-    private suspend fun ensureFreshContext() {
+    private suspend fun ensureFreshContext(prompt: String) {
         val file = reloadFile ?: return
         val id = reloadModelId ?: return
-        if (!generatedSinceLoad) return
-        Log.i(tag, "Fresh context: reloading $id before next generation")
+        val newPromptTokens = (prompt.length / TOKENS_PER_CHAR).coerceAtLeast(1)
+        if (estimatedContextUsed + newPromptTokens <= reloadContextLength * CONTEXT_SAFETY_FACTOR) return
+        Log.i(tag, "Fresh context: reloading $id before next generation " +
+            "(estimated=${estimatedContextUsed}+$newPromptTokens of $reloadContextLength)")
         unloadQuietly()
         doLoad(id, file, reloadContextLength)
     }
@@ -146,11 +173,14 @@ class LlamaCppRuntime(
         systemPrompt: String?
     ): String = nativeMutex.withLock {
         check(!closed.get()) { "Runtime already released" }
-        // A stale cancellation (e.g. the Playground was left mid-run) must bail
-        // out BEFORE touching native code, so it never wastes a generation.
-        if (cancelled.get()) throw CancellationException("Generation cancelled")
+        // A stale cancellation (e.g. the Playground was left mid-run) must never
+        // silently block a new generation: clear it and proceed normally. A live
+        // cancellation of THIS generation is still honored after the call.
         cancelled.set(false)
-        withContext(Dispatchers.IO) { ensureFreshContext() }
+        // If a fresh-context reload happens below, it must use the CURRENT
+        // sampling config — the config baked in at load time may be stale.
+        reloadSampling = config
+        withContext(Dispatchers.IO) { ensureFreshContext(prompt) }
         val m = requireModel()
         generating.set(true)
         _performance.value = _performance.value.copy(generationActive = true)
@@ -162,7 +192,7 @@ class LlamaCppRuntime(
             }
             memoryLog("after generate")
             if (cancelled.get()) throw CancellationException("Generation cancelled")
-            updatePerformance(result, start)
+            updatePerformance(result, start, prompt.length)
             result.text
         } finally {
             generating.set(false)
@@ -178,11 +208,11 @@ class LlamaCppRuntime(
         onToken: (String) -> Unit
     ): String = nativeMutex.withLock {
         check(!closed.get()) { "Runtime already released" }
-        // A stale cancellation (e.g. the Playground was left mid-run) must bail
-        // out BEFORE touching native code, so it never wastes a generation.
-        if (cancelled.get()) throw CancellationException("Generation cancelled")
+        // See [generate]: stale cancellations are discarded, not fatal.
         cancelled.set(false)
-        withContext(Dispatchers.IO) { ensureFreshContext() }
+        // Keep the fresh-context reload in sync with the current sampling.
+        reloadSampling = config
+        withContext(Dispatchers.IO) { ensureFreshContext(prompt) }
         val m = requireModel()
         generating.set(true)
         _performance.value = _performance.value.copy(generationActive = true)
@@ -195,7 +225,7 @@ class LlamaCppRuntime(
             memoryLog("after generateStreaming")
             if (cancelled.get()) throw CancellationException("Generation cancelled")
             onToken(result.text)
-            updatePerformance(result, start)
+            updatePerformance(result, start, prompt.length)
             result.text
         } finally {
             generating.set(false)
@@ -203,6 +233,11 @@ class LlamaCppRuntime(
             _performance.value = _performance.value.copy(generationActive = false)
         }
     }
+
+    /** True once the model has produced at least one generation (used by the
+     *  context-pressure reload decision). */
+    @Volatile
+    private var generatedSinceLoad = false
 
     override fun cancelGeneration() {
         // Native generation cannot be interrupted mid-call on the free tier;
@@ -218,6 +253,12 @@ class LlamaCppRuntime(
 
     private fun requireModel(): LlamaModel =
         model ?: throw IllegalStateException("Model is not loaded")
+
+    private fun pssBytes(): Long = runCatching {
+        val info = Debug.MemoryInfo()
+        Debug.getMemoryInfo(info)
+        info.totalPss * 1024L
+    }.getOrDefault(0L)
 
     /**
      * Records the app's real memory footprint (App PSS, native heap and Java
@@ -240,14 +281,24 @@ class LlamaCppRuntime(
         }
     }
 
-    private fun updatePerformance(result: LlamaResult, startNanos: Long) {
+    private fun updatePerformance(result: LlamaResult, startNanos: Long, promptLength: Int) {
         val elapsed = (System.nanoTime() - startNanos) / 1_000_000_000f
         val tps = if (result.tokensPerSecond > 0f) result.tokensPerSecond
         else if (elapsed > 0f) result.tokensGenerated / elapsed else 0f
+        val promptTokens = (promptLength / TOKENS_PER_CHAR).coerceAtLeast(1)
+        val contextUsed = promptTokens + result.tokensGenerated
+        estimatedContextUsed = contextUsed
         _performance.value = _performance.value.copy(
             tokensPerSecond = tps,
             tokensGenerated = result.tokensGenerated,
-            contextUsed = _performance.value.contextUsed
+            contextUsed = contextUsed
         )
+    }
+
+    private companion object {
+        /** Conservative average characters per token for prompt size accounting. */
+        const val TOKENS_PER_CHAR = 4
+        /** Never let the estimated KV usage exceed this fraction of the context. */
+        const val CONTEXT_SAFETY_FACTOR = 0.8f
     }
 }

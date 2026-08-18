@@ -43,7 +43,11 @@ fun ChatSettingsScreen(
     ) {
         item {
             Text("Chat Settings", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
-            Text("Generation parameters applied to new messages", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Text(
+                "Applied when a model loads. Changes take effect on the next model load.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary
+            )
             Spacer(Modifier.height(12.dp))
         }
 

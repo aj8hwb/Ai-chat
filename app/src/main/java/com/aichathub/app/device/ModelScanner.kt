@@ -63,6 +63,11 @@ class ModelScanner(
 
     /** Scans the shared Downloads folder (Download/AiChatHub/Models). */
     suspend fun scanSharedDownloads(): List<DiscoveredFile> = withContext(Dispatchers.IO) {
+        // MediaStore.Downloads only exists on API 29+; on older devices the
+        // class reference throws NoClassDefFoundError, so skip cleanly.
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+            return@withContext emptyList()
+        }
         val found = mutableListOf<DiscoveredFile>()
         runCatching {
             val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
@@ -158,6 +163,18 @@ class ModelScanner(
             return@withContext ImportResult.Failed(file.fileName, "Could not copy the file.")
         }
 
+        // Integrity check: an imported file must match the catalog checksum,
+        // otherwise a corrupted or tampered model would be marked READY.
+        val expected = model.checksumSha256
+        if (expected != null && !expected.equals(sha256Hex(target), ignoreCase = true)) {
+            runCatching { target.delete() }
+            Log.w(tag, "MODEL_IMPORT_REJECTED ${model.id} — checksum mismatch")
+            return@withContext ImportResult.Failed(
+                file.fileName,
+                "Checksum mismatch — this file is not the genuine ${model.name}. Download it from the Model Store instead."
+            )
+        }
+
         modelRepository.registerImported(model.id, target.absolutePath, target.length())
         Log.i(tag, "MODEL_IMPORTED ${model.id} -> ${target.absolutePath}")
         ImportResult.Imported(model.id, target.absolutePath)
@@ -176,4 +193,20 @@ class ModelScanner(
         } ?: return false
         true
     }.getOrDefault(false)
+
+    private fun sha256Hex(file: File): String = try {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = input.read(buf)
+                if (n == -1) break
+                md.update(buf, 0, n)
+            }
+        }
+        md.digest().joinToString("") { String.format("%02x", it) }
+    } catch (e: Exception) {
+        Log.w(tag, "Checksum computation failed", e)
+        ""
+    }
 }

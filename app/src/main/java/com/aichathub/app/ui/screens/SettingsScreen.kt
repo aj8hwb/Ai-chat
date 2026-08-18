@@ -119,6 +119,22 @@ fun SettingsScreen(
             }
         }
 
+        // Downloads
+        item {
+            Spacer(Modifier.height(16.dp))
+            SectionHeader(title = "Downloads")
+            AppCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    SwitchRow(
+                        title = "Wi-Fi Only",
+                        subtitle = "Pause model downloads on mobile data",
+                        checked = state.wifiOnlyDownloads,
+                        onCheckedChange = viewModel::onWifiOnlyChange
+                    )
+                }
+            }
+        }
+
         // Generation defaults
         item {
             Spacer(Modifier.height(16.dp))

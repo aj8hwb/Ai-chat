@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Speed
@@ -119,9 +120,19 @@ fun HomeScreen(
                 HeroCard(
                     installedCount = state.installedStates.size,
                     readyCount = readyCount,
-                    onOpenChat = { onNavigate(Screen.Chat.route) },
+                    onOpenChat = { onNavigate(Screen.Chat.BASE_ROUTE) },
                     onExplore = { onNavigate(Screen.Models.route) }
                 )
+            }
+
+            // First-run help card
+            if (state.showHelp && state.installedStates.isEmpty()) {
+                item {
+                    HelpCard(
+                        onDismiss = viewModel::dismissHelp,
+                        onExplore = { onNavigate(Screen.Models.route) }
+                    )
+                }
             }
 
             // Quick actions
@@ -133,7 +144,7 @@ fun HomeScreen(
                     QuickAction(
                         icon = Icons.Filled.Add,
                         label = "New Chat",
-                        onClick = { onNavigate(Screen.Chat.route) },
+                        onClick = { onNavigate(Screen.Chat.BASE_ROUTE) },
                         modifier = Modifier.weight(1f)
                     )
                     QuickAction(
@@ -181,6 +192,44 @@ fun HomeScreen(
 }
 
 @Composable
+private fun HelpCard(
+    onDismiss: () -> Unit,
+    onExplore: () -> Unit
+) {
+    AppCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "How it works",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text("1. Pick a model that fits your device from the Model Store.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Text("2. It downloads, verifies, and installs automatically.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Text("3. Chat with it — fully on-device, offline, private.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Spacer(Modifier.height(10.dp))
+            GradientButton(
+                text = "Explore Models",
+                onClick = onExplore,
+                icon = Icons.Filled.Widgets,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
 private fun HeroCard(
     installedCount: Int,
     readyCount: Int,
@@ -193,27 +242,47 @@ private fun HeroCard(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
+                    val title = when {
+                        readyCount > 0 -> "Local AI Ready"
+                        installedCount > 0 -> "Models Installed"
+                        else -> "Get Started with Local AI"
+                    }
                     Text(
-                        "Local AI Ready",
+                        title,
                         style = MaterialTheme.typography.titleLarge,
                         color = TextPrimary,
                         fontWeight = FontWeight.Bold
                     )
+                    val subtitle = when {
+                        readyCount > 0 -> "$readyCount model ready · $installedCount installed"
+                        installedCount > 0 -> "$installedCount models installed · none ready to chat yet"
+                        else -> "Install a model to start chatting"
+                    }
                     Text(
-                        if (readyCount > 0)
-                            "$readyCount model ready · $installedCount installed"
-                        else
-                            if (installedCount > 0) "$installedCount models installed" else "No models installed yet",
+                        subtitle,
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary
                     )
                 }
+                val dotColor = when {
+                    readyCount > 0 -> Success
+                    installedCount > 0 -> Warning
+                    else -> TextSecondary
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        modifier = Modifier.size(8.dp).background(Success, CircleShape)
+                        modifier = Modifier.size(8.dp).background(dotColor, CircleShape)
                     )
                     Spacer(Modifier.width(6.dp))
-                    Text("Ready", color = TextPrimary, style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        when {
+                            readyCount > 0 -> "Ready"
+                            installedCount > 0 -> "Not ready"
+                            else -> "No models yet"
+                        },
+                        color = TextPrimary,
+                        style = MaterialTheme.typography.labelMedium
+                    )
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -284,9 +353,9 @@ private fun SystemOverview(
                 if (budget != null) {
                     Spacer(Modifier.height(14.dp))
                     ProgressBlock(
-                        label = "AI Memory Budget",
-                        progress = budget.usableBytes.toFloat() / profile.availableRamBytes.toFloat(),
-                        valueText = "${budget.usableGb.toString().take(3)} GB"
+                        label = "Safe AI Budget",
+                        progress = budget.modelMemoryBytes.toFloat() / profile.availableRamBytes.toFloat(),
+                        valueText = "${budget.modelMemoryGb.toString().take(3)} GB"
                     )
                 }
             }

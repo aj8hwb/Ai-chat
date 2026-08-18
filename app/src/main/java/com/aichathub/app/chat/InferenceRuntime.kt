@@ -27,8 +27,21 @@ interface InferenceRuntime {
         val contextUsed: Int = 0
     )
 
-    /** Loads a model file into memory. Blocks until loaded or throws. */
-    suspend fun load(modelId: String, file: File, contextLength: Int)
+    /**
+     * Loads a model file into memory. Blocks until loaded or throws.
+     *
+     * @param sampling sampling parameters baked into the native load. They are
+     *   applied to every generation produced by this loaded model. Pass null to
+     *   use sensible defaults.
+     * @param threads native thread count (battery-conscious mode uses fewer).
+     */
+    suspend fun load(
+        modelId: String,
+        file: File,
+        contextLength: Int,
+        sampling: GenerationConfig? = null,
+        threads: Int = 4
+    )
 
     /** Unloads the current model and releases native resources. */
     suspend fun unload()

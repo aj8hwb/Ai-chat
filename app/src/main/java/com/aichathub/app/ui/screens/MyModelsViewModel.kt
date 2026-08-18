@@ -49,6 +49,9 @@ class MyModelsViewModel(application: Application) : AiViewModel(application) {
 
     fun delete(modelId: String) {
         viewModelScope.launch {
+            // Unload FIRST: llama.cpp holds the model file mapped in native
+            // memory — deleting the file underneath a loaded model can SIGSEGV.
+            container.chatCoordinator.unloadModel(modelId)
             container.downloadManager.clearForModel(modelId)
             container.modelRepository.remove(modelId)
         }
@@ -103,27 +106,33 @@ class MyModelsViewModel(application: Application) : AiViewModel(application) {
     }
 
     fun import(file: ModelScanner.DiscoveredFile) {
+        if (_state.value.scanning) return
+        _state.value = _state.value.copy(scanning = true, scanMessage = null)
         viewModelScope.launch {
             when (val result = container.modelScanner.import(file)) {
                 is ModelScanner.ImportResult.Imported -> {
                     _state.value = _state.value.copy(
+                        scanning = false,
                         discovered = _state.value.discovered.filterNot { it.fileName == file.fileName },
                         scanMessage = "Imported ${result.modelId}"
                     )
                 }
                 is ModelScanner.ImportResult.AlreadyInstalled -> {
                     _state.value = _state.value.copy(
+                        scanning = false,
                         discovered = _state.value.discovered.filterNot { it.fileName == file.fileName },
                         scanMessage = "${result.modelId} is already installed"
                     )
                 }
                 is ModelScanner.ImportResult.NoMatch -> {
                     _state.value = _state.value.copy(
+                        scanning = false,
                         scanMessage = "${file.fileName} is not a supported model"
                     )
                 }
                 is ModelScanner.ImportResult.Failed -> {
                     _state.value = _state.value.copy(
+                        scanning = false,
                         scanMessage = result.message
                     )
                 }

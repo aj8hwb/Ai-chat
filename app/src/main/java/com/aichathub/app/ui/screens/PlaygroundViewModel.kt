@@ -31,6 +31,12 @@ data class PlaygroundUiState(
 
 class PlaygroundViewModel(application: Application) : AiViewModel(application) {
 
+    /** Prompts beyond this size are rejected: an oversized prompt can overflow
+     *  llama.cpp's native context and crash the whole process. */
+    companion object {
+        const val MAX_PROMPT_CHARS = 3000
+    }
+
     private val _state = MutableStateFlow(PlaygroundUiState())
     val state: StateFlow<PlaygroundUiState> = _state.asStateFlow()
 
@@ -106,6 +112,12 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
 
     fun run() {
         if (runInFlight || _state.value.running) return
+        if (_state.value.prompt.length > MAX_PROMPT_CHARS) {
+            _state.value = _state.value.copy(
+                error = "That prompt is too long (max $MAX_PROMPT_CHARS characters). Please shorten it."
+            )
+            return
+        }
         val model = _state.value.selectedModelId?.let { LocalModelCatalog.byId(it) } ?: return
         runInFlight = true
         viewModelScope.launch {
@@ -116,13 +128,21 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
                     return@launch
                 }
                 _state.value = _state.value.copy(running = true, error = null, output = "", stats = null)
-                if (!container.inferenceRuntime.isLoaded || container.inferenceRuntime.activeModelId != model.id) {
-                    container.chatCoordinator.loadModel(model, java.io.File(installed.filePath))
-                }
+                val settings = container.settingsRepository.settings.first()
                 val config = GenerationConfig(
                     temperature = _state.value.temperature,
+                    topK = settings.topK,
+                    topP = settings.topP,
                     maxTokens = _state.value.maxTokens
                 )
+                if (!container.inferenceRuntime.isLoaded || container.inferenceRuntime.activeModelId != model.id) {
+                    container.chatCoordinator.loadModel(
+                        model,
+                        java.io.File(installed.filePath),
+                        config,
+                        threads = com.aichathub.app.util.ModelThreads.recommended(settings.batteryConscious)
+                    )
+                }
                 val start = System.nanoTime()
                 val result = container.inferenceRuntime.generateStreaming(
                     prompt = _state.value.prompt,

@@ -16,10 +16,11 @@ class CompatibilityEngine {
     fun evaluate(
         model: CatalogModel,
         profile: DeviceProfile,
-        budget: AiMemoryBudget
+        budget: AiMemoryBudget,
+        measuredMemory: Map<String, Long> = emptyMap()
     ): CompatibilityLevel {
-        val memoryScore = memoryScore(model, budget)
-        val ramScore = ramScore(model, profile)
+        val memoryScore = memoryScore(model, budget, measuredMemory)
+        val ramScore = ramScore(model, profile, measuredMemory)
         val overall = (memoryScore * 2 + ramScore) / 3
         var level = CompatibilityLevel.fromRank(overall)
 
@@ -35,21 +36,25 @@ class CompatibilityEngine {
     /**
      * Returns a list of recommendations for all catalog models, ranked.
      * Static device-analysis is combined with model characteristics.
+     *
+     * @param measuredMemory real PSS bytes measured on this device for some
+     *   models; when present it overrides the catalog's [CatalogModel.estimatedMemoryBytes].
      */
     fun recommendAll(
         models: List<CatalogModel>,
         profile: DeviceProfile,
-        budget: AiMemoryBudget
+        budget: AiMemoryBudget,
+        measuredMemory: Map<String, Long> = emptyMap()
     ): List<Recommendation> =
         models
             .map { model ->
-                val level = evaluate(model, profile, budget)
+                val level = evaluate(model, profile, budget, measuredMemory)
                 Recommendation(
                     model = model,
                     level = level,
                     score = level.rank,
                     reason = reasonFor(model, level, budget),
-                    quantizationNote = quantizationNote(model, budget)
+                    quantizationNote = quantizationNote(model, budget, measuredMemory)
                 )
             }
             .sortedWith(
@@ -57,9 +62,16 @@ class CompatibilityEngine {
                     .thenBy { it.model.fileSizeBytes }
             )
 
-    private fun memoryScore(model: CatalogModel, budget: AiMemoryBudget): Int {
-        val usable = budget.usableBytes
-        val required = model.estimatedMemoryBytes
+    /**
+     * Memory headroom against the SAME budget the load preflight uses
+     * ([AiMemoryBudget.modelMemoryBytes]). The compatibility badge, the
+     * "Download Anyway" warning and the actual load gate therefore always
+     * agree — a model can never be recommended on screen and then refused
+     * at load time.
+     */
+    private fun memoryScore(model: CatalogModel, budget: AiMemoryBudget, measuredMemory: Map<String, Long>): Int {
+        val usable = budget.modelMemoryBytes
+        val required = effectiveMemory(model, measuredMemory)
         return when {
             required <= usable * 0.6 -> 5
             required <= usable * 0.8 -> 4
@@ -69,10 +81,10 @@ class CompatibilityEngine {
         }
     }
 
-    private fun ramScore(model: CatalogModel, profile: DeviceProfile): Int {
+    private fun ramScore(model: CatalogModel, profile: DeviceProfile, measuredMemory: Map<String, Long>): Int {
         // Compare the model's expected memory footprint against total device RAM.
         val totalGb = profile.totalRamGb.toDouble()
-        val requiredGb = model.estimatedMemoryBytes / (1024.0 * 1024.0 * 1024.0)
+        val requiredGb = effectiveMemory(model, measuredMemory) / (1024.0 * 1024.0 * 1024.0)
         return when {
             requiredGb <= totalGb * 0.6 -> 5
             requiredGb <= totalGb * 0.75 -> 4
@@ -81,6 +93,14 @@ class CompatibilityEngine {
             else -> 1
         }
     }
+
+    /**
+     * Real measured PSS wins over the catalog estimate when available — a model
+     * measured to use far more (or far less) memory than estimated must be
+     * scored on what actually happens on THIS device.
+     */
+    private fun effectiveMemory(model: CatalogModel, measuredMemory: Map<String, Long>): Long =
+        measuredMemory[model.id] ?: model.estimatedMemoryBytes
 
     private fun reasonFor(
         model: CatalogModel,
@@ -99,8 +119,8 @@ class CompatibilityEngine {
             "Too heavy for your current device memory."
     }
 
-    private fun quantizationNote(model: CatalogModel, budget: AiMemoryBudget): String? {
-        val ratio = model.estimatedMemoryBytes.toDouble() / budget.usableBytes.toDouble()
+    private fun quantizationNote(model: CatalogModel, budget: AiMemoryBudget, measuredMemory: Map<String, Long>): String? {
+        val ratio = effectiveMemory(model, measuredMemory).toDouble() / budget.modelMemoryBytes.toDouble()
         return if (ratio > 1.0) {
             "A smaller quantization or a lighter model is recommended."
         } else null

@@ -1,5 +1,6 @@
 package com.aichathub.app.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,13 +13,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,6 +45,7 @@ import com.aichathub.app.ui.components.EmptyState
 import com.aichathub.app.ui.navigation.Screen
 import com.aichathub.app.ui.theme.Error
 import com.aichathub.app.ui.theme.Primary
+import com.aichathub.app.ui.theme.SurfaceHigh
 import com.aichathub.app.ui.theme.TextPrimary
 import com.aichathub.app.ui.theme.TextSecondary
 import com.aichathub.app.util.ConversationGroups
@@ -49,16 +57,65 @@ fun HistoryScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var deleteTarget by remember { mutableStateOf<Long?>(null) }
+    var renameTarget by remember { mutableStateOf<ConversationEntity?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(16.dp))
             Text("Conversations", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
             Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text("Search conversations…", color = TextSecondary) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = TextSecondary) },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Primary,
+                    unfocusedBorderColor = SurfaceHigh,
+                    focusedContainerColor = SurfaceHigh,
+                    unfocusedContainerColor = SurfaceHigh,
+                    cursorColor = Primary
+                )
+            )
+            Spacer(Modifier.height(8.dp))
         }
 
-        val groups = remember(state.conversations) {
-            ConversationGroups.groupByDay(state.conversations)
+        state.message?.let { msg ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    msg,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "Dismiss",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Primary,
+                    modifier = Modifier.padding(start = 8.dp).clickable { viewModel.clearMessage() }
+                )
+            }
+        }
+
+        val visible = if (query.isBlank()) {
+            state.conversations
+        } else {
+            val q = query.trim()
+            state.conversations.filter { conv ->
+                conv.title.contains(q, ignoreCase = true) ||
+                    conv.modelId.contains(q, ignoreCase = true)
+            }
+        }
+        val groups = remember(visible) {
+            ConversationGroups.groupByDay(visible)
         }
 
         LazyColumn(
@@ -66,12 +123,15 @@ fun HistoryScreen(
             contentPadding = PaddingValues(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            if (state.conversations.isEmpty()) {
+            if (visible.isEmpty()) {
                 item {
                     EmptyState(
                         icon = Icons.Filled.History,
-                        title = "No Conversations",
-                        description = "Start your first local AI conversation.",
+                        title = if (query.isBlank()) "No Conversations" else "No matches",
+                        description = if (query.isBlank())
+                            "Start your first local AI conversation."
+                        else
+                            "No conversations match \"$query\".",
                         modifier = Modifier.padding(vertical = 40.dp)
                     )
                 }
@@ -89,6 +149,11 @@ fun HistoryScreen(
                         ConversationRow(
                             conv = conv,
                             onClick = { onNavigate(Screen.Conversation.routeFor(conv.id)) },
+                            onRename = {
+                                renameTarget = conv
+                                renameText = conv.title.ifBlank { "New chat" }
+                            },
+                            onExport = { viewModel.export(conv.id) },
                             onDelete = { deleteTarget = conv.id }
                         )
                     }
@@ -113,12 +178,45 @@ fun HistoryScreen(
             }
         )
     }
+
+    renameTarget?.let { conv ->
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("Rename conversation") },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Primary,
+                        unfocusedBorderColor = SurfaceHigh,
+                        focusedContainerColor = SurfaceHigh,
+                        unfocusedContainerColor = SurfaceHigh,
+                        cursorColor = Primary
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.rename(conv.id, renameText)
+                    renameTarget = null
+                }) { Text("Save", color = Primary) }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) { Text("Cancel", color = TextSecondary) }
+            }
+        )
+    }
 }
 
 @Composable
 private fun ConversationRow(
     conv: ConversationEntity,
     onClick: () -> Unit,
+    onRename: () -> Unit,
+    onExport: () -> Unit,
     onDelete: () -> Unit
 ) {
     AppCard(modifier = Modifier.fillMaxWidth()) {
@@ -143,6 +241,12 @@ private fun ConversationRow(
                         color = TextSecondary
                     )
                 }
+            }
+            IconButton(onClick = onRename) {
+                Icon(Icons.Filled.Edit, contentDescription = "Rename", tint = TextSecondary)
+            }
+            IconButton(onClick = onExport) {
+                Icon(Icons.Filled.Download, contentDescription = "Export", tint = TextSecondary)
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = TextSecondary)

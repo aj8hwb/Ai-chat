@@ -64,7 +64,7 @@ fun AiChatHubApp() {
                                     // a stale saved state would otherwise win.
                                     navController.popBackStack(destination.route, inclusive = false)
                                 } else {
-                                    navController.navigate(destination.route) {
+                                    navController.navigate(destination.navRoute) {
                                         popUpTo(navController.graph.findStartDestination().id) {
                                             saveState = true
                                         }
@@ -113,8 +113,20 @@ private fun AppNavHost(
         composable(Screen.Models.route) {
             ModelsScreen(onNavigate = navController::navigate)
         }
-        composable(Screen.Chat.route) {
-            ChatScreen(onNavigate = navController::navigate)
+        composable(
+            route = Screen.Chat.route,
+            arguments = listOf(
+                androidx.navigation.navArgument(Screen.Chat.ARG) {
+                    type = androidx.navigation.NavType.StringType
+                    defaultValue = ""
+                }
+            )
+        ) { entry ->
+            val modelId = entry.arguments?.getString(Screen.Chat.ARG).orEmpty()
+            ChatScreen(
+                onNavigate = navController::navigate,
+                modelId = modelId.ifBlank { null }
+            )
         }
         composable(Screen.Playground.route) {
             PlaygroundScreen()
@@ -139,7 +151,7 @@ private fun AppNavHost(
                 onBack = { navController.popBackStack() },
                 onOpenChat = {
                     navController.popBackStack()
-                    navController.navigate(Screen.Chat.route)
+                    navController.navigate(Screen.Chat.routeFor(modelId))
                 }
             )
         }

@@ -21,6 +21,7 @@ data class SettingsUiState(
     val systemPrompt: String = "You are a helpful, concise local AI assistant.",
     val autoUnload: Boolean = true,
     val batteryConscious: Boolean = false,
+    val wifiOnlyDownloads: Boolean = false,
     val installedModels: List<CatalogModel> = emptyList(),
     val saved: Boolean = false
 )
@@ -44,6 +45,7 @@ class SettingsViewModel(application: Application) : AiViewModel(application) {
                 systemPrompt = s.systemPrompt,
                 autoUnload = s.autoUnload,
                 batteryConscious = s.batteryConscious,
+                wifiOnlyDownloads = s.wifiOnlyDownloads,
                 installedModels = installed
             )
         }
@@ -87,6 +89,11 @@ class SettingsViewModel(application: Application) : AiViewModel(application) {
     fun onBatteryConsciousChange(v: Boolean) {
         _state.value = _state.value.copy(batteryConscious = v)
         viewModelScope.launch { container.settingsRepository.setBatteryConscious(v) }
+    }
+
+    fun onWifiOnlyChange(v: Boolean) {
+        _state.value = _state.value.copy(wifiOnlyDownloads = v)
+        viewModelScope.launch { container.settingsRepository.setWifiOnlyDownloads(v) }
     }
 
     fun showSaved() {

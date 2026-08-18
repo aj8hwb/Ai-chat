@@ -243,16 +243,16 @@ fun DownloadProgressBlock(
             if (!verifying) {
                 Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                     if (paused) {
-                        IconButton(onClick = onResume ?: {}, modifier = Modifier.size(30.dp)) {
-                            Icon(Icons.Filled.PlayArrow, contentDescription = "Resume", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                        IconButton(onClick = onResume ?: {}, modifier = Modifier.size(44.dp)) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Resume", tint = TextSecondary, modifier = Modifier.size(20.dp))
                         }
                     } else {
-                        IconButton(onClick = onPause ?: {}, modifier = Modifier.size(30.dp)) {
-                            Icon(Icons.Filled.Pause, contentDescription = "Pause", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                        IconButton(onClick = onPause ?: {}, modifier = Modifier.size(44.dp)) {
+                            Icon(Icons.Filled.Pause, contentDescription = "Pause", tint = TextSecondary, modifier = Modifier.size(20.dp))
                         }
                     }
-                    IconButton(onClick = onCancel ?: {}, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Filled.Cancel, contentDescription = "Cancel", tint = Error, modifier = Modifier.size(18.dp))
+                    IconButton(onClick = onCancel ?: {}, modifier = Modifier.size(44.dp)) {
+                        Icon(Icons.Filled.Cancel, contentDescription = "Cancel", tint = Error, modifier = Modifier.size(20.dp))
                     }
                 }
             }

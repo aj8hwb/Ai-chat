@@ -18,9 +18,19 @@ sealed class Screen(
     val label: String? = null,
     val icon: ImageVector? = null
 ) {
+    /** Route used when NAVIGATING to this screen (may differ from [route] when
+     *  the destination carries optional arguments). */
+    open val navRoute: String
+        get() = route
+
     data object Home : Screen("home", "Home", Icons.Filled.Home)
     data object Models : Screen("models", "Models", Icons.Filled.SmartToy)
-    data object Chat : Screen("chat", "Chat", Icons.Filled.ChatBubbleOutline)
+    data object Chat : Screen("chat?modelId={modelId}", "Chat", Icons.Filled.ChatBubbleOutline) {
+        const val ARG = "modelId"
+        const val BASE_ROUTE = "chat"
+        override val navRoute: String get() = BASE_ROUTE
+        fun routeFor(modelId: String) = "$BASE_ROUTE?modelId=$modelId"
+    }
     data object Playground : Screen("playground", "Playground", Icons.Filled.PlayArrow)
     data object Settings : Screen("settings", "Settings", Icons.Filled.Settings)
 

@@ -96,7 +96,7 @@ fun SystemStatusScreen(
                         Column(modifier = Modifier.padding(16.dp)) {
                             SectionHeader(title = "AI Memory Budget")
                             Text(
-                                "Available for AI: ${budget.usableGb.toString().take(3)} GB",
+                                "Available for AI: ${budget.modelMemoryGb.toString().take(3)} GB",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = TextPrimary,
                                 fontWeight = FontWeight.Bold
@@ -178,10 +178,10 @@ private fun DeviceScoreCard(
             }
             Spacer(Modifier.width(16.dp))
             Column {
-                Text("Device AI Score", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                Text("RAM Headroom", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
                 Text(scoreLabel, style = MaterialTheme.typography.headlineSmall, color = scoreColor, fontWeight = FontWeight.Bold)
                 Text(
-                    if (scoreLabel == "Excellent") "Your device is optimized for local AI." else "Your device is ready for local AI.",
+                    "Share of RAM free right now. This is a live snapshot, not a benchmark score.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
@@ -213,7 +213,7 @@ private fun ExpandableDetails(budget: AiMemoryBudget) {
             MetricRow("Reserved overhead", Formatters.bytes(budget.reservedBytes))
             MetricRow("Runtime overhead", Formatters.bytes(budget.runtimeOverheadBytes))
             MetricRow("Safety reserve", Formatters.bytes(budget.safetyReserveBytes))
-            MetricRow("Safe AI budget", Formatters.bytes(budget.usableBytes))
+            MetricRow("Safe AI budget", Formatters.bytes(budget.modelMemoryBytes))
         }
     }
 }
