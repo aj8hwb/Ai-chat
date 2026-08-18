@@ -381,101 +381,100 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         _state.value = _state.value.copy(generating = true, error = null, lastStreamedText = "")
 
         viewModelScope.launch {
-            try {
-                // The selected model must be genuinely READY before we touch it.
-                val installed = container.modelRepository.stateFor(model.id)
-                val file = installed?.filePath?.let { File(it) }
-                if (installed?.state != ModelLifecycleState.READY || file == null || !file.isFile) {
+            // The selected model must be genuinely READY before we touch it.
+            val installed = container.modelRepository.stateFor(model.id)
+            val file = installed?.filePath?.let { File(it) }
+            if (installed?.state != ModelLifecycleState.READY || file == null || !file.isFile) {
+                _state.value = _state.value.copy(
+                    error = "This model is not ready yet. Download and verify it first."
+                )
+                return@launch
+            }
+
+            // Load the model if it is not the active one.
+            if (container.inferenceRuntime.activeModelId != model.id) {
+                if (preflightDecision(model) == LoadDecision.BLOCKED) {
                     _state.value = _state.value.copy(
-                        error = "This model is not ready yet. Download and verify it first."
+                        error = "❌ This model needs more memory than your device can safely provide. Try a lighter model."
                     )
                     return@launch
                 }
-
-                // Load the model if it is not the active one.
-                if (container.inferenceRuntime.activeModelId != model.id) {
-                    if (preflightDecision(model) == LoadDecision.BLOCKED) {
-                        _state.value = _state.value.copy(
-                            error = "❌ This model needs more memory than your device can safely provide. Try a lighter model."
-                        )
-                        return@launch
-                    }
-                    _state.value = _state.value.copy(isLoadingModel = true, error = null)
-                    try {
-                        val settings = container.settingsRepository.settings.first()
-                        coordinator.loadModel(
-                            model,
-                            file,
-                            GenerationConfig(
-                                temperature = settings.temperature,
-                                topK = settings.topK,
-                                topP = settings.topP,
-                                maxTokens = settings.maxTokens
-                            ),
-                            threads = nativeThreads(settings)
-                        )
-                    } catch (e: ModelLoadRefusedException) {
-                        _state.value = _state.value.copy(
-                            isLoadingModel = false,
-                            error = e.message
-                        )
-                        return@launch
-                    } catch (e: OutOfMemoryError) {
-                        _state.value = _state.value.copy(
-                            isLoadingModel = false,
-                            error = "❌ Insufficient memory to load this model safely. Try a lighter model."
-                        )
-                        return@launch
-                    } catch (e: Exception) {
-                        _state.value = _state.value.copy(
-                            isLoadingModel = false,
-                            error = "Couldn't start this model."
-                        )
-                        return@launch
-                    }
-                    _state.value = _state.value.copy(isLoadingModel = false)
+                _state.value = _state.value.copy(isLoadingModel = true, error = null)
+                try {
+                    val settings = container.settingsRepository.settings.first()
+                    coordinator.loadModel(
+                        model,
+                        file,
+                        GenerationConfig(
+                            temperature = settings.temperature,
+                            topK = settings.topK,
+                            topP = settings.topP,
+                            maxTokens = settings.maxTokens
+                        ),
+                        threads = nativeThreads(settings)
+                    )
+                } catch (e: ModelLoadRefusedException) {
+                    _state.value = _state.value.copy(
+                        isLoadingModel = false,
+                        error = e.message
+                    )
+                    return@launch
+                } catch (e: OutOfMemoryError) {
+                    _state.value = _state.value.copy(
+                        isLoadingModel = false,
+                        error = "❌ Insufficient memory to load this model safely. Try a lighter model."
+                    )
+                    return@launch
+                } catch (e: Exception) {
+                    _state.value = _state.value.copy(
+                        isLoadingModel = false,
+                        error = "Couldn't start this model."
+                    )
+                    return@launch
                 }
+                _state.value = _state.value.copy(isLoadingModel = false)
+            }
 
-                val settings = container.settingsRepository.settings.first()
-                val mode = _state.value.thinkingMode
-                // Instant answers cheap, Hard thinking gives the model more room.
-                val maxTokens = when (mode) {
-                    "INSTANT" -> 96
-                    "HARD" -> 1024
-                    else -> settings.maxTokens
-                }
-                val config = GenerationConfig(
-                    temperature = settings.temperature,
-                    topK = settings.topK,
-                    topP = settings.topP,
-                    maxTokens = maxTokens
+            val settings = container.settingsRepository.settings.first()
+            val mode = _state.value.thinkingMode
+            // Instant answers cheap, Hard thinking gives the model more room.
+            val maxTokens = when (mode) {
+                "INSTANT" -> 96
+                "HARD" -> 1024
+                else -> settings.maxTokens
+            }
+            val config = GenerationConfig(
+                temperature = settings.temperature,
+                topK = settings.topK,
+                topP = settings.topP,
+                maxTokens = maxTokens
+            )
+
+            // Ensure the conversation exists BEFORE inference so the user
+            // message renders immediately and survives any crash mid-run.
+            var convId = _state.value.conversationId
+            if (convId != null && container.conversationDao.byId(convId) == null) {
+                // The saved id was pruned/deleted — start a fresh chat.
+                convId = null
+                _state.value = _state.value.copy(
+                    conversationId = null,
+                    selectedConversationId = null
                 )
+            }
+            if (convId == null) {
+                convId = coordinator.createConversation(model.id, titleFromPrompt(text))
+                _state.value = _state.value.copy(
+                    conversationId = convId,
+                    selectedConversationId = convId
+                )
+            }
+            observeMessages(convId)
 
-                // Ensure the conversation exists BEFORE inference so the user
-                // message renders immediately and survives any crash mid-run.
-                var convId = _state.value.conversationId
-                if (convId != null && container.conversationDao.byId(convId) == null) {
-                    // The saved id was pruned/deleted — start a fresh chat.
-                    convId = null
-                    _state.value = _state.value.copy(
-                        conversationId = null,
-                        selectedConversationId = null
-                    )
-                }
-                if (convId == null) {
-                    convId = coordinator.createConversation(model.id, titleFromPrompt(text))
-                    _state.value = _state.value.copy(
-                        conversationId = convId,
-                        selectedConversationId = convId
-                    )
-                }
-                observeMessages(convId)
-
-                _state.value = _state.value.copy(input = "")
-                val startNanos = System.nanoTime()
-                // Live "thinking" ticker: real-time feedback while the native call runs
-                // (the free-tier engine returns the full reply at once, so this timer is
-                // what makes "the AI is thinking" visible immediately).
+            _state.value = _state.value.copy(input = "")
+            val startNanos = System.nanoTime()
+            // Live "thinking" ticker: real-time feedback while the native call runs
+            // (the free-tier engine returns the full reply at once, so this timer is
+            // what makes "the AI is thinking" visible immediately).
                 val thinkingTicker = viewModelScope.launch {
                     var tick = 0
                     while (isActive) {
