@@ -18,6 +18,14 @@ val keystoreProperties = Properties().apply {
 val hasReleaseSigning = keystoreProperties.getProperty("storeFile") != null &&
     keystoreProperties.getProperty("storePassword") != null
 
+// llama-kotlin-android declares a runtime dependency on androidx.core:core-ktx
+// 1.17.0, which requires compileSdk 36 + AGP 8.9.1+. The app targets compileSdk
+// 35 / core-ktx 1.13.1, so pin the highest version the project supports.
+configurations.configureEach {
+    resolutionStrategy.force("androidx.core:core-ktx:1.13.1")
+    resolutionStrategy.force("androidx.core:core:1.13.1")
+}
+
 android {
     namespace = "com.aichathub.app"
     compileSdk = 35
