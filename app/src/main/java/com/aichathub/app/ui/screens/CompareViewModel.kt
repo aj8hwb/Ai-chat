@@ -90,8 +90,7 @@ class CompareViewModel(application: Application) : AiViewModel(application) {
                     val output = container.inferenceRuntime.generateStreaming(
                         prompt = prompt,
                         config = config,
-                        systemPrompt = null,
-                        onToken = { /* full response arrives in one event */ }
+                        onToken = {}
                     )
                     // Real, measured stats come from the runtime's performance
                     // snapshot (native tokens / tokens-per-second) — never from
@@ -103,15 +102,6 @@ class CompareViewModel(application: Application) : AiViewModel(application) {
                         output = output,
                         tokensPerSecond = perf.tokensPerSecond,
                         tokens = perf.tokensGenerated
-                    )
-                } catch (e: com.aichathub.app.chat.ModelLoadRefusedException) {
-                    results += CompareResult(
-                        modelId = model.id,
-                        modelName = model.name,
-                        output = e.message ?: "Cannot be loaded on this device.",
-                        tokensPerSecond = 0f,
-                        tokens = 0,
-                        failed = true
                     )
                 } catch (e: Exception) {
                     results += CompareResult(

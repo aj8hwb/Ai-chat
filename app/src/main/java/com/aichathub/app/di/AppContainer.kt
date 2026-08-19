@@ -12,8 +12,6 @@ import com.aichathub.app.data.local.ConversationDao
 import com.aichathub.app.data.local.MessageDao
 import com.aichathub.app.device.CompatibilityEngine
 import com.aichathub.app.device.DeviceInfoProvider
-import com.aichathub.app.device.LoadDecision
-import com.aichathub.app.device.MemoryBudgetCalculator
 import com.aichathub.app.device.ModelScanner
 import com.aichathub.app.download.DownloadManager
 import kotlinx.coroutines.CoroutineScope
@@ -78,18 +76,7 @@ class AppContainer(context: Context) {
         runtime = inferenceRuntime,
         conversationDao = conversationDao,
         messageDao = messageDao,
-        modelRepository = modelRepository,
-        // The load gate shared by EVERY screen that touches the native runtime
-        // (Chat, Playground, Benchmark, Compare). A model refused here is one
-        // the compatibility badge already labelled NOT_RECOMMENDED.
-        preflight = { model ->
-            runCatching {
-                val profile = deviceInfoProvider.getDeviceProfile()
-                val budget = MemoryBudgetCalculator.calculate(profile)
-                val measured = settingsRepository.measuredMemoryOnce()
-                compatibilityEngine.loadDecision(model, budget, measured)
-            }.getOrDefault(LoadDecision.SAFE)
-        }
+        modelRepository = modelRepository
     )
 
     init {

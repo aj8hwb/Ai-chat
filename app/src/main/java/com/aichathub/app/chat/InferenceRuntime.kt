@@ -49,15 +49,13 @@ interface InferenceRuntime {
     /** Generates a full response (non-streaming). */
     suspend fun generate(
         prompt: String,
-        config: GenerationConfig,
-        systemPrompt: String?
+        config: GenerationConfig
     ): String
 
     /** Generates a response with streaming tokens via [onToken]. */
     suspend fun generateStreaming(
         prompt: String,
         config: GenerationConfig,
-        systemPrompt: String?,
         onToken: (String) -> Unit
     ): String
 

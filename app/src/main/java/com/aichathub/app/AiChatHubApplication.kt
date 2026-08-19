@@ -25,6 +25,42 @@ class AiChatHubApplication : Application() {
         super.onCreate()
         container = AppContainer(this)
         installCrashLogger()
+        recoverExistingModels()
+    }
+
+    /**
+     * Fresh-install recovery: scans the device (app-private models dir + the
+     * shared Download/AiChatHub/Models folder, which survives an uninstall)
+     * and imports any catalog-matched GGUF files that are already present.
+     *
+     * This is what makes models "reappear" after a reinstall WITHOUT a
+     * multi-GB re-download: the shared folder copy is re-imported and
+     * registered as READY automatically. Idempotent — already-installed
+     * models are skipped, so a normal (non-reinstall) start is a no-op.
+     */
+    private fun recoverExistingModels() {
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching {
+                // First reconcile the persisted registry against the real
+                // filesystem so stale rows cannot shadow a valid import.
+                container.modelRepository.reconcile()
+                val found = container.modelScanner.scanLocalDir() +
+                    container.modelScanner.scanSharedDownloads()
+                var imported = 0
+                var skipped = 0
+                for (file in found) {
+                    if (file.matchedModel == null) continue
+                    when (val result = container.modelScanner.import(file)) {
+                        is com.aichathub.app.device.ModelScanner.ImportResult.Imported -> imported++
+                        is com.aichathub.app.device.ModelScanner.ImportResult.AlreadyInstalled -> skipped++
+                        else -> {}
+                    }
+                }
+                Log.i("AiChatHubApp", "MODEL_RECOVERY_DONE found=${found.size} imported=$imported already=$skipped")
+            }.onFailure {
+                Log.w("AiChatHubApp", "MODEL_RECOVERY failed", it)
+            }
+        }
     }
 
     /**

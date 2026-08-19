@@ -147,7 +147,6 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
                 val result = container.inferenceRuntime.generateStreaming(
                     prompt = _state.value.prompt,
                     config = config,
-                    systemPrompt = null,
                     onToken = { partial ->
                         _state.value = _state.value.copy(output = partial)
                     }
@@ -157,11 +156,6 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
                     output = result,
                     running = false,
                     stats = "Completed in ${elapsedMs / 1000f}s · ~${_state.value.tokensPerSecond} tok/s · ${_state.value.generatedTokens} tokens"
-                )
-            } catch (e: com.aichathub.app.chat.ModelLoadRefusedException) {
-                _state.value = _state.value.copy(
-                    running = false,
-                    error = e.message
                 )
             } catch (e: OutOfMemoryError) {
                 _state.value = _state.value.copy(

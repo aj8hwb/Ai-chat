@@ -25,7 +25,6 @@ data class ModelDetailsUiState(
     val recommendation: Recommendation? = null,
     val download: DownloadInfo? = null,
     val warningMessage: String? = null,
-    val insufficientMemory: Boolean = false,
     val filePath: String? = null,
     val isDefaultModel: Boolean = false,
     /** True when the current default model is NOT installed (edge case). */
@@ -93,16 +92,14 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
             budget,
             measured
         ).firstOrNull()
-        val heavy = (rec?.level == CompatibilityLevel.HEAVY || rec?.level == CompatibilityLevel.NOT_RECOMMENDED)
         _state.value = _state.value.copy(
             compatibility = rec?.level,
             recommendation = rec,
-            insufficientMemory = rec?.level == CompatibilityLevel.NOT_RECOMMENDED,
             warningMessage = when (rec?.level) {
                 CompatibilityLevel.HEAVY ->
                     "This model uses more memory than is safely available right now. It will still load and run, but it may be slow or unstable."
                 CompatibilityLevel.NOT_RECOMMENDED ->
-                    "Your device cannot safely load this model — it needs more memory than is available. You can still download the file, but it cannot be started here. Try a lighter model."
+                    "This model is heavy for your device's memory. It will still load and run, but it may be slow or unstable."
                 else -> null
             }
         )

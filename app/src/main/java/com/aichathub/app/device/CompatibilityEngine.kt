@@ -6,13 +6,13 @@ import com.aichathub.app.domain.model.CompatibilityLevel
 import com.aichathub.app.domain.model.DeviceProfile
 import com.aichathub.app.domain.model.Recommendation
 
-/** Result of the memory preflight: is it safe / possible to load this model? */
+/** Informational memory analysis bands (NOT enforced as a load gate). */
 enum class LoadDecision {
-    /** Fits the safe memory budget (≤ 1.0× usable) — load unconditionally. */
+    /** Fits the safe memory budget (≤ 1.0× usable). */
     SAFE,
-    /** Uses more than the safe budget but ≤ 1.35× usable — load with warning. */
+    /** Uses more than the safe budget but ≤ 1.35× usable. */
     HEAVY,
-    /** Exceeds 1.35× usable — refuse to load (native OOM/crash risk). */
+    /** Exceeds 1.35× usable — labelled NOT_RECOMMENDED, still loadable. */
     BLOCKED
 }
 
@@ -44,16 +44,14 @@ class CompatibilityEngine {
     }
 
     /**
-     * The load gate. This is the SINGLE source of truth used by every screen
-     * (Chat, Playground, Benchmark, Compare) before touching the native
-     * runtime, and it shares the exact same bands as [memoryScore] — so the
-     * compatibility badge and the load gate can never disagree.
+     * Informational memory analysis: how this model's footprint relates to the
+     * device's usable AI budget. NOT enforced anywhere — the app never refuses
+     * to load a model based on this. The Model Details screen shows the badge
+     * and a "may be slow/unstable" warning so the user can decide knowingly.
      *
-     *  - ≤ 1.0× usable budget → SAFE (matches USABLE and above).
-     *  - ≤ 1.35× usable budget → HEAVY (the badge's "you can still try it"
-     *    promise is real: the load is allowed, just warned).
-     *  - > 1.35× usable budget → BLOCKED (NOT_RECOMMENDED; loading it would
-     *    risk a native OutOfMemoryError / SIGSEGV that Kotlin cannot catch).
+     *  - ≤ 1.0× usable budget → SAFE.
+     *  - ≤ 1.35× usable budget → HEAVY (runs, but may be slow).
+     *  - > 1.35× usable budget → BLOCKED (informational label only).
      */
     fun loadDecision(
         model: CatalogModel,

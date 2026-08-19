@@ -290,7 +290,7 @@ fun ModelDetailsScreen(
                     ModelLifecycleState.DOWNLOADING, ModelLifecycleState.VERIFYING -> {}
                     else ->
                         GradientButton(
-                            text = if (state.insufficientMemory) "Download Anyway" else "Download",
+                            text = "Download",
                             onClick = { pendingDownload = true },
                             icon = Icons.Filled.Download,
                             modifier = Modifier.fillMaxWidth()

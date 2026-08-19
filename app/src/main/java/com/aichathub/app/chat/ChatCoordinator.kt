@@ -6,7 +6,6 @@ import com.aichathub.app.data.local.ConversationDao
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageDao
 import com.aichathub.app.data.local.MessageEntity
-import com.aichathub.app.device.LoadDecision
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ChatTemplate
 import com.aichathub.app.domain.model.ModelLifecycleState
@@ -31,9 +30,6 @@ data class ChatSessionState(
     val isLoadingModel: Boolean = false
 )
 
-/** Thrown when the memory preflight refuses a model load (native crash risk). */
-class ModelLoadRefusedException(message: String) : Exception(message)
-
 /**
  * Coordinates the chat experience: model load/unload lifecycle, prompt
  * formatting, streaming generation and conversation persistence.
@@ -45,10 +41,7 @@ class ChatCoordinator(
     private val runtime: InferenceRuntime,
     private val conversationDao: ConversationDao,
     private val messageDao: MessageDao,
-    private val modelRepository: ModelRepository,
-    /** Memory preflight decision for a model, supplied by the container so the
-     *  gate is enforced identically on EVERY screen that loads a model. */
-    private val preflight: (suspend (CatalogModel) -> LoadDecision)? = null
+    private val modelRepository: ModelRepository
 ) {
     private val _state = MutableStateFlow(ChatSessionState())
     val state: StateFlow<ChatSessionState> = _state.asStateFlow()
@@ -61,9 +54,8 @@ class ChatCoordinator(
 
     /**
      * Loads a model into the runtime, switching from any previously loaded
-     * model. Performs a memory preflight via the repository state. Loading is
-     * serialized so a quick model A → model B switch cannot corrupt the
-     * single-slot native runtime.
+     * model. Loading is serialized so a quick model A → model B switch cannot
+     * corrupt the single-slot native runtime.
      */
     suspend fun loadModel(
         model: CatalogModel,
@@ -83,26 +75,6 @@ class ChatCoordinator(
                 error = "The model file is missing or incomplete. Please re-download it."
             )
             throw IllegalStateException("Model file missing or empty: ${file.absolutePath}")
-        }
-        // Centralized memory preflight: the SAME decision the compatibility
-        // badge shows, enforced on every caller (Chat, Playground, Benchmark,
-        // Compare). A model the UI calls HEAVY/NOT_RECOMMENDED is handled
-        // exactly as promised on screen — never refused after a 2 GB download.
-        preflight?.let { decide ->
-            when (decide(model)) {
-                LoadDecision.SAFE -> Unit
-                LoadDecision.HEAVY -> Unit // allowed (badge warns it may be slow)
-                LoadDecision.BLOCKED -> {
-                    val msg = "❌ This model needs more memory than your device can safely provide. " +
-                        "It cannot be loaded. Try a lighter model."
-                    _state.value = _state.value.copy(
-                        isLoadingModel = false,
-                        generationState = ChatGenerationState.ERROR,
-                        error = msg
-                    )
-                    throw ModelLoadRefusedException(msg)
-                }
-            }
         }
         try {
             loadMutex.withLock {
@@ -236,11 +208,10 @@ class ChatCoordinator(
 
                 Log.i("ChatCoordinator", "INFERENCE_STARTED ${model.id}")
 
-                val fullPrompt = buildPrompt(model, convId)
+                val fullPrompt = buildPrompt(model, convId, systemPrompt)
                 val result = runtime.generateStreaming(
                     prompt = fullPrompt,
                     config = config,
-                    systemPrompt = systemPrompt,
                     onToken = { token ->
                         streamed.append(token)
                         onStream(streamed.toString())
@@ -313,42 +284,54 @@ class ChatCoordinator(
 
     /**
      * Builds a context-aware prompt from the recent messages so the model
-     * can continue the conversation. Turns are wrapped in the model's OWN
-     * chat template (ChatML / Gemma / Llama3 / Llama2) instead of a flat
-     * "User:/Assistant:" transcript — instruct models answer measurably
-     * better inside the format they were fine-tuned with.
+     * can continue the conversation. The system prompt is embedded as the
+     * FIRST turn using the model's OWN chat template (ChatML / Gemma / Llama3
+     * / Llama2) — instruct models answer measurably better inside the format
+     * they were fine-tuned with.
      *
      * The prompt is kept within a strict size budget: an oversized prompt
      * overflows llama.cpp's native context and crashes the whole process,
-     * so older turns are dropped first.
-     *
-     * The system prompt is intentionally NOT embedded here — the engine
-     * receives it through its own [systemPrompt] channel, so duplicating it
-     * here would make the model see it twice.
+     * so older turns are dropped first. The system prompt is always preserved.
      */
     private suspend fun buildPrompt(
         model: CatalogModel,
-        conversationId: Long
+        conversationId: Long,
+        systemPrompt: String
     ): String {
         val recent = messageDao.forConversation(conversationId)
             .filter { it.role == "user" || it.role == "assistant" }
             .takeLast(8)
 
-        // Render all turns (up to the budget) with the model's chat template,
-        // then drop the OLDEST turns first until the whole prompt fits — the
-        // newest message (the one the user just sent) always stays intact.
-        var full = renderPrompt(model.chatTemplate, recent)
-        if (full.length <= MAX_FULL_PROMPT_CHARS) return full
+        val systemBlock = renderSystemBlock(model.chatTemplate, systemPrompt)
+        val turnsBudget = (MAX_FULL_PROMPT_CHARS - systemBlock.length).coerceAtLeast(64)
 
-        val trimmed = renderPrompt(model.chatTemplate, recent.takeLast(MAX_HISTORY_TURNS))
-        var cut = trimmed
-        while (cut.length > MAX_FULL_PROMPT_CHARS) {
-            // Drop the oldest rendered turn (first template block) until it fits.
-            val idx = nextTurnBoundary(model.chatTemplate, cut)
-            if (idx < 0 || idx > cut.length / 2) break
-            cut = cut.substring(idx)
+        // Render the turns (up to the budget), dropping the OLDEST turns first
+        // until the whole prompt fits — the newest message (the one the user
+        // just sent) always stays intact. The system prompt is preserved.
+        var turns = renderPrompt(model.chatTemplate, recent)
+        if (turns.length > turnsBudget) {
+            val trimmed = renderPrompt(model.chatTemplate, recent.takeLast(MAX_HISTORY_TURNS))
+            var cut = trimmed
+            while (cut.length > turnsBudget) {
+                val idx = nextTurnBoundary(model.chatTemplate, cut)
+                if (idx < 0 || idx > cut.length / 2) break
+                cut = cut.substring(idx)
+            }
+            turns = cut.take(turnsBudget)
         }
-        return cut.take(MAX_FULL_PROMPT_CHARS)
+        return systemBlock + turns
+    }
+
+    private fun renderSystemBlock(template: ChatTemplate, systemPrompt: String): String {
+        val sys = systemPrompt.trim()
+        if (sys.isEmpty()) return ""
+        return when (template) {
+            ChatTemplate.CHATML -> "<|im_start|>system\n$sys\n<|im_end|>\n"
+            ChatTemplate.GEMMA -> "<start_of_turn>system\n$sys\n<end_of_turn>\n"
+            ChatTemplate.LLAMA3 -> "<|start_header_id|>system<|end_header_id|>\n\n$sys<|eot_id|>"
+            ChatTemplate.LLAMA2 -> "<<SYS>>\n$sys\n<</SYS>>\n\n"
+            ChatTemplate.GENERIC -> "System: $sys\n\n"
+        }
     }
 
     private fun renderPrompt(template: ChatTemplate, messages: List<MessageEntity>): String {
