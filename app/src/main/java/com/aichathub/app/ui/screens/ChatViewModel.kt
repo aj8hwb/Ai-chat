@@ -9,6 +9,7 @@ import com.aichathub.app.chat.GenerationConfig
 import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageEntity
+import com.aichathub.app.device.MemoryBudgetCalculator
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.ui.AiViewModel
