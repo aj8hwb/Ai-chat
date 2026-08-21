@@ -65,7 +65,7 @@ object MarkdownFormatter {
                 val header = parseHeader(trimmed)
                 if (header != null) {
                     withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                        append(renderInline(header.content, baseColor, accentColor))
+                        renderInline(header.content, baseColor, accentColor)
                     }
                     append("\n")
                     i++
@@ -75,13 +75,13 @@ object MarkdownFormatter {
                 val listItem = parseList(trimmed)
                 if (listItem != null) {
                     append(listItem.marker)
-                    append(renderInline(listItem.content, baseColor, accentColor))
+                    renderInline(listItem.content, baseColor, accentColor)
                     append("\n")
                     i++
                     continue
                 }
 
-                append(renderInline(line, baseColor, accentColor))
+                renderInline(line, baseColor, accentColor)
                 append("\n")
                 i++
             }
