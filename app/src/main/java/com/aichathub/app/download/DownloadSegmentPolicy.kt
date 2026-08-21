@@ -16,8 +16,8 @@ package com.aichathub.app.download
  */
 object DownloadSegmentPolicy {
 
-    const val SEGMENT_BYTES_THRESHOLD = 512L * 1024 * 1024
-    const val SEGMENT_COUNT = 4
+    const val SEGMENT_BYTES_THRESHOLD = 64L * 1024 * 1024
+    const val SEGMENT_COUNT = 8
 
     const val META_SUFFIX = ".part.meta"
     const val MERGED_PART_SUFFIX = ".part"

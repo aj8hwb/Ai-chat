@@ -32,7 +32,9 @@ data class ConversationEntity(
     val title: String,
     val modelId: String,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    /** Optional per-conversation system prompt; null/blank = use the global one. */
+    val systemPrompt: String? = null
 )
 
 @Entity(
@@ -93,6 +95,9 @@ interface ConversationDao {
     @Query("UPDATE conversations SET title = :title WHERE id = :id")
     suspend fun rename(id: Long, title: String)
 
+    @Query("UPDATE conversations SET systemPrompt = :systemPrompt WHERE id = :id")
+    suspend fun setSystemPrompt(id: Long, systemPrompt: String?)
+
     @Query("UPDATE conversations SET updatedAt = :updatedAt WHERE id = :id")
     suspend fun touch(id: Long, updatedAt: Long)
 
@@ -139,7 +144,7 @@ interface MessageDao {
         ConversationEntity::class,
         MessageEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AiDatabase : RoomDatabase() {
@@ -156,6 +161,16 @@ abstract class AiDatabase : RoomDatabase() {
         val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_messages_conversationId` ON `messages` (`conversationId`)")
+            }
+        }
+
+        /**
+         * v2 → v3: add the per-conversation system prompt override column.
+         * Existing conversations keep the global system prompt (NULL column).
+         */
+        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `conversations` ADD COLUMN `systemPrompt` TEXT DEFAULT NULL")
             }
         }
     }

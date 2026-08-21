@@ -107,17 +107,48 @@ class DownloadForegroundService : Service() {
         } else {
             builder.setContentText(info.modelName)
             when (info.status) {
-                DownloadStatus.VERIFYING -> builder.setContentText(
-                    getString(R.string.notification_download_verifying)
-                )
-                DownloadStatus.PAUSED -> builder.setContentText(
-                    getString(R.string.notification_download_paused)
-                )
+                DownloadStatus.VERIFYING -> {
+                    builder.setContentText(
+                        getString(R.string.notification_download_verifying)
+                    )
+                    // Verification is short and can't be paused, but the user
+                    // may still want to abort it.
+                    builder.addAction(
+                        0,
+                        getString(R.string.notification_action_cancel),
+                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_CANCEL, info.modelId)
+                    )
+                }
+                DownloadStatus.PAUSED -> {
+                    builder.setContentText(
+                        getString(R.string.notification_download_paused)
+                    )
+                    builder.addAction(
+                        0,
+                        getString(R.string.notification_action_resume),
+                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_RESUME, info.modelId)
+                    )
+                    builder.addAction(
+                        0,
+                        getString(R.string.notification_action_cancel),
+                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_CANCEL, info.modelId)
+                    )
+                }
                 else -> {
                     builder.setProgress(100, info.progress, false)
                     builder.setContentText(
                         "${info.progress}% · ${formatBytes(info.downloadedBytes)} / ${formatBytes(info.totalBytes)}" +
                             (if (info.speedBytesPerSec > 0) " · ${formatBytes(info.speedBytesPerSec)}/s" else "")
+                    )
+                    builder.addAction(
+                        0,
+                        getString(R.string.notification_action_pause),
+                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_PAUSE, info.modelId)
+                    )
+                    builder.addAction(
+                        0,
+                        getString(R.string.notification_action_cancel),
+                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_CANCEL, info.modelId)
                     )
                 }
             }

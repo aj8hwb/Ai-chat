@@ -33,11 +33,6 @@ import com.aichathub.app.ui.components.AppCard
 import com.aichathub.app.ui.components.EmptyState
 import com.aichathub.app.ui.components.GradientButton
 import com.aichathub.app.ui.components.ModelIcon
-import com.aichathub.app.ui.theme.Error
-import com.aichathub.app.ui.theme.Primary
-import com.aichathub.app.ui.theme.SurfaceHigh
-import com.aichathub.app.ui.theme.TextPrimary
-import com.aichathub.app.ui.theme.TextSecondary
 
 @Composable
 fun CompareScreen(
@@ -51,11 +46,11 @@ fun CompareScreen(
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Compare Models", style = MaterialTheme.typography.headlineMedium, color = TextPrimary, modifier = Modifier.weight(1f))
-                Icon(Icons.Filled.CompareArrows, contentDescription = null, tint = Primary)
+                Text("Compare Models", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                Icon(Icons.Filled.CompareArrows, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             }
             Spacer(Modifier.height(4.dp))
-            Text("Run the same prompt on your installed models.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Text("Run the same prompt on your installed models.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(12.dp))
         }
 
@@ -73,23 +68,23 @@ fun CompareScreen(
                 Text(
                     "Models: ${state.models.joinToString(", ") { it.name }}",
                     style = MaterialTheme.typography.labelMedium,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = state.prompt,
                     onValueChange = viewModel::onPromptChange,
-                    label = { Text("Prompt", color = TextSecondary) },
+                    label = { Text("Prompt", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     minLines = 3,
                     maxLines = 6,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Primary,
-                        unfocusedBorderColor = SurfaceHigh,
-                        focusedContainerColor = SurfaceHigh,
-                        unfocusedContainerColor = SurfaceHigh,
-                        cursorColor = Primary
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        cursorColor = MaterialTheme.colorScheme.primary
                     )
                 )
                 Spacer(Modifier.height(12.dp))
@@ -107,7 +102,7 @@ fun CompareScreen(
                     Text(
                         err,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Error,
+                        color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
                 }
@@ -123,21 +118,21 @@ fun CompareScreen(
                                     ModelIcon(model = model, size = 36.dp)
                                     Spacer(Modifier.width(10.dp))
                                 }
-                                Text(result.modelName, style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                                Text(result.modelName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                                 Text(
                                     String.format("%.1f tok/s", result.tokensPerSecond),
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = if (result.failed) Error else TextSecondary
+                                    color = if (result.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 result.output,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = if (result.failed) Error else TextPrimary
+                                color = if (result.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(Modifier.height(6.dp))
-                            Text("${result.tokens} tokens", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                            Text("${result.tokens} tokens", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Spacer(Modifier.height(10.dp))

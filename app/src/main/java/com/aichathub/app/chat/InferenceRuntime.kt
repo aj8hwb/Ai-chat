@@ -24,7 +24,8 @@ interface InferenceRuntime {
         val tokensPerSecond: Float = 0f,
         val generationActive: Boolean = false,
         val tokensGenerated: Int = 0,
-        val contextUsed: Int = 0
+        val contextUsed: Int = 0,
+        val contextTokensMax: Int = 0
     )
 
     /**
@@ -59,8 +60,24 @@ interface InferenceRuntime {
         onToken: (String) -> Unit
     ): String
 
-    /** Cancels any active generation. */
+    /**
+     * Cancels any active generation.
+     *
+     * This must be safe to call from any thread. If it is invoked while a
+     * generation has not yet entered the native engine (e.g. the coordinator is
+     * still building the prompt), the cancellation is remembered and the
+     * upcoming generation aborts immediately when it starts — so a Stop pressed
+     * during prompt preparation is never silently dropped.
+     */
     fun cancelGeneration()
+
+    /**
+     * Clears any remembered cancellation. MUST be called by a caller right
+     * before it starts its OWN generation flow (synchronously, before any
+     * suspension point) so a stale cancellation from another screen — e.g. the
+     * Playground was left mid-run — can never abort a fresh generation here.
+     */
+    fun clearCancellation()
 
     fun release()
 }
@@ -70,5 +87,12 @@ data class GenerationConfig(
     val topK: Int = 40,
     val topP: Float = 0.95f,
     val maxTokens: Int = 512,
-    val randomSeed: Int = 0
+    val randomSeed: Int = 0,
+    /**
+     * Template stop sequences that terminate generation (e.g. "<|im_end|>" for
+     * ChatML). Passed to the native engine and also enforced app-side as a
+     * fallback, so generation cannot run away to maxTokens on models whose GGUF
+     * does not declare a usable EOS token.
+     */
+    val stopSequences: List<String> = emptyList()
 )

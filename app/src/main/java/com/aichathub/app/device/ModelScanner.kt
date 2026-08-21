@@ -152,6 +152,9 @@ class ModelScanner(
                 if (src.file.absoluteFile == target.absoluteFile) true else copy(src.file, target)
             }
             is Source.SharedDownloads -> {
+                if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+                    return@withContext ImportResult.Failed(file.fileName, "Shared Downloads import needs Android 10+.")
+                }
                 val uri = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, src.id)
                 copyUri(uri, target)
             }

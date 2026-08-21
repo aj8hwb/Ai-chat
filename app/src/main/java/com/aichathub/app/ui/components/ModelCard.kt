@@ -1,6 +1,7 @@
 package com.aichathub.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,13 +42,8 @@ import com.aichathub.app.domain.model.CompatibilityLevel
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.download.DownloadInfo
 import com.aichathub.app.download.DownloadStatus
-import com.aichathub.app.ui.theme.Error
 import com.aichathub.app.ui.theme.GradientCyan
 import com.aichathub.app.ui.theme.GradientPurple
-import com.aichathub.app.ui.theme.SurfaceHigh
-import com.aichathub.app.ui.theme.TextMuted
-import com.aichathub.app.ui.theme.TextPrimary
-import com.aichathub.app.ui.theme.TextSecondary
 import com.aichathub.app.util.Formatters
 
 /**
@@ -72,7 +68,7 @@ fun ModelCard(
     onResume: (() -> Unit)? = null,
     onCancel: (() -> Unit)? = null
 ) {
-    AppCard(modifier = modifier) {
+    AppCard(modifier = modifier.clickable(onClick = onClick)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -84,7 +80,7 @@ fun ModelCard(
                     Text(
                         model.name,
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -98,7 +94,7 @@ fun ModelCard(
                 Text(
                     model.provider,
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -107,7 +103,7 @@ fun ModelCard(
                     Text(
                         "${model.purposeEmoji} ${model.purposeTitle}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -121,13 +117,13 @@ fun ModelCard(
                         Text(
                             Formatters.bytes(model.fileSizeBytes),
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted
+                            color = MaterialTheme.colorScheme.outline
                         )
                     }
                     Text(
                         model.parameters,
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted
+                        color = MaterialTheme.colorScheme.outline
                     )
                     if (compatibility != null) {
                         Spacer(Modifier.width(2.dp))
@@ -138,13 +134,13 @@ fun ModelCard(
             Spacer(Modifier.width(8.dp))
             if (onMore != null) {
                 IconButton(onClick = onMore) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = TextSecondary)
+                    Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else if (primaryAction == null && onDownload == null) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = "Open",
-                    tint = TextSecondary
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -204,14 +200,14 @@ fun DownloadProgressBlock(
                 else if (paused) "Paused · ${download.progress}%"
                 else "Downloading · ${download.progress}%",
                 style = MaterialTheme.typography.labelMedium,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
             )
             if (download.speedBytesPerSec > 0 && !verifying) {
                 Text(
                     "${Formatters.bytes(download.speedBytesPerSec)}/s",
                     style = MaterialTheme.typography.labelMedium,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -221,7 +217,7 @@ fun DownloadProgressBlock(
             progress = { if (verifying) 1f else (download.progress / 100f).coerceIn(0f, 1f) },
             modifier = Modifier.fillMaxWidth().height(6.dp),
             color = if (verifying) Color(0xFF22D3EE) else Color(0xFF8B5CF6),
-            trackColor = SurfaceHigh,
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             strokeCap = StrokeCap.Round
         )
         Spacer(Modifier.height(6.dp))
@@ -229,14 +225,14 @@ fun DownloadProgressBlock(
             Text(
                 "${Formatters.bytes(download.downloadedBytes)} / ${Formatters.bytes(download.totalBytes)}",
                 style = MaterialTheme.typography.labelSmall,
-                color = TextMuted,
+                color = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.weight(1f)
             )
             if (download.etaSeconds > 0 && !verifying) {
                 Text(
                     "ETA ${etaText(download.etaSeconds)}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextMuted
+                    color = MaterialTheme.colorScheme.outline
                 )
                 Spacer(Modifier.width(10.dp))
             }
@@ -244,15 +240,15 @@ fun DownloadProgressBlock(
                 Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                     if (paused) {
                         IconButton(onClick = onResume ?: {}, modifier = Modifier.size(44.dp)) {
-                            Icon(Icons.Filled.PlayArrow, contentDescription = "Resume", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Resume", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                         }
                     } else {
                         IconButton(onClick = onPause ?: {}, modifier = Modifier.size(44.dp)) {
-                            Icon(Icons.Filled.Pause, contentDescription = "Pause", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Filled.Pause, contentDescription = "Pause", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                         }
                     }
                     IconButton(onClick = onCancel ?: {}, modifier = Modifier.size(44.dp)) {
-                        Icon(Icons.Filled.Cancel, contentDescription = "Cancel", tint = Error, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Filled.Cancel, contentDescription = "Cancel", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                     }
                 }
             }

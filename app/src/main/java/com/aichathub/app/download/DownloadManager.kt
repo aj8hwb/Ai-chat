@@ -140,6 +140,41 @@ class DownloadManager(
                 resume(model.id)
             }
         }
+        // Wi-Fi-only mode: when the network state changes, automatically resume
+        // any download that was parked because the device was on mobile data.
+        registerNetworkWatcher()
+    }
+
+    private fun registerNetworkWatcher() {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        try {
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: android.net.Network) {
+                    if (!networkBlocked()) {
+                        val parked = _downloads.value
+                            .filter { it.status == DownloadStatus.PAUSED && it.downloadedBytes > 0 }
+                            .mapNotNull { LocalModelCatalog.byId(it.modelId) }
+                        parked.forEach { model ->
+                            Log.i(tag, "NETWORK_AVAILABLE auto-resume ${model.id}")
+                            resume(model.id)
+                        }
+                    }
+                }
+
+                override fun onLost(network: android.net.Network) {
+                    // If we just lost Wi-Fi while in Wi-Fi-only mode, park active
+                    // downloads immediately instead of burning the data plan.
+                    if (settingsRepository?.cachedWifiOnlyDownloads == true) {
+                        _downloads.value.filter { it.status == DownloadStatus.DOWNLOADING }.forEach { info ->
+                            pause(info.modelId)
+                        }
+                    }
+                }
+            }
+            cm.registerDefaultNetworkCallback(callback)
+        } catch (e: Exception) {
+            Log.w(tag, "Could not register network callback", e)
+        }
     }
 
     // ------------------------------------------------------------------
@@ -201,9 +236,15 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
         Log.i(tag, "MODEL_DOWNLOAD_STARTED ${model.id} ($required bytes remaining)")
 
         val job = scope.launch {
-            runCatching {
+            try {
                 withContext(Dispatchers.IO) { downloadLoop(model) }
-            }.onFailure { e ->
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // The app is shutting down (or the manager scope was cancelled).
+                // Leave the partial `.part` files on disk so the download stays
+                // resumable after restart — do NOT mark it FAILED.
+                Log.i(tag, "Download job cancelled for ${model.id} (resumable)")
+                throw e
+            } catch (e: Exception) {
                 Log.e(tag, "Download failed for ${model.id}", e)
                 markStatus(model.id, DownloadStatus.FAILED, error = e.message ?: "Download failed")
                 modelRepository.setState(model.id, ModelLifecycleState.NOT_INSTALLED)
@@ -237,9 +278,13 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
             scope.launch { modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING) }
             DownloadForegroundService.start(context)
             jobs[modelId] = scope.launch {
-                runCatching {
+                try {
                     withContext(Dispatchers.IO) { downloadLoop(model) }
-                }.onFailure { e ->
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    // Resumable on disk — see startDownload for the rationale.
+                    Log.i(tag, "Resume job cancelled for ${model.id} (resumable)")
+                    throw e
+                } catch (e: Exception) {
                     Log.e(tag, "Download failed for ${model.id}", e)
                     markStatus(modelId, DownloadStatus.FAILED, error = e.message ?: "Download failed")
                     modelRepository.setState(model.id, ModelLifecycleState.NOT_INSTALLED)
@@ -369,11 +414,28 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
             return
         }
 
-        // Verify integrity before installing.
+        // Verify integrity before installing. The verify + install steps are
+        // checked against cancel/pause flags so a user who pressed Cancel or
+        // Pause during checksum verification is never silently ignored (the
+        // file would otherwise be installed and marked COMPLETED anyway).
         markStatus(model.id, DownloadStatus.VERIFYING)
         modelRepository.setState(model.id, ModelLifecycleState.VERIFYING)
         Log.i(tag, "MODEL_VERIFY_STARTED ${model.id}")
+        if (cancelFlags[model.id] == true) {
+            cleanupPartFiles(model)
+            removeRecord(model.id)
+            return
+        }
+        if (pauseFlags[model.id] == true) {
+            markStatus(model.id, DownloadStatus.PAUSED)
+            return
+        }
         if (!verifyChecksum(model, mergedPart)) {
+            if (cancelFlags[model.id] == true) {
+                cleanupPartFiles(model)
+                removeRecord(model.id)
+                return
+            }
             cleanupPartFiles(model)
             markStatus(model.id, DownloadStatus.FAILED, error = "Download verification failed — checksum mismatch. Please download again.")
             modelRepository.setState(model.id, ModelLifecycleState.NOT_INSTALLED)
@@ -382,6 +444,16 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
         }
         Log.i(tag, "MODEL_VERIFY_SUCCESS ${model.id}")
 
+        // A pause/cancel pressed right after a successful verify still wins.
+        if (cancelFlags[model.id] == true) {
+            cleanupPartFiles(model)
+            removeRecord(model.id)
+            return
+        }
+        if (pauseFlags[model.id] == true) {
+            markStatus(model.id, DownloadStatus.PAUSED)
+            return
+        }
         install(model, mergedPart)
     }
 
@@ -427,19 +499,19 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
             RandomAccessFile(segFile, "rw").use { raf ->
                 raf.seek(segFile.length())
                 val source = body.source()
-                val buffer = okio.Buffer()
+                // Single reusable buffer keeps the read loop allocation-free:
+                // one big read + one big write per chunk beats a fresh
+                // okio.Buffer + byte-array copy on every 64 KiB chunk.
+                val buf = ByteArray(256 * 1024)
                 while (true) {
-                    val blocked = networkBlocked()
-                    if (blocked) pauseFlags[model.id] = true
                     if (cancelFlags[model.id] == true || pauseFlags[model.id] == true) {
                         return@use SegmentOutcome.INTERRUPTED
                     }
-                    val read = source.read(buffer, 64 * 1024)
-                    if (read == -1L) break
-                    raf.write(buffer.readByteArray())
-                    downloadedTotal.addAndGet(read)
-                    val blockedAfter = networkBlocked()
-                    if (blockedAfter) pauseFlags[model.id] = true
+                    val read = source.read(buf, 0, buf.size)
+                    if (read == -1) break
+                    raf.write(buf, 0, read)
+                    downloadedTotal.addAndGet(read.toLong())
+                    if (networkBlocked()) pauseFlags[model.id] = true
                     if (cancelFlags[model.id] == true || pauseFlags[model.id] == true) {
                         return@use SegmentOutcome.INTERRUPTED
                     }
@@ -522,16 +594,22 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
     private fun verifyChecksum(model: CatalogModel, file: File): Boolean {
         val expected = model.checksumSha256 ?: return true
         if (!file.exists()) return false
-        val actual = sha256Hex(file)
+        val actual = sha256Hex(file) { cancelFlags[model.id] == true || pauseFlags[model.id] == true }
         Log.i(tag, "Checksum ${model.id}: expected=$expected actual=$actual")
         return actual.equals(expected, ignoreCase = true)
     }
 
-    private fun sha256Hex(file: File): String = try {
+    /**
+     * Streaming SHA-256 over [file]. [shouldAbort] is checked between chunks so
+     * a multi-GB verification honors an in-flight Cancel/Pause instead of
+     * running to completion (which could take minutes). Returns "" on abort.
+     */
+    private fun sha256Hex(file: File, shouldAbort: () -> Boolean = { false }): String = try {
         val md = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
             val buf = ByteArray(64 * 1024)
             while (true) {
+                if (shouldAbort()) return ""
                 val n = input.read(buf)
                 if (n == -1) break
                 md.update(buf, 0, n)

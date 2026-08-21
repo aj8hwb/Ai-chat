@@ -72,6 +72,9 @@ class CompareViewModel(application: Application) : AiViewModel(application) {
             _state.value = _state.value.copy(running = true, results = emptyList(), error = null)
             val results = mutableListOf<CompareResult>()
             val settings = container.settingsRepository.settings.first()
+            // Discard any cancellation a previous screen left behind so the
+            // comparison never aborts on a stale Stop.
+            container.inferenceRuntime.clearCancellation()
             for (model in models) {
                 try {
                     val installed = container.modelRepository.stateFor(model.id) ?: continue

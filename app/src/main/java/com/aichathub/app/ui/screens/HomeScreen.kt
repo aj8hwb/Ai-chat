@@ -1,6 +1,7 @@
 package com.aichathub.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,13 +53,7 @@ import com.aichathub.app.ui.components.ModelIcon
 import com.aichathub.app.ui.components.ProgressBlock
 import com.aichathub.app.ui.components.SectionHeader
 import com.aichathub.app.ui.navigation.Screen
-import com.aichathub.app.ui.theme.GradientPrimary
-import com.aichathub.app.ui.theme.Primary
-import com.aichathub.app.ui.theme.Secondary
 import com.aichathub.app.ui.theme.Success
-import com.aichathub.app.ui.theme.SurfaceElevated
-import com.aichathub.app.ui.theme.TextPrimary
-import com.aichathub.app.ui.theme.TextSecondary
 import com.aichathub.app.ui.theme.Warning
 import com.aichathub.app.util.Formatters
 import com.aichathub.app.domain.model.ModelLifecycleState
@@ -84,16 +79,16 @@ fun HomeScreen(
                     Text(
                         "AI Chat Hub",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         "Your Local AI",
                         style = MaterialTheme.typography.headlineMedium,
-                        color = TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 IconButton(onClick = { onNavigate(Screen.SystemStatus.route) }) {
-                    Icon(Icons.Filled.Speed, contentDescription = "System Status", tint = Secondary)
+                    Icon(Icons.Filled.Speed, contentDescription = "System Status", tint = MaterialTheme.colorScheme.secondary)
                 }
             }
         }
@@ -105,9 +100,9 @@ fun HomeScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = Primary)
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(16.dp))
-                        Text("Analyzing your device…", color = TextSecondary)
+                        Text("Analyzing your device…", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -206,18 +201,18 @@ private fun HelpCard(
                 Text(
                     "How it works",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 }
             }
             Spacer(Modifier.height(4.dp))
-            Text("1. Pick a model that fits your device from the Model Store.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-            Text("2. It downloads, verifies, and installs automatically.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-            Text("3. Chat with it — fully on-device, offline, private.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Text("1. Pick a model that fits your device from the Model Store.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("2. It downloads, verifies, and installs automatically.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("3. Chat with it — fully on-device, offline, private.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(10.dp))
             GradientButton(
                 text = "Explore Models",
@@ -250,7 +245,7 @@ private fun HeroCard(
                     Text(
                         title,
                         style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold
                     )
                     val subtitle = when {
@@ -261,13 +256,13 @@ private fun HeroCard(
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 val dotColor = when {
                     readyCount > 0 -> Success
                     installedCount > 0 -> Warning
-                    else -> TextSecondary
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -280,7 +275,7 @@ private fun HeroCard(
                             installedCount > 0 -> "Not ready"
                             else -> "No models yet"
                         },
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
@@ -305,17 +300,17 @@ private fun QuickAction(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    AppCard(modifier = modifier) {
+    AppCard(modifier = modifier.clickable(onClick = onClick)) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(icon, contentDescription = null, tint = Primary, modifier = Modifier.size(22.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
             Spacer(Modifier.height(8.dp))
             Text(
                 label,
                 style = MaterialTheme.typography.labelMedium,
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
@@ -372,11 +367,11 @@ private fun MetricBox(
 ) {
     Column(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = Secondary, modifier = Modifier.size(16.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text(value, style = MaterialTheme.typography.labelLarge, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+            Text(value, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
         }
-        Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -389,6 +384,7 @@ private fun RecommendationCard(
     AppCard(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 6.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -399,13 +395,13 @@ private fun RecommendationCard(
                     Text(
                         recommendation.model.name,
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         recommendation.model.provider,
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 CompatibilityBadge(level = recommendation.level)
@@ -414,7 +410,7 @@ private fun RecommendationCard(
             Text(
                 recommendation.reason,
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (isInstalled) {
                 Spacer(Modifier.height(8.dp))

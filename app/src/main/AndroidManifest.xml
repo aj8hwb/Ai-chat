@@ -38,6 +38,10 @@
             android:exported="false"
             android:foregroundServiceType="dataSync"
             android:stopWithTask="false" />
+
+        <receiver
+            android:name=".download.DownloadActionReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

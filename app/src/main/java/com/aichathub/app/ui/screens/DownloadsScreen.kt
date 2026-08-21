@@ -32,10 +32,7 @@ import com.aichathub.app.download.DownloadStatus
 import com.aichathub.app.ui.components.AppCard
 import com.aichathub.app.ui.components.DownloadProgressBlock
 import com.aichathub.app.ui.components.EmptyState
-import com.aichathub.app.ui.theme.Error
 import com.aichathub.app.ui.theme.Success
-import com.aichathub.app.ui.theme.TextPrimary
-import com.aichathub.app.ui.theme.TextSecondary
 import com.aichathub.app.util.Formatters
 
 @Composable
@@ -55,12 +52,12 @@ fun DownloadsScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(16.dp))
-            Text("Download Manager", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
+            Text("Download Manager", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(4.dp))
             Text(
                 "${active.size} active · ${completed.size} completed",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(8.dp))
         }
@@ -82,7 +79,7 @@ fun DownloadsScreen(
             } else {
                 if (active.isNotEmpty()) {
                     item {
-                        Text("Active", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                        Text("Active", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                     }
                     items(active, key = { it.modelId }) { d ->
                         ActiveDownloadCard(
@@ -96,7 +93,7 @@ fun DownloadsScreen(
                 if (completed.isNotEmpty()) {
                     item {
                         Spacer(Modifier.height(8.dp))
-                        Text("Completed", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                        Text("Completed", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                     }
                     items(completed, key = { it.modelId }) { d ->
                         CompletedCard(d)
@@ -105,16 +102,16 @@ fun DownloadsScreen(
                 if (failed.isNotEmpty()) {
                     item {
                         Spacer(Modifier.height(8.dp))
-                        Text("Failed / Cancelled", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                        Text("Failed / Cancelled", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                     }
                     items(failed, key = { it.modelId }) { d ->
                         AppCard(modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text(d.modelName, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                                Text(d.modelName, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                                 Text(
                                     d.error ?: "Cancelled",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Error
+                                    color = MaterialTheme.colorScheme.error
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
                                     if (d.status == DownloadStatus.FAILED) {
@@ -144,7 +141,7 @@ private fun ActiveDownloadCard(
     AppCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(download.modelName, style = MaterialTheme.typography.titleMedium, color = TextPrimary, modifier = Modifier.weight(1f))
+                Text(download.modelName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                 Text(
                     when (download.status) {
                         DownloadStatus.VERIFYING -> "Verifying"
@@ -153,7 +150,7 @@ private fun ActiveDownloadCard(
                         else -> "Queued"
                     },
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (download.status == DownloadStatus.PAUSED) TextSecondary else TextPrimary
+                    color = if (download.status == DownloadStatus.PAUSED) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                 )
             }
             Spacer(Modifier.height(10.dp))
@@ -190,8 +187,8 @@ private fun ActiveDownloadCard(
 @Composable
 private fun Stat(label: String, value: String) {
     Column {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-        Text(value, style = MaterialTheme.typography.labelMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -208,8 +205,8 @@ private fun CompletedCard(download: DownloadInfo) {
             Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Success, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(download.modelName, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                Text("Verified & installed · ${Formatters.bytes(download.totalBytes)}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                Text(download.modelName, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                Text("Verified & installed · ${Formatters.bytes(download.totalBytes)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text("✓ Ready", style = MaterialTheme.typography.labelMedium, color = Success)
         }

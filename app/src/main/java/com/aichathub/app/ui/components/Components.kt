@@ -44,24 +44,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.aichathub.app.domain.model.CompatibilityLevel
 import com.aichathub.app.domain.model.ModelLifecycleState
-import com.aichathub.app.ui.theme.BorderSubtle
-import com.aichathub.app.ui.theme.Error
-import com.aichathub.app.ui.theme.ErrorContainer
 import com.aichathub.app.ui.theme.GradientPrimary
 import com.aichathub.app.ui.theme.Heavy
 import com.aichathub.app.ui.theme.HeavyContainer
-import com.aichathub.app.ui.theme.OnPrimary
-import com.aichathub.app.ui.theme.Primary
-import com.aichathub.app.ui.theme.PrimaryContainer
-import com.aichathub.app.ui.theme.Secondary
-import com.aichathub.app.ui.theme.SecondaryContainer
 import com.aichathub.app.ui.theme.Success
 import com.aichathub.app.ui.theme.SuccessContainer
-import com.aichathub.app.ui.theme.SurfaceElevated
-import com.aichathub.app.ui.theme.SurfaceHigh
-import com.aichathub.app.ui.theme.TextMuted
-import com.aichathub.app.ui.theme.TextPrimary
-import com.aichathub.app.ui.theme.TextSecondary
 import com.aichathub.app.ui.theme.Warning
 import com.aichathub.app.ui.theme.WarningContainer
 
@@ -81,8 +68,8 @@ fun AppCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceElevated),
-        border = androidx.compose.foundation.BorderStroke(1.dp, BorderSubtle)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         content()
     }
@@ -114,9 +101,9 @@ fun CompatibilityBadge(
     val (bg, fg, emoji) = when (level) {
         CompatibilityLevel.EXCELLENT -> Triple(SuccessContainer, Success, "🟢")
         CompatibilityLevel.RECOMMENDED -> Triple(SuccessContainer, Success, "🟢")
-        CompatibilityLevel.USABLE -> Triple(SecondaryContainer, Secondary, "🟡")
+        CompatibilityLevel.USABLE -> Triple(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.secondary, "🟡")
         CompatibilityLevel.HEAVY -> Triple(HeavyContainer, Heavy, "🟠")
-        CompatibilityLevel.NOT_RECOMMENDED -> Triple(ErrorContainer, Error, "🔴")
+        CompatibilityLevel.NOT_RECOMMENDED -> Triple(MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.error, "🔴")
     }
     Row(
         modifier = modifier
@@ -142,10 +129,10 @@ fun StateDot(
 ) {
     val color = when (state) {
         ModelLifecycleState.READY, ModelLifecycleState.RUNNING -> Success
-        ModelLifecycleState.INSTALLED, ModelLifecycleState.DOWNLOADED -> Secondary
+        ModelLifecycleState.INSTALLED, ModelLifecycleState.DOWNLOADED -> MaterialTheme.colorScheme.secondary
         ModelLifecycleState.LOADING, ModelLifecycleState.UNLOADING, ModelLifecycleState.DOWNLOADING, ModelLifecycleState.VERIFYING -> Warning
-        ModelLifecycleState.ERROR -> Error
-        ModelLifecycleState.NOT_INSTALLED -> TextMuted
+        ModelLifecycleState.ERROR -> MaterialTheme.colorScheme.error
+        ModelLifecycleState.NOT_INSTALLED -> MaterialTheme.colorScheme.outline
     }
     Box(
         modifier = modifier
@@ -163,7 +150,7 @@ fun MetricRow(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    valueColor: Color = TextPrimary,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
     icon: ImageVector? = null
 ) {
     Row(
@@ -171,13 +158,13 @@ fun MetricRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
         }
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
         Text(
@@ -195,19 +182,19 @@ fun ProgressBlock(
     progress: Float,
     valueText: String,
     modifier: Modifier = Modifier,
-    progressColor: Color = Primary
+    progressColor: Color = MaterialTheme.colorScheme.primary
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = TextSecondary, modifier = Modifier.weight(1f))
-            Text(valueText, style = MaterialTheme.typography.labelMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            Text(valueText, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.height(6.dp))
         LinearProgressIndicator(
             progress = { progress.coerceIn(0f, 1f) },
             modifier = Modifier.fillMaxWidth().height(6.dp),
             color = progressColor,
-            trackColor = SurfaceHigh,
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
         )
     }
@@ -231,10 +218,10 @@ fun GradientButton(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Primary,
-            contentColor = OnPrimary,
-            disabledContainerColor = SurfaceHigh,
-            disabledContentColor = TextMuted
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            disabledContentColor = MaterialTheme.colorScheme.outline
         )
     ) {
         if (icon != null) {
@@ -263,18 +250,18 @@ fun EmptyState(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier.size(72.dp).background(PrimaryContainer, CircleShape),
+            modifier = Modifier.size(72.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = Primary, modifier = Modifier.size(32.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
         }
         Spacer(Modifier.height(16.dp))
-        Text(title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(6.dp))
         Text(
             description,
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         if (actionLabel != null && onAction != null) {
@@ -297,18 +284,18 @@ fun ErrorState(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier.size(72.dp).background(ErrorContainer, CircleShape),
+            modifier = Modifier.size(72.dp).background(MaterialTheme.colorScheme.errorContainer, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Error, modifier = Modifier.size(32.dp))
+            Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp))
         }
         Spacer(Modifier.height(16.dp))
-        Text(title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(6.dp))
         Text(
             message,
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         if (actionLabel != null && onAction != null) {
@@ -332,7 +319,7 @@ fun SectionHeader(
         Text(
             title,
             style = MaterialTheme.typography.titleMedium,
-            color = TextPrimary,
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f)
         )
@@ -340,7 +327,7 @@ fun SectionHeader(
             Text(
                 actionText,
                 style = MaterialTheme.typography.labelLarge,
-                color = Primary,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable(onClick = onAction)
             )
         }

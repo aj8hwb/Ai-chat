@@ -16,6 +16,29 @@ enum class LoadDecision {
     BLOCKED
 }
 
+/** Hard load-gate result. BLOCK refuses to load the model. */
+enum class LoadEligibility { ALLOW, WARN, BLOCK }
+
+data class LoadEligibilityResult(
+    val eligibility: LoadEligibility,
+    val requiredBytes: Long,
+    val usableBytes: Long,
+    val measured: Boolean
+) {
+    val message: String
+        get() {
+            val reqMb = (requiredBytes / (1024.0 * 1024.0)).round1()
+            val usableMb = (usableBytes / (1024.0 * 1024.0)).round1()
+            return when (eligibility) {
+                LoadEligibility.BLOCK ->
+                    "This model actually uses ~$reqMb MB on your device, which is more than the ~$usableMb MB it can safely use. Loading it would likely freeze or crash the phone. Try a lighter model."
+                LoadEligibility.WARN ->
+                    "This model needs ~$reqMb MB but only ~$usableMb MB is safely available. It may be slow or unstable. Download and try at your own risk."
+                LoadEligibility.ALLOW -> "Fits your device's safe memory budget (~$usableMb MB)."
+            }
+        }
+}
+
 /**
  * Evaluates how compatible a model is with the current device state.
  * Pure logic — no Android dependencies, unit-testable.
@@ -65,6 +88,38 @@ class CompatibilityEngine {
             required <= usable * 1.35 -> LoadDecision.HEAVY
             else -> LoadDecision.BLOCKED
         }
+    }
+
+    /**
+     * Hard load gate used by the Chat / Playground entry points.
+     *
+     * The badges and warnings elsewhere are informational. This is the ONE
+     * place a load is refused: when the model has been MEASURED on this device
+     * (real PSS) to need far more than the safe AI budget, loading it is known
+     * to risk a freeze/OOM/LMK kill, so we refuse with an honest explanation.
+     * Without a measurement we only WARN (the estimate may be wrong in the
+     * user's favour — they can still try).
+     */
+    fun loadEligibility(
+        model: CatalogModel,
+        profile: DeviceProfile,
+        measuredMemory: Map<String, Long> = emptyMap()
+    ): LoadEligibilityResult {
+        val budget = MemoryBudgetCalculator.calculate(profile)
+        val usable = budget.modelMemoryBytes
+        val measured = measuredMemory[model.id]
+        val required = measured ?: model.estimatedMemoryBytes
+        val eligibility = when {
+            required <= usable * 1.35 -> LoadEligibility.ALLOW
+            measured != null -> LoadEligibility.BLOCK
+            else -> LoadEligibility.WARN
+        }
+        return LoadEligibilityResult(
+            eligibility = eligibility,
+            requiredBytes = required,
+            usableBytes = usable,
+            measured = measured != null
+        )
     }
 
     /**

@@ -13,10 +13,12 @@ import com.aichathub.app.download.DownloadStartResult
 import com.aichathub.app.download.DownloadStatus
 import com.aichathub.app.ui.AiViewModel
 import com.aichathub.app.util.Formatters
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ModelDetailsUiState(
     val model: CatalogModel? = null,
@@ -28,7 +30,10 @@ data class ModelDetailsUiState(
     val filePath: String? = null,
     val isDefaultModel: Boolean = false,
     /** True when the current default model is NOT installed (edge case). */
-    val defaultModelMissing: Boolean = false
+    val defaultModelMissing: Boolean = false,
+    /** True while the screen is still loading; guards against a flash of the
+     *  "model not found" state on every navigation (model resolves async). */
+    val loading: Boolean = false
 )
 
 class ModelDetailsViewModel(application: Application) : AiViewModel(application) {
@@ -40,8 +45,12 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
 
     fun load(modelId: String) {
         this.modelId = modelId
-        val model = LocalModelCatalog.byId(modelId) ?: return
-        _state.value = _state.value.copy(model = model)
+        val model = LocalModelCatalog.byId(modelId)
+        if (model == null) {
+            _state.value = ModelDetailsUiState(model = null, loading = false)
+            return
+        }
+        _state.value = ModelDetailsUiState(model = model, loading = true)
         viewModelScope.launch {
             val installed = container.modelRepository.stateFor(modelId)
             _state.value = _state.value.copy(
@@ -51,6 +60,7 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
             analyzeCompatibility(model)
             observeDownload(model)
             observeDefaultModel()
+            _state.value = _state.value.copy(loading = false)
         }
     }
 
@@ -171,11 +181,13 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
     fun deleteModel() {
         val model = _state.value.model ?: return
         viewModelScope.launch {
-            // Unload FIRST: llama.cpp maps the model file into native memory;
-            // deleting it while loaded can crash the process (native SIGSEGV).
-            container.chatCoordinator.unloadModel(model.id)
-            container.downloadManager.clearForModel(model.id)
-            container.modelRepository.remove(model.id)
+            withContext(Dispatchers.IO) {
+                // Unload FIRST: llama.cpp maps the model file into native memory;
+                // deleting it while loaded can crash the process (native SIGSEGV).
+                container.chatCoordinator.unloadModel(model.id)
+                container.downloadManager.clearForModel(model.id)
+                container.modelRepository.remove(model.id)
+            }
             _state.value = _state.value.copy(
                 lifecycle = ModelLifecycleState.NOT_INSTALLED,
                 filePath = null,

@@ -9,6 +9,7 @@ import com.aichathub.app.data.local.MessageEntity
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ChatTemplate
 import com.aichathub.app.domain.model.ModelLifecycleState
+import com.aichathub.app.util.TokenEstimator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -165,13 +166,18 @@ class ChatCoordinator(
     /**
      * Sends a user message and streams the assistant response.
      * The response is saved to the active conversation when complete.
+     *
+     * @param persistUserMessage when false, the user message is NOT inserted
+     *   again (used by Regenerate, where the prompt already exists in Room).
      */
     suspend fun sendMessage(
         prompt: String,
         config: GenerationConfig,
         systemPrompt: String,
         model: CatalogModel,
-        onStream: (String) -> Unit
+        onStream: (String) -> Unit,
+        persistUserMessage: Boolean = true,
+        historyTurns: Int = DEFAULT_HISTORY_TURNS
     ): String {
         // Set the in-flight flag SYNCHRONOUSLY (before any suspension point).
         // This closes the check-then-set race: a second caller cannot observe
@@ -180,6 +186,11 @@ class ChatCoordinator(
             throw IllegalStateException("Already generating")
         }
         _state.value = _state.value.copy(generationState = ChatGenerationState.GENERATING, error = null)
+        // Discard any cancellation a PREVIOUS screen left behind (e.g. the
+        // Playground was stopped mid-run). From here on, a Stop will be
+        // recorded against THIS generation — including a Stop pressed while the
+        // prompt below is still being built.
+        runtime.clearCancellation()
 
         var conversationId = _activeConversationId.value
         val streamed = StringBuilder()
@@ -196,22 +207,29 @@ class ChatCoordinator(
                 }
                 val convId = conversationId!!
 
-                messageDao.insert(
-                    MessageEntity(
-                        conversationId = convId,
-                        role = "user",
-                        content = prompt,
-                        createdAt = System.currentTimeMillis(),
-                        modelId = model.id
+                if (persistUserMessage) {
+                    messageDao.insert(
+                        MessageEntity(
+                            conversationId = convId,
+                            role = "user",
+                            content = prompt,
+                            createdAt = System.currentTimeMillis(),
+                            modelId = model.id
+                        )
                     )
-                )
+                }
 
                 Log.i("ChatCoordinator", "INFERENCE_STARTED ${model.id}")
 
-                val fullPrompt = buildPrompt(model, convId, systemPrompt)
+                val fullPrompt = buildPrompt(model, convId, systemPrompt, config.maxTokens, historyTurns)
+                // Apply the model's own template stop sequences so generation
+                // ends at a natural boundary instead of running to maxTokens.
+                val effectiveConfig = config.copy(
+                    stopSequences = templateStopSequences(model.chatTemplate)
+                )
                 val result = runtime.generateStreaming(
                     prompt = fullPrompt,
-                    config = config,
+                    config = effectiveConfig,
                     onToken = { token ->
                         streamed.append(token)
                         onStream(streamed.toString())
@@ -244,12 +262,28 @@ class ChatCoordinator(
             )
             throw e
         } catch (e: kotlinx.coroutines.CancellationException) {
-            // User pressed Stop: the in-flight response is discarded cleanly.
+            // User pressed Stop: keep whatever was already streamed so a long
+            // interrupted reply is not silently lost, then unwind cleanly.
+            val partial = streamed.toString().trim()
+            if (partial.isNotEmpty() && conversationId != null) {
+                runCatching {
+                    messageDao.insert(
+                        MessageEntity(
+                            conversationId = conversationId!!,
+                            role = "assistant",
+                            content = partial + "\n\n_(stopped)_",
+                            createdAt = System.currentTimeMillis(),
+                            modelId = model.id
+                        )
+                    )
+                    conversationDao.touch(conversationId!!, System.currentTimeMillis())
+                }
+            }
             _state.value = _state.value.copy(
                 generationState = ChatGenerationState.DONE,
                 error = null
             )
-            Log.i("ChatCoordinator", "INFERENCE_STOPPED ${model.id}")
+            Log.i("ChatCoordinator", "INFERENCE_STOPPED ${model.id} partial=${partial.length}")
             throw e
         } catch (e: Exception) {
             Log.e("ChatCoordinator", "INFERENCE_FAILED ${model.id}", e)
@@ -289,37 +323,49 @@ class ChatCoordinator(
      * / Llama2) — instruct models answer measurably better inside the format
      * they were fine-tuned with.
      *
-     * The prompt is kept within a strict size budget: an oversized prompt
-     * overflows llama.cpp's native context and crashes the whole process,
-     * so older turns are dropped first. The system prompt is always preserved.
+     * The prompt is kept within a TOKEN budget derived from the model's native
+     * context (token-dense languages included). Oversizing a llama.cpp context
+     * crashes the whole native process, so older turns are dropped first while
+     * the newest message and the system prompt are always preserved.
      */
     private suspend fun buildPrompt(
         model: CatalogModel,
         conversationId: Long,
-        systemPrompt: String
+        systemPrompt: String,
+        maxOutputTokens: Int,
+        historyTurns: Int = DEFAULT_HISTORY_TURNS
     ): String {
         val recent = messageDao.forConversation(conversationId)
             .filter { it.role == "user" || it.role == "assistant" }
-            .takeLast(8)
+            .takeLast(historyTurns.coerceIn(2, 20))
 
         val systemBlock = renderSystemBlock(model.chatTemplate, systemPrompt)
-        val turnsBudget = (MAX_FULL_PROMPT_CHARS - systemBlock.length).coerceAtLeast(64)
+        val turnsBudgetTokens =
+            (TokenEstimator.promptBudgetTokens(model.contextLength, maxOutputTokens) -
+                TokenEstimator.estimate(systemBlock)).coerceAtLeast(64)
 
-        // Render the turns (up to the budget), dropping the OLDEST turns first
-        // until the whole prompt fits — the newest message (the one the user
-        // just sent) always stays intact. The system prompt is preserved.
-        var turns = renderPrompt(model.chatTemplate, recent)
-        if (turns.length > turnsBudget) {
-            val trimmed = renderPrompt(model.chatTemplate, recent.takeLast(MAX_HISTORY_TURNS))
-            var cut = trimmed
-            while (cut.length > turnsBudget) {
-                val idx = nextTurnBoundary(model.chatTemplate, cut)
-                if (idx < 0 || idx > cut.length / 2) break
-                cut = cut.substring(idx)
-            }
-            turns = cut.take(turnsBudget)
+        // Drop the OLDEST turns until the whole prompt fits in the token budget.
+        var turns = recent.toMutableList()
+        while (turns.size > 1 && TokenEstimator.estimate(renderPrompt(model.chatTemplate, turns)) > turnsBudgetTokens) {
+            turns.removeAt(0)
         }
-        return systemBlock + turns
+        var rendered = renderPrompt(model.chatTemplate, turns)
+        // Absolute safety net: hard-cut the rendered turns at a conservative
+        // char bound (for CJK 1 token ≈ 1 char, so this can never overflow).
+        // The cut never splits a UTF-16 surrogate pair, so emoji survive intact.
+        if (TokenEstimator.estimate(rendered) > turnsBudgetTokens) {
+            rendered = com.aichathub.app.util.TextUtils.takeNoSplit(rendered, turnsBudgetTokens)
+        }
+        return systemBlock + rendered
+    }
+
+    /** Template end tokens used to stop generation at a natural boundary. */
+    private fun templateStopSequences(template: ChatTemplate): List<String> = when (template) {
+        ChatTemplate.CHATML -> listOf("<|im_end|>")
+        ChatTemplate.GEMMA -> listOf("<end_of_turn>")
+        ChatTemplate.LLAMA3 -> listOf("<|eot_id|>")
+        ChatTemplate.LLAMA2 -> listOf("</s>", "[/INST]")
+        ChatTemplate.GENERIC -> emptyList()
     }
 
     private fun renderSystemBlock(template: ChatTemplate, systemPrompt: String): String {
@@ -381,28 +427,8 @@ class ChatCoordinator(
         return sb.toString()
     }
 
-    /** Finds where the oldest turn in a template-wrapped prompt ends, so the
-     *  prompt can be trimmed turn-by-turn (newest message always kept). */
-    private fun nextTurnBoundary(template: ChatTemplate, prompt: String): Int {
-        val marker = when (template) {
-            ChatTemplate.CHATML -> "<|im_start|>"
-            ChatTemplate.GEMMA -> "<start_of_turn>"
-            ChatTemplate.LLAMA3 -> "<|start_header_id|>"
-            ChatTemplate.LLAMA2 -> "[INST] "
-            ChatTemplate.GENERIC -> "\n"
-        }
-        var from = marker.length
-        if (template == ChatTemplate.GENERIC) {
-            val nl = prompt.indexOf('\n')
-            return if (nl < 0) -1 else nl + 1
-        }
-        val next = prompt.indexOf(marker, from)
-        return if (next < 0) -1 else next
-    }
-
     private companion object {
-        const val MAX_HISTORY_TURNS = 4
-        const val MAX_FULL_PROMPT_CHARS = 2200
+        const val DEFAULT_HISTORY_TURNS = 8
     }
 
     private fun titleFromPrompt(prompt: String): String {

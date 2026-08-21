@@ -9,6 +9,7 @@ class DownloadSegmentPolicyTest {
 
     @Test
     fun `persisted meta wins even when the file is small`() {
+        assertEquals(8, DownloadSegmentPolicy.resolveSegments(8, false, false, true, bytes(1024)))
         assertEquals(4, DownloadSegmentPolicy.resolveSegments(4, false, false, true, bytes(1024)))
         assertEquals(1, DownloadSegmentPolicy.resolveSegments(1, false, false, true, bytes(1024 * 1024)))
     }
@@ -20,9 +21,10 @@ class DownloadSegmentPolicyTest {
 
     @Test
     fun `no meta and no files falls back to probing`() {
-        assertEquals(4, DownloadSegmentPolicy.resolveSegments(null, false, false, true, bytes(600L * 1024 * 1024)))
+        assertEquals(8, DownloadSegmentPolicy.resolveSegments(null, false, false, true, bytes(600L * 1024 * 1024)))
         assertEquals(1, DownloadSegmentPolicy.resolveSegments(null, false, false, false, bytes(600L * 1024 * 1024)))
-        assertEquals(1, DownloadSegmentPolicy.resolveSegments(null, false, false, true, bytes(100L * 1024 * 1024)))
+        assertEquals(8, DownloadSegmentPolicy.resolveSegments(null, false, false, true, bytes(100L * 1024 * 1024)))
+        assertEquals(1, DownloadSegmentPolicy.resolveSegments(null, false, false, true, bytes(10L * 1024 * 1024)))
     }
 
     @Test
@@ -32,7 +34,7 @@ class DownloadSegmentPolicyTest {
 
     @Test
     fun `large files with range support segment`() {
-        assertEquals(4, DownloadSegmentPolicy.resolveFresh(true, bytes(DownloadSegmentPolicy.SEGMENT_BYTES_THRESHOLD)))
+        assertEquals(8, DownloadSegmentPolicy.resolveFresh(true, bytes(DownloadSegmentPolicy.SEGMENT_BYTES_THRESHOLD)))
     }
 
     @Test

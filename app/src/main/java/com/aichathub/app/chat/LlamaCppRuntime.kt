@@ -50,6 +50,23 @@ class LlamaCppRuntime(
      */
     private val nativeMutex = Mutex()
 
+    /**
+     * Guards the [model] reference swap performed by [unloadQuietly] against the
+     * native [LlamaModel.cancelGeneration] call performed by [cancelGeneration].
+     *
+     * A generation holds [nativeMutex] for its whole duration, so load/unload
+     * can never race it. But [cancelGeneration] must be callable WHILE a
+     * generation is running (that is its entire purpose), so it cannot take the
+     * mutex. The dangerous window is therefore: cancel reads a non-null
+     * `model`, the generation finishes and releases the mutex, a load() for a
+     * different model closes that instance and swaps in a new one, and cancel
+     * then invokes a native method on the CLOSED instance — a use-after-free
+     * SIGSEGV. This lock makes the read-and-cancel and the close-and-swap
+     * mutually exclusive so cancel can never touch a released model.
+     */
+    private val modelAccessLock = Any()
+
+    @Volatile
     override var isLoaded: Boolean = false
         private set
 
@@ -104,7 +121,10 @@ class LlamaCppRuntime(
         model = loaded
         isLoaded = true
         activeModelId = modelId
-        _performance.value = InferenceRuntime.Performance(contextUsed = 0)
+        _performance.value = InferenceRuntime.Performance(
+            contextUsed = 0,
+            contextTokensMax = contextLength.coerceAtLeast(512)
+        )
         // Report the REAL memory this model consumes on this device (App PSS
         // delta around the load). This feeds the recommendation system so it
         // scores models on measured footprint, not just the catalog estimate.
@@ -122,10 +142,13 @@ class LlamaCppRuntime(
     }
 
     private fun unloadQuietly() {
-        val m = model ?: return
+        val m = synchronized(modelAccessLock) {
+            val current = model ?: return
+            model = null
+            current
+        }
         runCatching { m.close() }
             .onFailure { Log.w(tag, "Error releasing model", it) }
-        model = null
         isLoaded = false
         activeModelId = null
         _performance.value = InferenceRuntime.Performance()
@@ -136,9 +159,10 @@ class LlamaCppRuntime(
         config: GenerationConfig
     ): String = nativeMutex.withLock {
         check(!closed.get()) { "Runtime already released" }
-        // A stale cancellation (e.g. the Playground was left mid-run) must never
-        // silently block a new generation: clear it and proceed normally.
-        cancelled.set(false)
+        // See [generateStreaming]: a Stop pressed during caller-side preparation
+        // must abort this generation, not be silently dropped. The caller clears
+        // stale cancellations via [clearCancellation] when it starts its flow.
+        if (cancelled.get()) throw CancellationException("Generation cancelled before start")
         val m = requireModel()
         generating.set(true)
         _performance.value = _performance.value.copy(generationActive = true)
@@ -146,18 +170,11 @@ class LlamaCppRuntime(
             val start = System.nanoTime()
             memoryLog("before generate")
             val nativeConfig = toNativeConfig(config)
-            val sb = StringBuilder()
-            var tokens = 0
-            withContext(Dispatchers.IO) {
-                m.generateStream(prompt, nativeConfig).collect { token ->
-                    sb.append(token)
-                    tokens++
-                }
-            }
+            val stream = collectStream(m, prompt, nativeConfig, config.stopSequences) { }
+            val result = truncateAtStop(stream.text, config.stopSequences)
             memoryLog("after generate")
             if (cancelled.get()) throw CancellationException("Generation cancelled")
-            val result = sb.toString()
-            updatePerformance(result, start, prompt.length, tokens)
+            updatePerformance(result, start, prompt, stream.tokens)
             result
         } finally {
             generating.set(false)
@@ -171,8 +188,10 @@ class LlamaCppRuntime(
         onToken: (String) -> Unit
     ): String = nativeMutex.withLock {
         check(!closed.get()) { "Runtime already released" }
-        // See [generate]: stale cancellations are discarded, not fatal.
-        cancelled.set(false)
+        // See [generate]: a Stop pressed during caller-side preparation must
+        // abort this generation. The caller clears stale cancellations via
+        // [clearCancellation] when it starts its own flow.
+        if (cancelled.get()) throw CancellationException("Generation cancelled before start")
         val m = requireModel()
         generating.set(true)
         _performance.value = _performance.value.copy(generationActive = true)
@@ -180,19 +199,11 @@ class LlamaCppRuntime(
             val start = System.nanoTime()
             memoryLog("before generateStreaming")
             val nativeConfig = toNativeConfig(config)
-            val sb = StringBuilder()
-            var tokens = 0
-            withContext(Dispatchers.IO) {
-                m.generateStream(prompt, nativeConfig).collect { token ->
-                    sb.append(token)
-                    tokens++
-                    onToken(token)
-                }
-            }
+            val stream = collectStream(m, prompt, nativeConfig, config.stopSequences, onToken)
+            val result = truncateAtStop(stream.text, config.stopSequences)
             memoryLog("after generateStreaming")
             if (cancelled.get()) throw CancellationException("Generation cancelled")
-            val result = sb.toString()
-            updatePerformance(result, start, prompt.length, tokens)
+            updatePerformance(result, start, prompt, stream.tokens)
             result
         } finally {
             generating.set(false)
@@ -200,12 +211,99 @@ class LlamaCppRuntime(
         }
     }
 
+    /**
+     * Consumes the native token stream, forwarding every token to [onToken] and
+     * stopping the native generation the moment a template stop sequence shows
+     * up in the output. This is a belt-and-suspenders fallback on top of the
+     * native [LlamaConfig.stopSequences]: some GGUF files do not declare a
+     * usable EOS, so without this the model would happily generate until
+     * maxTokens (a multi-hundred-second runaway on small models).
+     *
+     * The native cancellation is used directly (NOT [cancelGeneration]) so the
+     * app's own [cancelled] flag stays clear and a natural stop is not mistaken
+     * for a user-initiated stop.
+     *
+     * Live performance is updated as tokens arrive (not just at the end), so the
+     * UI shows honest tok/s and token counts WHILE the model is generating.
+     */
+    private suspend fun collectStream(
+        m: LlamaModel,
+        prompt: String,
+        nativeConfig: LlamaConfig,
+        stopSequences: List<String>,
+        onToken: (String) -> Unit
+    ): StreamResult {
+        val startNanos = System.nanoTime()
+        val sb = StringBuilder()
+        var tokens = 0
+        var lastLiveUpdateMs = 0L
+        val collectBlock: suspend (String) -> Unit = { token ->
+            sb.append(token)
+            tokens++
+            onToken(token)
+            // Refresh live telemetry ~4x per second so the streaming UI shows
+            // real tok/s and token counts instead of zeros until the end.
+            val now = System.currentTimeMillis()
+            if (now - lastLiveUpdateMs >= 250) {
+                lastLiveUpdateMs = now
+                val elapsed = (System.nanoTime() - startNanos) / 1_000_000_000f
+                _performance.value = _performance.value.copy(
+                    tokensPerSecond = if (elapsed > 0f) tokens / elapsed else 0f,
+                    tokensGenerated = tokens,
+                    generationActive = true
+                )
+            }
+        }
+        if (stopSequences.isEmpty()) {
+            withContext(Dispatchers.IO) {
+                m.generateStream(prompt, nativeConfig).collect { token ->
+                    collectBlock(token)
+                }
+            }
+            return StreamResult(sb.toString(), tokens)
+        }
+        val maxStopLen = stopSequences.maxOf { it.length }
+        val window = maxStopLen + 64
+        withContext(Dispatchers.IO) {
+            m.generateStream(prompt, nativeConfig).collect { token ->
+                collectBlock(token)
+                // Only inspect the recent tail — cheap regardless of reply length.
+                val tail = if (sb.length > window) sb.substring(sb.length - window) else sb.toString()
+                if (stopSequences.any { tail.contains(it) }) {
+                    m.cancelGeneration()
+                }
+            }
+        }
+        return StreamResult(sb.toString(), tokens)
+    }
+
+    /** The raw streamed text plus the REAL number of tokens the native engine
+     *  emitted (each stream emission is one token). */
+    private data class StreamResult(val text: String, val tokens: Int)
+
+    /** Cuts the reply at the earliest template stop sequence. */
+    private fun truncateAtStop(raw: String, stopSequences: List<String>): String {
+        if (stopSequences.isEmpty()) return raw
+        var first = -1
+        for (s in stopSequences) {
+            val idx = raw.indexOf(s)
+            if (idx >= 0 && (first < 0 || idx < first)) first = idx
+        }
+        if (first < 0) return raw
+        return raw.substring(0, first).trimEnd()
+    }
+
     override fun cancelGeneration() {
         // Real native cancellation: the engine checks the cancel flag between
         // generated tokens and stops promptly. The in-flight coroutine then
         // sees `cancelled` and discards the partial result cleanly.
         cancelled.set(true)
-        model?.cancelGeneration()
+        val m = synchronized(modelAccessLock) { model }
+        m?.cancelGeneration()
+    }
+
+    override fun clearCancellation() {
+        cancelled.set(false)
     }
 
     override fun release() {
@@ -227,7 +325,8 @@ class LlamaCppRuntime(
         topP = config.topP,
         topK = config.topK,
         maxTokens = config.maxTokens.coerceAtLeast(1),
-        seed = if (config.randomSeed == 0) -1 else config.randomSeed
+        seed = if (config.randomSeed == 0) -1 else config.randomSeed,
+        stopSequences = config.stopSequences
     )
 
     private fun pssBytes(): Long = runCatching {
@@ -255,20 +354,15 @@ class LlamaCppRuntime(
         }
     }
 
-    private fun updatePerformance(result: String, startNanos: Long, promptLength: Int, tokensGenerated: Int) {
+    private fun updatePerformance(result: String, startNanos: Long, prompt: String, tokensGenerated: Int) {
         val elapsed = (System.nanoTime() - startNanos) / 1_000_000_000f
         val tps = if (elapsed > 0f) tokensGenerated / elapsed else 0f
-        val promptTokens = (promptLength / TOKENS_PER_CHAR).coerceAtLeast(1)
-        val contextUsed = promptTokens + tokensGenerated
+        val promptTokens = com.aichathub.app.util.TokenEstimator.estimate(prompt)
         _performance.value = _performance.value.copy(
             tokensPerSecond = tps,
             tokensGenerated = tokensGenerated,
-            contextUsed = contextUsed
+            contextUsed = (promptTokens + tokensGenerated),
+            contextTokensMax = reloadContextLength.coerceAtLeast(512)
         )
-    }
-
-    private companion object {
-        /** Conservative average characters per token for prompt size accounting. */
-        const val TOKENS_PER_CHAR = 4
     }
 }

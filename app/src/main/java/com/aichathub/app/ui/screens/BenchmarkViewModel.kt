@@ -25,7 +25,8 @@ data class BenchmarkUiState(
     val selectedModel: CatalogModel? = null,
     val running: Boolean = false,
     val statusText: String = "",
-    val result: BenchmarkResult? = null
+    val result: BenchmarkResult? = null,
+    val error: String? = null
 )
 
 class BenchmarkViewModel(application: Application) : AiViewModel(application) {
@@ -46,8 +47,11 @@ class BenchmarkViewModel(application: Application) : AiViewModel(application) {
         val model = _state.value.selectedModel ?: return
         viewModelScope.launch {
             val installed = container.modelRepository.stateFor(model.id) ?: return@launch
-            _state.value = _state.value.copy(running = true, statusText = "Loading model…", result = null)
+            _state.value = _state.value.copy(running = true, statusText = "Loading model…", result = null, error = null)
             try {
+                // Discard any cancellation a previous screen left behind so the
+                // benchmark never aborts on a stale Stop.
+                container.inferenceRuntime.clearCancellation()
                 val settings = container.settingsRepository.settings.first()
 
                 // Measure the REAL memory footprint: App PSS delta around the load.
@@ -98,7 +102,9 @@ class BenchmarkViewModel(application: Application) : AiViewModel(application) {
                 _state.value = _state.value.copy(
                     running = false,
                     statusText = "Benchmark failed",
-                    result = null
+                    result = null,
+                    error = e.message?.takeIf { it.isNotBlank() }
+                        ?: "The benchmark could not run on this device. Check your storage and model file, then try again."
                 )
             }
         }

@@ -12,6 +12,7 @@ import com.aichathub.app.ui.AiViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -40,12 +41,16 @@ class HomeViewModel(application: Application) : AiViewModel(application) {
     }
 
     /** Re-analyzes whenever a model's real memory footprint is measured, so
-     *  recommendations reflect what actually happens on this device. */
+     *  recommendations reflect what actually happens on this device. Debounced:
+     *  several models may report a measurement within a second of each other,
+     *  and re-analysis is pointless until the readings settle. */
     private fun observeMeasuredMemory() {
         viewModelScope.launch {
-            container.settingsRepository.measuredMemory.collect {
-                analyze()
-            }
+            container.settingsRepository.measuredMemory
+                .debounce(1500)
+                .collect {
+                    analyze()
+                }
         }
     }
 

@@ -45,10 +45,6 @@ import com.aichathub.app.ui.components.EmptyState
 import com.aichathub.app.ui.components.GradientButton
 import com.aichathub.app.ui.components.ModelCard
 import com.aichathub.app.ui.navigation.Screen
-import com.aichathub.app.ui.theme.Error
-import com.aichathub.app.ui.theme.Primary
-import com.aichathub.app.ui.theme.TextPrimary
-import com.aichathub.app.ui.theme.TextSecondary
 import com.aichathub.app.util.Formatters
 
 @Composable
@@ -70,12 +66,12 @@ fun MyModelsScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(16.dp))
-            Text("My Models", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
+            Text("My Models", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(4.dp))
             Text(
                 "Storage used: ${Formatters.bytes(state.totalStorageBytes)}",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -106,9 +102,9 @@ fun MyModelsScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.width(22.dp).height(22.dp), color = Primary)
+                        CircularProgressIndicator(modifier = Modifier.width(22.dp).height(22.dp), color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(12.dp))
-                        Text("Scanning for GGUF model files…", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                        Text("Scanning for GGUF model files…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -122,13 +118,13 @@ fun MyModelsScreen(
                         Text(
                             msg,
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
                             "Dismiss",
                             style = MaterialTheme.typography.labelMedium,
-                            color = Primary,
+                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(start = 8.dp).clickable { viewModel.clearScanMessage() }
                         )
                     }
@@ -137,7 +133,7 @@ fun MyModelsScreen(
 
             if (state.discovered.isNotEmpty()) {
                 item {
-                    Text("Found on device", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    Text("Found on device", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                 }
                 items(state.discovered, key = { "${it.fileName}-${it.sizeBytes}" }) { file ->
                     DiscoveredCard(file = file, onImport = { viewModel.import(file) })
@@ -169,7 +165,7 @@ fun MyModelsScreen(
                                     onClick = { onNavigate(Screen.Chat.routeFor(model.id)) }
                                 )
                                 IconButton(onClick = { deleteTarget = model.id }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = Error)
+                                    Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                                 }
                             }
                         }
@@ -188,10 +184,10 @@ fun MyModelsScreen(
                 TextButton(onClick = {
                     viewModel.delete(modelId)
                     deleteTarget = null
-                }) { Text("Delete", color = Error) }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = TextSecondary) }
+                TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         )
     }
@@ -209,7 +205,7 @@ private fun DiscoveredCard(
                     Text(
                         file.fileName,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1
                     )
@@ -218,13 +214,13 @@ private fun DiscoveredCard(
                         "${Formatters.bytes(file.sizeBytes)} · " +
                             (file.matchedModel?.let { "${it.name} (${it.parameters})" } ?: "Not in catalog"),
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 if (file.matchedModel != null) {
                     GradientButton(text = "Import", onClick = onImport)
                 } else {
-                    Text("Unsupported", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                    Text("Unsupported", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

@@ -39,10 +39,6 @@ import com.aichathub.app.ui.components.ErrorState
 import com.aichathub.app.ui.components.GradientButton
 import com.aichathub.app.ui.components.ModelIcon
 import com.aichathub.app.ui.navigation.Screen
-import com.aichathub.app.ui.theme.Primary
-import com.aichathub.app.ui.theme.SurfaceHigh
-import com.aichathub.app.ui.theme.TextPrimary
-import com.aichathub.app.ui.theme.TextSecondary
 
 @Composable
 fun PlaygroundScreen(
@@ -53,9 +49,9 @@ fun PlaygroundScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(16.dp))
-            Text("Model Playground", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
+            Text("Model Playground", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(4.dp))
-            Text("Test models with custom prompts and parameters", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Text("Test models with custom prompts and parameters", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(12.dp))
         }
 
@@ -73,8 +69,8 @@ fun PlaygroundScreen(
                     label = { Text("${model.name}${if (installed) "" else " (not installed)"}") },
                     enabled = installed,
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Primary,
-                        selectedLabelColor = TextPrimary
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
             }
@@ -92,17 +88,17 @@ fun PlaygroundScreen(
                     OutlinedTextField(
                         value = state.prompt,
                         onValueChange = viewModel::onPromptChange,
-                        label = { Text("Prompt", color = TextSecondary) },
+                        label = { Text("Prompt", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                         minLines = 4,
                         maxLines = 8,
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Primary,
-                            unfocusedBorderColor = SurfaceHigh,
-                            focusedContainerColor = SurfaceHigh,
-                            unfocusedContainerColor = SurfaceHigh,
-                            cursorColor = Primary
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            cursorColor = MaterialTheme.colorScheme.primary
                         )
                     )
                 }
@@ -112,16 +108,16 @@ fun PlaygroundScreen(
             item {
                 AppCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Parameters", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                        Text("Parameters", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(Modifier.height(8.dp))
-                        Text("Temperature: ${state.temperature}", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                        Text("Temperature: ${state.temperature}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Slider(
                             value = state.temperature,
                             onValueChange = viewModel::onTemperatureChange,
                             valueRange = 0f..1f,
                             enabled = !state.running
                         )
-                        Text("Max Tokens: ${state.maxTokens}", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                        Text("Max Tokens: ${state.maxTokens}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Slider(
                             value = state.maxTokens.toFloat(),
                             onValueChange = { viewModel.onMaxTokensChange(it.toInt()) },
@@ -162,12 +158,12 @@ fun PlaygroundScreen(
                 item {
                     AppCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Result", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                            Text("Result", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                             Spacer(Modifier.height(8.dp))
-                            Text(state.output, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                            Text(state.output, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                             state.stats?.let {
                                 Spacer(Modifier.height(10.dp))
-                                Text(it, style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                                Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }

@@ -7,10 +7,12 @@ import com.aichathub.app.download.DownloadSegmentPolicy
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.DeviceProfile
 import com.aichathub.app.ui.AiViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class StorageUiState(
     val profile: DeviceProfile? = null,
@@ -45,16 +47,21 @@ class StorageViewModel(application: Application) : AiViewModel(application) {
     fun clearCache() {
         // Temporary download files only — never touches installed models or chats.
         // Covers single-stream `.part`, segmented `.part.N` AND the `.part.meta`
-        // segment marker (the old clear missed the last two).
-        val downloadsDir = container.downloadManager.downloadsDir()
-        downloadsDir.listFiles()?.forEach { f ->
-            if (f.name.endsWith(DownloadSegmentPolicy.MERGED_PART_SUFFIX) ||
-                f.name.contains(".part.")
-            ) {
-                f.delete()
+        // segment marker (the old clear missed the last two). Runs off the main
+        // thread: deleting a multi-GB partial file can take a few seconds.
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val downloadsDir = container.downloadManager.downloadsDir()
+                downloadsDir.listFiles()?.forEach { f ->
+                    if (f.name.endsWith(DownloadSegmentPolicy.MERGED_PART_SUFFIX) ||
+                        f.name.contains(".part.")
+                    ) {
+                        f.delete()
+                    }
+                }
             }
+            refreshOrphans()
         }
-        refreshOrphans()
     }
 
     /**
@@ -63,23 +70,29 @@ class StorageViewModel(application: Application) : AiViewModel(application) {
      * this gives the user an explicit one-tap cleanup.
      */
     fun deleteUnknownFiles() {
-        val downloadsDir = container.downloadManager.downloadsDir()
-        val known = knownArtifactNames()
-        downloadsDir.listFiles()?.forEach { f ->
-            if (f.name !in known) f.delete()
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val downloadsDir = container.downloadManager.downloadsDir()
+                val known = knownArtifactNames()
+                downloadsDir.listFiles()?.forEach { f ->
+                    if (f.name !in known) f.delete()
+                }
+            }
+            refreshOrphans()
         }
-        refreshOrphans()
     }
 
     /** Files currently present in the downloads dir that match no catalog artifact. */
     private fun refreshOrphans() {
         viewModelScope.launch {
-            val downloadsDir = container.downloadManager.downloadsDir()
-            val known = knownArtifactNames()
-            val orphans = downloadsDir.listFiles()
-                ?.filter { it.isFile && it.name !in known }
-                ?.map { it.name }
-                ?.sorted() ?: emptyList()
+            val orphans = withContext(Dispatchers.IO) {
+                val downloadsDir = container.downloadManager.downloadsDir()
+                val known = knownArtifactNames()
+                downloadsDir.listFiles()
+                    ?.filter { it.isFile && it.name !in known }
+                    ?.map { it.name }
+                    ?.sorted() ?: emptyList()
+            }
             _state.value = _state.value.copy(orphanFiles = orphans)
         }
     }

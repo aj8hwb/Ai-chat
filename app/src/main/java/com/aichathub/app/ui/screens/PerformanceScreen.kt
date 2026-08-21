@@ -33,10 +33,7 @@ import com.aichathub.app.ui.components.AppCard
 import com.aichathub.app.ui.components.MetricRow
 import com.aichathub.app.ui.components.ProgressBlock
 import com.aichathub.app.ui.components.SectionHeader
-import com.aichathub.app.ui.theme.Secondary
 import com.aichathub.app.ui.theme.Success
-import com.aichathub.app.ui.theme.TextPrimary
-import com.aichathub.app.ui.theme.TextSecondary
 
 @Composable
 fun PerformanceScreen(
@@ -53,11 +50,11 @@ fun PerformanceScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Performance", style = MaterialTheme.typography.headlineMedium, color = TextPrimary, modifier = Modifier.weight(1f))
+                Text("Performance", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(8.dp).background(if (state.active) Success else Color(0xFF6B6B7D), CircleShape))
                     Spacer(Modifier.width(6.dp))
-                    Text(if (state.active) "Live" else "Idle", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                    Text(if (state.active) "Live" else "Idle", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -66,14 +63,14 @@ fun PerformanceScreen(
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Generation Speed", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                    Text("Generation Speed", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Speed, contentDescription = null, tint = Secondary, modifier = Modifier.size(28.dp))
+                        Icon(Icons.Filled.Speed, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(28.dp))
                         Spacer(Modifier.width(10.dp))
                         Text(
                             String.format("%.1f tok/s", state.tokensPerSecond),
                             style = MaterialTheme.typography.headlineMedium,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -124,9 +121,9 @@ private fun MetricCard(
 ) {
     AppCard(modifier = modifier) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
-            Text(value, style = MaterialTheme.typography.titleLarge, color = TextPrimary, fontWeight = FontWeight.Bold)
+            Text(value, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
         }
     }
 }

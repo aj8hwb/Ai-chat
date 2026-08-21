@@ -17,6 +17,7 @@ import com.aichathub.app.util.Formatters
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 
 data class ModelsUiState(
@@ -56,12 +57,15 @@ class ModelsViewModel(application: Application) : AiViewModel(application) {
         observeMeasuredMemory()
     }
 
-    /** Re-runs the compatibility analysis when a model's real memory is measured. */
+    /** Re-runs the compatibility analysis when a model's real memory is measured.
+     *  Debounced so a burst of measurements triggers a single refresh. */
     private fun observeMeasuredMemory() {
         viewModelScope.launch {
-            container.settingsRepository.measuredMemory.collect {
-                refresh()
-            }
+            container.settingsRepository.measuredMemory
+                .debounce(1500)
+                .collect {
+                    refresh()
+                }
         }
     }
 

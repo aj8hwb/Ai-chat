@@ -63,7 +63,10 @@ class SettingsRepository(private val context: Context) {
         val systemPrompt: String = "You are a helpful, concise local AI assistant.",
         val autoUnload: Boolean = true,
         val batteryConscious: Boolean = false,
-        val themeDark: Boolean = true,
+        /** "system" | "dark" | "light" — how the app theme follows the device. */
+        val themeMode: String = "dark",
+        /** Use Material You dynamic colors on Android 12+ when dark/light apply. */
+        val dynamicColor: Boolean = false,
         /** SAF tree URI of the user's model folder, if any. */
         val modelsFolderUri: String? = null,
         /** Mirror downloads to the shared Downloads folder for reinstall survival. */
@@ -72,6 +75,8 @@ class SettingsRepository(private val context: Context) {
         val thinkingMode: String = "DEFAULT",
         /** Only download model files over Wi-Fi (never mobile data). */
         val wifiOnlyDownloads: Boolean = false,
+        /** Number of recent message turns included in the chat prompt (2..20). */
+        val historyTurns: Int = 8,
         /** User dismissed the first-run "How it works" card on Home. */
         val helpDismissed: Boolean = false
     )
@@ -85,11 +90,13 @@ class SettingsRepository(private val context: Context) {
         val systemPrompt = stringPreferencesKey("system_prompt")
         val autoUnload = booleanPreferencesKey("auto_unload")
         val batteryConscious = booleanPreferencesKey("battery_conscious")
-        val themeDark = booleanPreferencesKey("theme_dark")
+        val themeMode = stringPreferencesKey("theme_mode")
+        val dynamicColor = booleanPreferencesKey("dynamic_color")
         val modelsFolderUri = stringPreferencesKey("models_folder_uri")
         val storeInSharedDownloads = booleanPreferencesKey("store_in_shared_downloads")
         val thinkingMode = stringPreferencesKey("thinking_mode")
         val wifiOnlyDownloads = booleanPreferencesKey("wifi_only_downloads")
+        val historyTurns = intPreferencesKey("history_turns")
         val helpDismissed = booleanPreferencesKey("help_dismissed")
         val measuredMemory = stringPreferencesKey("measured_memory")
     }
@@ -104,11 +111,13 @@ class SettingsRepository(private val context: Context) {
             systemPrompt = p[Keys.systemPrompt] ?: "You are a helpful, concise local AI assistant.",
             autoUnload = p[Keys.autoUnload] ?: true,
             batteryConscious = p[Keys.batteryConscious] ?: false,
-            themeDark = p[Keys.themeDark] ?: true,
+            themeMode = p[Keys.themeMode] ?: "dark",
+            dynamicColor = p[Keys.dynamicColor] ?: false,
             modelsFolderUri = p[Keys.modelsFolderUri],
             storeInSharedDownloads = p[Keys.storeInSharedDownloads] ?: true,
             thinkingMode = p[Keys.thinkingMode] ?: "DEFAULT",
             wifiOnlyDownloads = p[Keys.wifiOnlyDownloads] ?: false,
+            historyTurns = (p[Keys.historyTurns] ?: 8).coerceIn(2, 20),
             helpDismissed = p[Keys.helpDismissed] ?: false
         )
     }
@@ -146,12 +155,14 @@ class SettingsRepository(private val context: Context) {
     suspend fun setSystemPrompt(v: String) = context.dataStore.edit { it[Keys.systemPrompt] = v }
     suspend fun setAutoUnload(v: Boolean) = context.dataStore.edit { it[Keys.autoUnload] = v }
     suspend fun setBatteryConscious(v: Boolean) = context.dataStore.edit { it[Keys.batteryConscious] = v }
-    suspend fun setThemeDark(v: Boolean) = context.dataStore.edit { it[Keys.themeDark] = v }
+    suspend fun setThemeMode(v: String) = context.dataStore.edit { it[Keys.themeMode] = v }
+    suspend fun setDynamicColor(v: Boolean) = context.dataStore.edit { it[Keys.dynamicColor] = v }
     suspend fun setModelsFolderUri(uri: String?) = context.dataStore.edit { p ->
         if (uri == null) p.remove(Keys.modelsFolderUri) else p[Keys.modelsFolderUri] = uri
     }
     suspend fun setStoreInSharedDownloads(v: Boolean) = context.dataStore.edit { it[Keys.storeInSharedDownloads] = v }
     suspend fun setThinkingMode(v: String) = context.dataStore.edit { it[Keys.thinkingMode] = v }
     suspend fun setWifiOnlyDownloads(v: Boolean) = context.dataStore.edit { it[Keys.wifiOnlyDownloads] = v }
+    suspend fun setHistoryTurns(v: Int) = context.dataStore.edit { it[Keys.historyTurns] = v.coerceIn(2, 20) }
     suspend fun setHelpDismissed(v: Boolean) = context.dataStore.edit { it[Keys.helpDismissed] = v }
 }

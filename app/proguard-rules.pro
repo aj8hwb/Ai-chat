@@ -1,12 +1,10 @@
 # Add project specific ProGuard rules here.
 
-# MediaPipe tasks-genai keeps its own rules; keep the native JNI entry points.
--keep class com.google.mediapipe.** { *; }
--keep class com.google.mediapipe.framework.** { *; }
--dontwarn com.google.mediapipe.**
--dontwarn com.google.protobuf.**
--keep class org.tensorflow.** { *; }
--dontwarn org.tensorflow.**
+# llama.cpp native engine (org.codeshipping:llama-kotlin-android). The native
+# JNI entry points are registered from Kotlin by name, so R8 must not rename
+# or strip the binding classes.
+-keep class org.codeshipping.llamakotlin.** { *; }
+-dontwarn org.codeshipping.llamakotlin.**
 
 # Kotlinx serialization
 -keepattributes *Annotation*, InnerClasses

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -29,7 +30,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -70,6 +73,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -81,16 +85,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageEntity
+import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.ui.components.AppCard
 import com.aichathub.app.ui.components.GradientButton
 import com.aichathub.app.ui.navigation.Screen
-import com.aichathub.app.ui.theme.NearBlack
-import com.aichathub.app.ui.theme.Primary
 import com.aichathub.app.ui.theme.Success
-import com.aichathub.app.ui.theme.SurfaceElevated
-import com.aichathub.app.ui.theme.SurfaceHigh
-import com.aichathub.app.ui.theme.TextPrimary
-import com.aichathub.app.ui.theme.TextSecondary
 import com.aichathub.app.util.ConversationGroups
 import kotlinx.coroutines.launch
 
@@ -112,6 +111,7 @@ fun ChatScreen(
     var editingMessage by remember { mutableStateOf<MessageEntity?>(null) }
     var traceExpanded by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<Long?>(null) }
+    var showSystemPrompt by remember { mutableStateOf(false) }
 
     LaunchedEffect(conversationId) {
         if (conversationId != null) viewModel.loadConversation(conversationId)
@@ -123,11 +123,19 @@ fun ChatScreen(
         if (modelId != null && modelId.isNotBlank()) viewModel.selectModelById(modelId)
     }
 
-    // Auto-scroll to bottom when messages change (never past the last item).
+    // Auto-scroll to bottom when messages change, but NEVER yank the list away
+    // while the user is reading history (scrolled up) during generation.
     LaunchedEffect(state.messages.size, state.lastStreamedText, state.generating) {
-        if (state.messages.isNotEmpty()) {
-            val streamItem = if (state.generating && state.lastStreamedText.isNotEmpty()) 1 else 0
-            listState.animateScrollToItem((state.messages.size + streamItem - 1).coerceAtLeast(0))
+        if (state.messages.isNotEmpty() || state.lastStreamedText.isNotEmpty()) {
+            val info = listState.layoutInfo
+            val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val total = info.totalItemsCount
+            val nearBottom = total == 0 || lastVisible >= (total - 2)
+            if (nearBottom) {
+                val streamItem = if (state.generating && state.lastStreamedText.isNotEmpty()) 1 else 0
+                val target = (state.messages.size + streamItem - 1).coerceAtLeast(0)
+                if (lastVisible != target) listState.animateScrollToItem(target)
+            }
         }
     }
 
@@ -160,11 +168,11 @@ fun ChatScreen(
                 ) {
                     if (conversationId != null) {
                         IconButton(onClick = { onNavigate(Screen.History.route) }) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     } else {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Chat history", tint = TextPrimary)
+                            Icon(Icons.Filled.Menu, contentDescription = "Chat history", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                     Column(modifier = Modifier.weight(1f)) {
@@ -176,7 +184,7 @@ fun ChatScreen(
                                 Text(
                                     state.activeModelName ?: "Select a model",
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = TextPrimary,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -184,7 +192,7 @@ fun ChatScreen(
                                 Icon(
                                     Icons.Filled.ArrowDropDown,
                                     contentDescription = "Switch model",
-                                    tint = TextSecondary
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             DropdownMenu(
@@ -193,7 +201,7 @@ fun ChatScreen(
                             ) {
                                 if (state.installedModels.isEmpty()) {
                                     DropdownMenuItem(
-                                        text = { Text("No models installed yet", style = MaterialTheme.typography.bodySmall, color = TextSecondary) },
+                                        text = { Text("No models installed yet", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                                         onClick = { modelMenu = false }
                                     )
                                 } else {
@@ -204,11 +212,11 @@ fun ChatScreen(
                                                     Text(
                                                         model.name,
                                                         style = MaterialTheme.typography.bodyMedium,
-                                                        color = if (model.id == state.activeModelId) Primary else TextPrimary
+                                                        color = if (model.id == state.activeModelId) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                                     )
                                                     if (model.id == state.activeModelId) {
                                                         Spacer(Modifier.width(6.dp))
-                                                        Text("●", style = MaterialTheme.typography.labelMedium, color = Primary)
+                                                        Text("●", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                                                     }
                                                 }
                                             },
@@ -225,10 +233,10 @@ fun ChatScreen(
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val dotColor = when {
-                                state.generating -> Primary
+                                state.generating -> MaterialTheme.colorScheme.primary
                                 state.isLoadingModel -> Color(0xFFFBBF24)
                                 state.isModelLoaded -> Success
-                                else -> TextSecondary
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
                             }
                             Box(modifier = Modifier.size(6.dp).background(dotColor, RoundedCornerShape(50)))
                             Spacer(Modifier.width(5.dp))
@@ -241,15 +249,18 @@ fun ChatScreen(
                                     else -> "No model loaded"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
-                                color = TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                     IconButton(onClick = { onNavigate(Screen.ChatSettings.route) }) {
-                        Icon(Icons.Filled.Tune, contentDescription = "Chat Settings", tint = TextSecondary)
+                        Icon(Icons.Filled.Tune, contentDescription = "Chat Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = { showSystemPrompt = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "System prompt", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                HorizontalDivider(color = Color(0xFF232330))
+HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
 
                 // Messages
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -262,15 +273,15 @@ fun ChatScreen(
                             Icon(
                                 Icons.Filled.Tune,
                                 contentDescription = null,
-                                tint = TextSecondary,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(40.dp)
                             )
                             Spacer(Modifier.height(12.dp))
-                            Text("Ask your local AI anything…", style = MaterialTheme.typography.bodyLarge, color = TextSecondary)
+                            Text("Ask your local AI anything…", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
                                 state.activeModelName?.let { "Using $it" } ?: "Select a model to begin",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     } else {
@@ -290,7 +301,13 @@ fun ChatScreen(
                                 )
                                 Spacer(Modifier.height(10.dp))
                             }
-                            if (state.generating && state.lastStreamedText.isNotEmpty()) {
+                            // Streaming bubble — hidden once the DAO has persisted
+                            // the completed reply (content match) so there is no
+                            // flash of the reply disappearing mid-transition.
+                            val streamShown =
+                                state.generating && state.lastStreamedText.isNotEmpty() &&
+                                    state.messages.none { it.role == "assistant" && it.content == state.lastStreamedText }
+                            if (streamShown) {
                                 item(key = "streaming") {
                                     StreamingBubble(text = state.lastStreamedText, thinkingSec = state.liveThinkingSec)
                                 }
@@ -298,6 +315,18 @@ fun ChatScreen(
                             if (state.generating && state.lastStreamedText.isEmpty()) {
                                 item(key = "thinking") {
                                     ThinkingBubble(thinkingSec = state.liveThinkingSec)
+                                }
+                            }
+                            if (state.thinkingTrace.isNotEmpty()) {
+                                item(key = "livetrace") {
+                                    Spacer(Modifier.height(4.dp))
+                                    LiveThinkingTracePanel(
+                                        trace = state.thinkingTrace,
+                                        expanded = state.thinkingExpanded,
+                                        liveThinkingSec = state.liveThinkingSec,
+                                        contextTokensMax = state.contextTokensMax,
+                                        onToggle = viewModel::toggleThinking
+                                    )
                                 }
                             }
                             val trace = state.lastThinking
@@ -320,7 +349,7 @@ fun ChatScreen(
                     Text(
                         error,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        color = Color(0xFFF87171),
+                        color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -366,20 +395,28 @@ fun ChatScreen(
     longPressMessage?.let { msg ->
         AlertDialog(
             onDismissRequest = { longPressMessage = null },
-            title = { Text("Message options", color = TextPrimary) },
-            text = { Text("What would you like to do with this message?", color = TextSecondary) },
+            title = { Text("Message options", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("What would you like to do with this message?", color = MaterialTheme.colorScheme.onSurfaceVariant) },
             confirmButton = {
                 TextButton(onClick = {
                     clipboard.setText(AnnotatedString(msg.content))
                     Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
                     longPressMessage = null
-                }) { Text("Copy text", color = Primary) }
+                }) { Text("Copy text", color = MaterialTheme.colorScheme.primary) }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    longPressMessage = null
-                    editingMessage = msg
-                }) { Text("Edit", color = Primary) }
+                Row {
+                    if (msg.role == "user" && state.generating.not()) {
+                        TextButton(onClick = {
+                            longPressMessage = null
+                            viewModel.regenerate()
+                        }) { Text("Regenerate", color = MaterialTheme.colorScheme.primary) }
+                    }
+                    TextButton(onClick = {
+                        longPressMessage = null
+                        editingMessage = msg
+                    }) { Text("Edit", color = MaterialTheme.colorScheme.primary) }
+                }
             }
         )
     }
@@ -389,15 +426,26 @@ fun ChatScreen(
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
             title = { Text("Delete conversation?") },
-            text = { Text("This conversation and all of its messages will be permanently removed.", color = TextSecondary) },
+            text = { Text("This conversation and all of its messages will be permanently removed.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteConversation(id)
                     deleteTarget = null
-                }) { Text("Delete", color = androidx.compose.ui.graphics.Color(0xFFF87171)) }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = TextSecondary) }
+                TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        )
+    }
+
+    // Per-conversation system prompt editor
+    if (showSystemPrompt) {
+        SystemPromptDialog(
+            onDismiss = { showSystemPrompt = false },
+            onSave = { prompt ->
+                viewModel.setConversationSystemPrompt(prompt)
+                showSystemPrompt = false
             }
         )
     }
@@ -414,14 +462,14 @@ private fun ChatHistoryDrawer(
     val groups = remember(conversations) { ConversationGroups.groupByDay(conversations) }
     ModalDrawerSheet(
         modifier = Modifier.width(300.dp),
-        drawerContainerColor = NearBlack
+        drawerContainerColor = MaterialTheme.colorScheme.background
     ) {
         Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Chats", style = MaterialTheme.typography.titleLarge, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                Text("Chats", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 GradientButton(
                     text = "New chat",
@@ -430,7 +478,7 @@ private fun ChatHistoryDrawer(
                     modifier = Modifier.padding(0.dp)
                 )
             }
-            HorizontalDivider(color = Color(0xFF232330))
+HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
 
             if (conversations.isEmpty()) {
                 Column(
@@ -438,13 +486,13 @@ private fun ChatHistoryDrawer(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(Icons.Filled.Menu, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(36.dp))
+                    Icon(Icons.Filled.Menu, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(36.dp))
                     Spacer(Modifier.height(10.dp))
-                    Text("No chats yet", style = MaterialTheme.typography.bodyLarge, color = TextSecondary)
+                    Text("No chats yet", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         "Your past conversations will appear here.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else {
@@ -454,7 +502,7 @@ private fun ChatHistoryDrawer(
                             Text(
                                 group.label,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = Primary,
+                                color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                             )
                         }
@@ -484,31 +532,31 @@ private fun DrawerConversationRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .background(if (selected) Color(0x1F8B5CF6) else Color.Transparent)
+            .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.size(8.dp).background(Primary, RoundedCornerShape(50)))
+        Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)))
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 conv.title.ifBlank { "New chat" },
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (selected) Primary else TextPrimary,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                "${conv.modelId} · ${ConversationGroups.timeLabel(conv.updatedAt)}",
+                "${modelDisplayName(conv.modelId)} · ${ConversationGroups.timeLabel(conv.updatedAt)}",
                 style = MaterialTheme.typography.labelSmall,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
         IconButton(onClick = onDelete) {
-            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = TextSecondary, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -530,16 +578,30 @@ private fun MessageBubble(
                 .widthIn(max = 320.dp)
                 .combinedClickable(onClick = {}, onLongClick = onLongPress)
                 .background(
-                    if (isUser) Primary else SurfaceHigh,
+                    if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
                     RoundedCornerShape(18.dp)
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
-            Text(
-                message.content,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isUser) Color.White else TextPrimary
-            )
+            // User messages are plain text; assistant replies render Markdown
+            // (code blocks, bold, lists, links) so code-heavy answers read well.
+            if (isUser) {
+                Text(
+                    message.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White
+                )
+            } else {
+                Text(
+                    com.aichathub.app.util.MarkdownFormatter.render(
+                        message.content,
+                        baseColor = MaterialTheme.colorScheme.onSurface,
+                        accentColor = MaterialTheme.colorScheme.primary
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
             if (!isUser) {
                 Spacer(Modifier.height(4.dp))
                 Row(
@@ -549,11 +611,11 @@ private fun MessageBubble(
                     Icon(
                         Icons.Filled.ContentCopy,
                         contentDescription = "Copy",
-                        tint = TextSecondary,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text("Copy", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Text("Copy", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -585,11 +647,11 @@ private fun ThinkingBubble(thinkingSec: Int) {
         Column(
             modifier = Modifier
                 .widthIn(max = 320.dp)
-                .background(SurfaceHigh, RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(18.dp))
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Generating", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                Text("Generating", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Dot(alpha = d1)
@@ -607,7 +669,7 @@ private fun ThinkingBubble(thinkingSec: Int) {
                 Text(
                     "thinking… ${thinkingSec}s",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -619,7 +681,7 @@ private fun Dot(alpha: Float) {
     Box(
         modifier = Modifier
             .size(6.dp)
-            .background(Primary.copy(alpha = alpha), RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha), RoundedCornerShape(50))
     )
 }
 
@@ -629,10 +691,18 @@ private fun StreamingBubble(text: String, thinkingSec: Int) {
         Column(
             modifier = Modifier
                 .widthIn(max = 320.dp)
-                .background(SurfaceHigh, RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(18.dp))
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
-            Text(text, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+            Text(
+                com.aichathub.app.util.MarkdownFormatter.render(
+                    text,
+                    baseColor = MaterialTheme.colorScheme.onSurface,
+                    accentColor = MaterialTheme.colorScheme.primary
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(6.dp).background(Success, RoundedCornerShape(50)))
@@ -640,8 +710,57 @@ private fun StreamingBubble(text: String, thinkingSec: Int) {
                 Text(
                     if (thinkingSec > 0) "Generating… ${thinkingSec}s" else "Generating…",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveThinkingTracePanel(
+    trace: List<String>,
+    expanded: Boolean,
+    liveThinkingSec: Int,
+    contextTokensMax: Int,
+    onToggle: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onToggle)
+                .padding(vertical = 4.dp, horizontal = 4.dp)
+        ) {
+            Icon(
+                if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text("Thinking… ${liveThinkingSec}s", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            if (contextTokensMax > 0) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "ctx $contextTokensMax",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+        AnimatedVisibility(visible = expanded) {
+            AppCard(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 240.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(14.dp)
+                ) {
+                    trace.forEach { line -> TraceRow(line) }
+                }
             }
         }
     }
@@ -661,11 +780,11 @@ private fun ThinkingTracePanel(
             Icon(
                 if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                 contentDescription = null,
-                tint = Primary,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(Modifier.width(4.dp))
-            Text("How the AI thought", style = MaterialTheme.typography.labelMedium, color = Primary)
+            Text("How the AI thought", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
         AnimatedVisibility(visible = expanded) {
             AppCard(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
@@ -683,9 +802,9 @@ private fun ThinkingTracePanel(
 @Composable
 private fun TraceRow(text: String) {
     Row(modifier = Modifier.padding(vertical = 3.dp)) {
-        Box(modifier = Modifier.size(5.dp).background(Primary, RoundedCornerShape(50)).align(Alignment.CenterVertically))
+        Box(modifier = Modifier.size(5.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)).align(Alignment.CenterVertically))
         Spacer(Modifier.width(8.dp))
-        Text(text, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -710,17 +829,60 @@ private fun ThinkingModeRow(
                     Text(
                         label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (mode == id) TextPrimary else TextSecondary
+                        color = if (mode == id) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Primary,
-                    containerColor = SurfaceElevated
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                 )
             )
             Spacer(Modifier.width(8.dp))
         }
     }
+}
+
+@Composable
+private fun SystemPromptDialog(
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("System prompt for this chat", color = MaterialTheme.colorScheme.onSurface) },
+        text = {
+            Column {
+                Text(
+                    "Leave blank to use the global system prompt from Chat Settings.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text("Custom instructions for this conversation…", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    minLines = 4,
+                    maxLines = 8,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        cursorColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(text.trim()) }) { Text("Save", color = MaterialTheme.colorScheme.primary) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+    )
 }
 
 @Composable
@@ -732,29 +894,29 @@ private fun FullScreenEditor(
 ) {
     var text by remember(message.id) { mutableStateOf(message.content) }
     var toolsMenu by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxSize().background(NearBlack).imePadding()) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).imePadding()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onClose) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Close", tint = TextPrimary)
+                Icon(Icons.Filled.ArrowBack, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
             }
             Text(
                 "Edit message",
                 style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center
             )
             Box {
                 IconButton(onClick = { toolsMenu = true }) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = "Tools", tint = TextSecondary)
+                    Icon(Icons.Filled.MoreVert, contentDescription = "Tools", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 DropdownMenu(expanded = toolsMenu, onDismissRequest = { toolsMenu = false }) {
                     DropdownMenuItem(
-                        text = { Text("Copy all text", color = TextPrimary) },
+                        text = { Text("Copy all text", color = MaterialTheme.colorScheme.onSurface) },
                         onClick = {
                             toolsMenu = false
                             onCopyAll()
@@ -763,7 +925,7 @@ private fun FullScreenEditor(
                 }
             }
         }
-        HorizontalDivider(color = Color(0xFF232330))
+        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },
@@ -771,11 +933,11 @@ private fun FullScreenEditor(
             minLines = 8,
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Primary,
-                unfocusedBorderColor = SurfaceHigh,
-                focusedContainerColor = SurfaceHigh,
-                unfocusedContainerColor = SurfaceHigh,
-                cursorColor = Primary
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                cursorColor = MaterialTheme.colorScheme.primary
             )
         )
         Row(
@@ -792,6 +954,9 @@ private fun FullScreenEditor(
         }
     }
 }
+
+private fun modelDisplayName(modelId: String): String =
+    LocalModelCatalog.byId(modelId)?.name ?: modelId
 
 @Composable
 private fun ComposerBar(
@@ -810,18 +975,18 @@ private fun ComposerBar(
         OutlinedTextField(
             value = input,
             onValueChange = onInputChange,
-            placeholder = { Text("Ask your local AI anything…", color = TextSecondary) },
+            placeholder = { Text("Ask your local AI anything…", color = MaterialTheme.colorScheme.onSurfaceVariant) },
             enabled = !generating,
             minLines = 1,
             maxLines = 5,
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier.weight(1f),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Primary,
-                unfocusedBorderColor = SurfaceHigh,
-                focusedContainerColor = SurfaceElevated,
-                unfocusedContainerColor = SurfaceElevated,
-                cursorColor = Primary
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                cursorColor = MaterialTheme.colorScheme.primary
             )
         )
         Spacer(Modifier.width(10.dp))

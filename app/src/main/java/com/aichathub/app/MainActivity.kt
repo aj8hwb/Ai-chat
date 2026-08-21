@@ -16,6 +16,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,7 +27,6 @@ import androidx.core.content.ContextCompat
 import com.aichathub.app.di.AppContainer
 import com.aichathub.app.ui.AiChatHubApp
 import com.aichathub.app.ui.theme.AiChatHubTheme
-import com.aichathub.app.ui.theme.NearBlack
 import com.aichathub.app.ui.theme.Primary
 import com.aichathub.app.ui.theme.TextPrimary
 import com.aichathub.app.ui.theme.TextSecondary
@@ -47,7 +48,7 @@ class MainActivity : ComponentActivity() {
                 AiChatHubTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
-                        color = NearBlack
+                        color = MaterialTheme.colorScheme.background
                     ) {
                         UnsupportedAbiScreen()
                     }
@@ -58,10 +59,15 @@ class MainActivity : ComponentActivity() {
         val container = (application as AiChatHubApplication).container
         enableEdgeToEdge()
         setContent {
-            AiChatHubTheme {
+            // Theme mode + dynamic color are read live from settings so the
+            // change is applied immediately, no restart needed.
+            val settings by container.settingsRepository.settings.collectAsState(initial = null)
+            val themeMode = settings?.themeMode ?: "dark"
+            val dynamicColor = settings?.dynamicColor ?: false
+            AiChatHubTheme(themeMode = themeMode, dynamicColor = dynamicColor) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = NearBlack
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     AiChatHubApp()
                 }

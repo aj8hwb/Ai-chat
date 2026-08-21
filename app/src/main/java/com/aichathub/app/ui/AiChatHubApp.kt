@@ -2,6 +2,7 @@ package com.aichathub.app.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -10,7 +11,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -20,6 +20,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.aichathub.app.ui.navigation.Screen
 import com.aichathub.app.ui.navigation.bottomDestinations
+import com.aichathub.app.ui.screens.AboutScreen
 import com.aichathub.app.ui.screens.BenchmarkScreen
 import com.aichathub.app.ui.screens.ChatScreen
 import com.aichathub.app.ui.screens.ChatSettingsScreen
@@ -35,22 +36,19 @@ import com.aichathub.app.ui.screens.PlaygroundScreen
 import com.aichathub.app.ui.screens.SettingsScreen
 import com.aichathub.app.ui.screens.StorageScreen
 import com.aichathub.app.ui.screens.SystemStatusScreen
-import com.aichathub.app.ui.theme.NearBlack
-import com.aichathub.app.ui.theme.Primary
-import com.aichathub.app.ui.theme.TextMuted
 
 @Composable
 fun AiChatHubApp() {
     val navController = rememberNavController()
 
     Scaffold(
-        containerColor = NearBlack,
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             val backStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = backStackEntry?.destination?.route
             if (bottomDestinations.any { it.route == currentRoute }) {
                 NavigationBar(
-                    containerColor = Color(0xFF14141E),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
                     tonalElevation = 0.dp
                 ) {
                     bottomDestinations.forEach { destination ->
@@ -78,11 +76,11 @@ fun AiChatHubApp() {
                             },
                             label = { Text(destination.label!!, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Primary,
-                                selectedTextColor = Primary,
-                                unselectedIconColor = TextMuted,
-                                unselectedTextColor = TextMuted,
-                                indicatorColor = Color(0x228B5CF6)
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.outline,
+                                unselectedTextColor = MaterialTheme.colorScheme.outline,
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                             )
                         )
                     }
@@ -178,6 +176,9 @@ private fun AppNavHost(
         }
         composable(Screen.History.route) {
             HistoryScreen(onNavigate = navController::navigate)
+        }
+        composable(Screen.About.route) {
+            AboutScreen(onBack = { navController.popBackStack() })
         }
         composable(
             route = Screen.Conversation.route,

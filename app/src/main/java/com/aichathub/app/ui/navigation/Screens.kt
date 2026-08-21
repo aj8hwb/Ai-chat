@@ -3,6 +3,7 @@ package com.aichathub.app.ui.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
@@ -47,6 +48,7 @@ sealed class Screen(
     data object Benchmark : Screen("benchmark", "Benchmark", Icons.Filled.Speed)
     data object Compare : Screen("compare", "Compare", Icons.Filled.SwapHoriz)
     data object History : Screen("history", "History", Icons.Filled.History)
+    data object About : Screen("about", "About", Icons.Filled.Info)
     data object Conversation : Screen("conversation/{conversationId}", null, Icons.Filled.ChatBubbleOutline) {
         fun routeFor(id: Long) = "conversation/$id"
         const val ARG = "conversationId"

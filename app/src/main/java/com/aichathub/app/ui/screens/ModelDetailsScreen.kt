@@ -56,12 +56,8 @@ import com.aichathub.app.ui.components.ModelIcon
 import com.aichathub.app.ui.components.SectionHeader
 import com.aichathub.app.ui.navigation.Screen
 import com.aichathub.app.ui.theme.Error
-import com.aichathub.app.ui.theme.ErrorContainer
 import com.aichathub.app.ui.theme.Heavy
 import com.aichathub.app.ui.theme.HeavyContainer
-import com.aichathub.app.ui.theme.Primary
-import com.aichathub.app.ui.theme.SurfaceElevated
-import com.aichathub.app.ui.theme.TextPrimary
 import com.aichathub.app.ui.theme.TextSecondary
 import com.aichathub.app.util.Formatters
 import androidx.compose.ui.platform.LocalUriHandler
@@ -81,8 +77,17 @@ fun ModelDetailsScreen(
     val uriHandler = LocalUriHandler.current
     var pendingDownload by remember { mutableStateOf(false) }
 
-    if (model == null) {
+    if (model == null && !state.loading) {
         ErrorState(title = "Model not found", message = "This model is not in the catalog.", actionLabel = "Back", onAction = onBack)
+        return
+    }
+
+    // Model still loading (async resolve): avoid flashing "Model not found"
+    // during the brief window before the catalog lookup returns.
+    if (model == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            androidx.compose.material3.CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+        }
         return
     }
 
@@ -93,9 +98,9 @@ fun ModelDetailsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
             }
-            Text("Model Details", style = MaterialTheme.typography.titleLarge, color = TextPrimary)
+            Text("Model Details", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
         }
 
         LazyColumn(
@@ -109,10 +114,10 @@ fun ModelDetailsScreen(
                         ModelIcon(model = model, size = 56.dp)
                         Spacer(Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(model.name, style = MaterialTheme.typography.headlineSmall, color = TextPrimary, fontWeight = FontWeight.Bold)
-                            Text("By ${model.provider}", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                            Text(model.name, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                            Text("By ${model.provider}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(4.dp))
-                            Text("${model.parameters} · ${model.category} · ${Formatters.bytes(model.fileSizeBytes)}", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                            Text("${model.parameters} · ${model.category} · ${Formatters.bytes(model.fileSizeBytes)}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFF2A2A3A), modifier = Modifier.padding(horizontal = 16.dp))
@@ -121,7 +126,7 @@ fun ModelDetailsScreen(
                             CompatibilityBadge(level = it)
                             Spacer(Modifier.width(10.dp))
                         }
-                        Text(model.runtime, style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                        Text(model.runtime, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -137,7 +142,7 @@ fun ModelDetailsScreen(
                     ) {
                         Icon(Icons.Filled.WarningAmber, contentDescription = null, tint = Heavy)
                         Spacer(Modifier.width(10.dp))
-                        Text(warning, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Text(warning, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -152,7 +157,16 @@ fun ModelDetailsScreen(
                     item {
                         AppCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Downloading", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                                Text(
+                                    when (d.status) {
+                                        DownloadStatus.QUEUED -> "Queued"
+                                        DownloadStatus.PAUSED -> "Paused"
+                                        DownloadStatus.VERIFYING -> "Verifying integrity…"
+                                        else -> "Downloading"
+                                    },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
                                 Spacer(Modifier.height(10.dp))
                                 DownloadProgressBlock(
                                     download = d,
@@ -170,7 +184,7 @@ fun ModelDetailsScreen(
             item {
                 Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
                     SectionHeader(title = "Overview")
-                    Text(model.description, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                    Text(model.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -184,29 +198,29 @@ fun ModelDetailsScreen(
                                 Text(
                                     "${model.purposeEmoji} ${model.purposeTitle}",
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = TextPrimary,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 if (model.primaryPurpose.isNotBlank()) {
                                     Spacer(Modifier.height(4.dp))
-                                    Text(model.primaryPurpose, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                    Text(model.primaryPurpose, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 if (model.bestFor.isNotBlank()) {
                                     Spacer(Modifier.height(8.dp))
-                                    Text("Best for: ${model.bestFor}", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                                    Text("Best for: ${model.bestFor}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 if (model.strengths.isNotEmpty()) {
                                     Spacer(Modifier.height(8.dp))
-                                    Text("Strengths", style = MaterialTheme.typography.labelLarge, color = TextPrimary)
+                                    Text("Strengths", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
                                     model.strengths.forEach { s ->
-                                        Text("• $s", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                        Text("• $s", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                                 if (model.limitations.isNotEmpty()) {
                                     Spacer(Modifier.height(8.dp))
-                                    Text("Limitations", style = MaterialTheme.typography.labelLarge, color = TextPrimary)
+                                    Text("Limitations", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
                                     model.limitations.forEach { l ->
-                                        Text("• $l", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                        Text("• $l", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
@@ -259,7 +273,7 @@ fun ModelDetailsScreen(
                     SectionHeader(title = "Source")
                     AppCard(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text(model.sourceNote ?: "Official source", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            Text(model.sourceNote ?: "Official source", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(8.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -267,8 +281,8 @@ fun ModelDetailsScreen(
                                     uriHandler.openUri(model.officialRepositoryUrl)
                                 }
                             ) {
-                                Text("View repository", style = MaterialTheme.typography.labelLarge, color = Primary, modifier = Modifier.weight(1f))
-                                Icon(Icons.Filled.OpenInNew, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
+                                Text("View repository", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                                Icon(Icons.Filled.OpenInNew, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
@@ -310,20 +324,20 @@ fun ModelDetailsScreen(
                             Icon(
                                 Icons.Filled.Star,
                                 contentDescription = null,
-                                tint = if (state.isDefaultModel) Primary else TextSecondary,
+                                tint = if (state.isDefaultModel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 if (state.isDefaultModel) "Default model" else "Set as default",
-                                color = if (state.isDefaultModel) Primary else TextSecondary
+                                color = if (state.isDefaultModel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Spacer(Modifier.width(8.dp))
                         TextButton(onClick = viewModel::deleteModel) {
-                            Icon(Icons.Filled.Delete, contentDescription = null, tint = Error, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Delete Model", color = Error)
+                            Text("Delete Model", color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -340,17 +354,17 @@ fun ModelDetailsScreen(
             text = {
                 Text(
                     "This is a ${Formatters.bytes(model.fileSizeBytes)} file. It will use storage (and mobile data if you're not on Wi-Fi). Continue?",
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.startDownload()
                     pendingDownload = false
-                }) { Text("Download", color = Primary) }
+                }) { Text("Download", color = MaterialTheme.colorScheme.primary) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDownload = false }) { Text("Cancel", color = TextSecondary) }
+                TextButton(onClick = { pendingDownload = false }) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         )
     }

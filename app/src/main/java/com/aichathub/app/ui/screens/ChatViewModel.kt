@@ -9,6 +9,7 @@ import com.aichathub.app.chat.GenerationConfig
 import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageEntity
+import com.aichathub.app.device.LoadEligibility
 import com.aichathub.app.device.MemoryBudgetCalculator
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
+import com.aichathub.app.util.TokenEstimator
 
 data class ChatUiState(
     val conversationId: Long? = null,
@@ -45,7 +47,13 @@ data class ChatUiState(
     val isModelLoaded: Boolean = false,
     val generationPhase: String = ChatGenerationState.IDLE.name,
     /** Live "thinking" timer — ticks every second while the model generates. */
-    val liveThinkingSec: Int = 0
+    val liveThinkingSec: Int = 0,
+    /** User toggled the real-time thinking trace panel open. */
+    val thinkingExpanded: Boolean = false,
+    /** Live activity log of the current generation (real telemetry). */
+    val thinkingTrace: List<String> = emptyList(),
+    /** Native context window of the loaded model (tokens). */
+    val contextTokensMax: Int = 0
 )
 
 /** Real, measured data about the last completed generation, shown in the
@@ -77,6 +85,7 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
      *  llama.cpp can overflow the native context and crash the whole process. */
     companion object {
         const val MAX_MESSAGE_CHARS = 1500
+        private const val MAX_TRACE_LINES = 120
     }
 
     private val coordinator: ChatCoordinator = container.chatCoordinator
@@ -116,6 +125,17 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         viewModelScope.launch {
             container.settingsRepository.setThinkingMode(mode)
         }
+    }
+
+    /** Expands / collapses the real-time thinking trace panel. */
+    fun toggleThinking() {
+        _state.value = _state.value.copy(thinkingExpanded = !_state.value.thinkingExpanded)
+    }
+
+    /** Appends a line to the live thinking trace (bounded so it cannot grow forever). */
+    private fun appendTrace(line: String) {
+        val capped = (_state.value.thinkingTrace + line).takeLast(MAX_TRACE_LINES)
+        _state.value = _state.value.copy(thinkingTrace = capped)
     }
 
     /**
@@ -199,6 +219,11 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
             }
         }
         viewModelScope.launch {
+            container.inferenceRuntime.performance.collect { p ->
+                _state.value = _state.value.copy(contextTokensMax = p.contextTokensMax)
+            }
+        }
+        viewModelScope.launch {
             coordinator.activeConversationId.collect { id ->
                 _state.value = _state.value.copy(selectedConversationId = id)
             }
@@ -263,6 +288,18 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         }
     }
 
+    /**
+     * Sets the per-conversation system prompt override. Passing null/blank
+     * clears the override and falls back to the global system prompt.
+     */
+    fun setConversationSystemPrompt(prompt: String) {
+        val convId = _state.value.conversationId ?: return
+        viewModelScope.launch {
+            val trimmed = prompt.trim().ifBlank { null }
+            container.conversationDao.setSystemPrompt(convId, trimmed)
+        }
+    }
+
     fun newChat() {
         coordinator.newConversation()
         messagesJob?.cancel()
@@ -290,6 +327,17 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
             _state.value = _state.value.copy(isLoadingModel = true, error = null)
             try {
                 val settings = container.settingsRepository.settings.first()
+                val gate = loadGate(model)
+                if (gate.eligibility == LoadEligibility.BLOCK) {
+                    _state.value = _state.value.copy(
+                        isLoadingModel = false,
+                        error = gate.message
+                    )
+                    return@launch
+                }
+                if (gate.eligibility == LoadEligibility.WARN) {
+                    _state.value = _state.value.copy(error = gate.message)
+                }
                 coordinator.loadModel(
                     model,
                     file,
@@ -344,6 +392,10 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
     }
 
     fun send() {
+        sendInternal(persistUser = true)
+    }
+
+    fun sendInternal(persistUser: Boolean) {
         val text = _state.value.input.trim()
         if (text.isEmpty() || sendInFlight || _state.value.generating) return
         if (text.length > MAX_MESSAGE_CHARS) {
@@ -364,91 +416,137 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         // concurrent llama.cpp calls can never overlap (that would SIGSEGV).
         sendInFlight = true
         val seq = ++sendSeq
-        _state.value = _state.value.copy(generating = true, error = null, lastStreamedText = "")
+        _state.value = _state.value.copy(
+            generating = true,
+            error = null,
+            lastStreamedText = "",
+            thinkingTrace = listOf("Preparing message…")
+        )
 
         viewModelScope.launch {
-            // The selected model must be genuinely READY before we touch it.
-            val installed = container.modelRepository.stateFor(model.id)
-            val file = installed?.filePath?.let { File(it) }
-            if (installed?.state != ModelLifecycleState.READY || file == null || !file.isFile) {
-                _state.value = _state.value.copy(
-                    error = "This model is not ready yet. Download and verify it first."
-                )
-                return@launch
-            }
-
-            // Load the model if it is not the active one.
-            if (container.inferenceRuntime.activeModelId != model.id) {
-                _state.value = _state.value.copy(isLoadingModel = true, error = null)
-                try {
-                    val settings = container.settingsRepository.settings.first()
-                    coordinator.loadModel(
-                        model,
-                        file,
-                        GenerationConfig(
-                            temperature = settings.temperature,
-                            topK = settings.topK,
-                            topP = settings.topP,
-                            maxTokens = settings.maxTokens
-                        ),
-                        threads = nativeThreads(settings)
-                    )
-                } catch (e: OutOfMemoryError) {
+            var thinkingTicker: Job? = null
+            // The ENTIRE body is inside try/finally so every failure path —
+            // including the early returns below — resets the in-flight state.
+            // Otherwise the chat would permanently lock itself (disabled input,
+            // dead Stop button) until the app is restarted.
+            try {
+                val installed = container.modelRepository.stateFor(model.id)
+                val file = installed?.filePath?.let { File(it) }
+                if (installed?.state != ModelLifecycleState.READY || file == null || !file.isFile) {
                     _state.value = _state.value.copy(
-                        isLoadingModel = false,
-                        error = "❌ Insufficient memory to load this model safely. Try a lighter model."
-                    )
-                    return@launch
-                } catch (e: Exception) {
-                    _state.value = _state.value.copy(
-                        isLoadingModel = false,
-                        error = "Couldn't start this model."
+                        error = "This model is not ready yet. Download and verify it first."
                     )
                     return@launch
                 }
-                _state.value = _state.value.copy(isLoadingModel = false)
-            }
 
-            val settings = container.settingsRepository.settings.first()
-            val mode = _state.value.thinkingMode
-            // Instant answers cheap, Hard thinking gives the model more room.
-            val maxTokens = when (mode) {
-                "INSTANT" -> 96
-                "HARD" -> 1024
-                else -> settings.maxTokens
-            }
-            val config = GenerationConfig(
-                temperature = settings.temperature,
-                topK = settings.topK,
-                topP = settings.topP,
-                maxTokens = maxTokens
-            )
+                // Load the model if it is not the active one.
+                if (container.inferenceRuntime.activeModelId != model.id) {
+                    _state.value = _state.value.copy(
+                        isLoadingModel = true,
+                        error = null,
+                        thinkingTrace = _state.value.thinkingTrace + "Loading model…"
+                    )
+                    val settings = container.settingsRepository.settings.first()
+                    val gate = loadGate(model)
+                    if (gate.eligibility == LoadEligibility.BLOCK) {
+                        _state.value = _state.value.copy(
+                            isLoadingModel = false,
+                            error = gate.message
+                        )
+                        return@launch
+                    }
+                    if (gate.eligibility == LoadEligibility.WARN) {
+                        appendTrace("⚠ " + gate.message)
+                    }
+                    try {
+                        coordinator.loadModel(
+                            model,
+                            file,
+                            GenerationConfig(
+                                temperature = settings.temperature,
+                                topK = settings.topK,
+                                topP = settings.topP,
+                                maxTokens = settings.maxTokens
+                            ),
+                            threads = nativeThreads(settings)
+                        )
+                    } catch (e: OutOfMemoryError) {
+                        _state.value = _state.value.copy(
+                            isLoadingModel = false,
+                            error = "❌ Insufficient memory to load this model safely. Try a lighter model."
+                        )
+                        return@launch
+                    } catch (e: Exception) {
+                        _state.value = _state.value.copy(
+                            isLoadingModel = false,
+                            error = "Couldn't start this model."
+                        )
+                        return@launch
+                    }
+                    _state.value = _state.value.copy(
+                        isLoadingModel = false,
+                        thinkingTrace = _state.value.thinkingTrace + "Model loaded"
+                    )
+                }
 
-            // Ensure the conversation exists BEFORE inference so the user
-            // message renders immediately and survives any crash mid-run.
-            var convId = _state.value.conversationId
-            if (convId != null && container.conversationDao.byId(convId) == null) {
-                // The saved id was pruned/deleted — start a fresh chat.
-                convId = null
-                _state.value = _state.value.copy(
-                    conversationId = null,
-                    selectedConversationId = null
+                val settings = container.settingsRepository.settings.first()
+                val mode = _state.value.thinkingMode
+                // Instant answers cheap, Hard thinking gives the model more room.
+                val baseMaxTokens = when (mode) {
+                    "INSTANT" -> 96
+                    "HARD" -> 1024
+                    else -> settings.maxTokens
+                }
+                // Clamp the generation budget to the model's native context
+                // headroom (like the Playground already does). Without this, a
+                // large maxTokens on a small-context model silently collapses the
+                // prompt budget to its floor and wipes conversation history, and
+                // generation can run into the native context ceiling mid-reply.
+                val promptTokens = TokenEstimator.estimate(text) +
+                    TokenEstimator.estimate(settings.systemPrompt)
+                val headroom = ((model.contextLength * 0.8).toInt() - promptTokens).coerceAtLeast(64)
+                val maxTokens = baseMaxTokens.coerceIn(1, headroom)
+                val config = GenerationConfig(
+                    temperature = settings.temperature,
+                    topK = settings.topK,
+                    topP = settings.topP,
+                    maxTokens = maxTokens
                 )
-            }
-            if (convId == null) {
-                convId = coordinator.createConversation(model.id, titleFromPrompt(text))
-                _state.value = _state.value.copy(
-                    conversationId = convId,
-                    selectedConversationId = convId
-                )
-            }
-            observeMessages(convId)
+                if (maxTokens != baseMaxTokens) {
+                    appendTrace("⚠ Max output clamped to $maxTokens tokens for this model's context window.")
+                }
 
-            _state.value = _state.value.copy(input = "")
-            val startNanos = System.nanoTime()
-            // Live "thinking" ticker: real-time feedback between tokens while
-            // the model works (tokens themselves stream in via lastStreamedText).
-                val thinkingTicker = viewModelScope.launch {
+                // Ensure the conversation exists BEFORE inference so the user
+                // message renders immediately and survives any crash mid-run.
+                var convId = _state.value.conversationId
+                if (convId != null && container.conversationDao.byId(convId) == null) {
+                    // The saved id was pruned/deleted — start a fresh chat.
+                    convId = null
+                    _state.value = _state.value.copy(
+                        conversationId = null,
+                        selectedConversationId = null
+                    )
+                }
+                if (convId == null) {
+                    convId = coordinator.createConversation(model.id, titleFromPrompt(text))
+                    _state.value = _state.value.copy(
+                        conversationId = convId,
+                        selectedConversationId = convId
+                    )
+                }
+                observeMessages(convId)
+
+                _state.value = _state.value.copy(input = "")
+                val startNanos = System.nanoTime()
+                appendTrace("Generating… ($mode mode)")
+                // Per-conversation system prompt override wins over the global
+                // default when the conversation has one configured.
+                val convSystemPrompt =
+                    container.conversationDao.byId(convId)?.systemPrompt?.takeIf { it.isNotBlank() }
+                        ?: settings.systemPrompt
+                // Live "thinking" ticker: real-time feedback between tokens while
+                // the model works (tokens themselves stream in via lastStreamedText).
+                thinkingTicker = viewModelScope.launch {
                     var tick = 0
                     while (isActive) {
                         _state.value = _state.value.copy(liveThinkingSec = tick)
@@ -456,31 +554,46 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                         kotlinx.coroutines.delay(1000)
                     }
                 }
-                try {
-                    val result = coordinator.sendMessage(
-                        prompt = text,
-                        config = config,
-                        systemPrompt = settings.systemPrompt,
-                        model = model,
-                        onStream = { streamed ->
-                            _state.value = _state.value.copy(lastStreamedText = streamed)
+                var lastTraceAt = 0L
+                val result = coordinator.sendMessage(
+                    prompt = text,
+                    config = config,
+                    systemPrompt = convSystemPrompt,
+                    model = model,
+                    persistUserMessage = persistUser,
+                    historyTurns = settings.historyTurns,
+                    onStream = { streamed ->
+                        _state.value = _state.value.copy(lastStreamedText = streamed)
+                        val now = System.currentTimeMillis()
+                        if (now - lastTraceAt > 500) {
+                            lastTraceAt = now
+                            val perf = container.inferenceRuntime.performance.value
+                            val tps = (perf.tokensPerSecond * 10).toInt() / 10f
+                            appendTrace("▸ ${perf.tokensGenerated} tokens · ${tps} tok/s")
                         }
-                    )
-                    // Capture the real generation stats for the "How the AI thought"
-                    // panel (Hard mode) — honest measured data, not a simulation.
-                    val elapsedMs = (System.nanoTime() - startNanos) / 1_000_000
-                    val perf = container.inferenceRuntime.performance.value
-                    _state.value = _state.value.copy(
-                        lastThinking = ThinkingInfo(
-                            mode = mode,
-                            tokens = perf.tokensGenerated,
-                            elapsedMs = elapsedMs,
-                            tokensPerSecond = perf.tokensPerSecond,
-                            responseChars = result.length
-                        ),
-                        liveThinkingSec = 0
-                    )
-                } catch (e: OutOfMemoryError) {
+                    }
+                )
+                // Capture the real generation stats for the "How the AI thought"
+                // panel (Hard mode) — honest measured data, not a simulation.
+                val elapsedMs = (System.nanoTime() - startNanos) / 1_000_000
+                val perf = container.inferenceRuntime.performance.value
+                val tps = (perf.tokensPerSecond * 10).toInt() / 10f
+                _state.value = _state.value.copy(
+                    lastThinking = ThinkingInfo(
+                        mode = mode,
+                        tokens = perf.tokensGenerated,
+                        elapsedMs = elapsedMs,
+                        tokensPerSecond = perf.tokensPerSecond,
+                        responseChars = result.length
+                    ),
+                    // Keep the completed text until the DAO has emitted it as a
+                    // message (the UI hides the streaming bubble via a content
+                    // match), so there is no gap where the reply disappears.
+                    lastStreamedText = result,
+                    thinkingTrace = _state.value.thinkingTrace +
+                        "Done · ${perf.tokensGenerated} tokens · ${tps} tok/s · ${elapsedMs / 1000f}s"
+                )
+            } catch (e: OutOfMemoryError) {
                 // OOM is an Error, not an Exception — catch it explicitly or the
                 // coroutine would propagate it to the uncaught handler and crash
                 // the whole app.
@@ -501,14 +614,13 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                     _state.value = _state.value.copy(
                         generating = false,
                         isLoadingModel = false,
-                        lastStreamedText = "",
                         liveThinkingSec = 0
                     )
                     // Guarantee the coordinator returns to IDLE so the next
                     // message can always start a fresh generation.
                     runCatching { coordinator.resetToIdle() }
                 }
-                thinkingTicker.cancel()
+                thinkingTicker?.cancel()
             }
         }
     }
@@ -521,6 +633,28 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
         coordinator.stopGeneration()
     }
 
+    /**
+     * Regenerates the last assistant reply: the trailing assistant message (and
+     * any messages after the last user turn) is removed and the SAME user prompt
+     * is re-sent, so a failed or unsatisfying reply can be retried in place.
+     */
+    fun regenerate() {
+        val messages = _state.value.messages
+        val lastUser = messages.lastOrNull { it.role == "user" } ?: return
+        if (sendInFlight || _state.value.generating) return
+        viewModelScope.launch {
+            // Remove every message created after the last user prompt so the
+            // regenerated reply replaces the old one instead of stacking on it.
+            val stale = messages.filter { it.createdAt > lastUser.createdAt }
+            stale.forEach { container.messageDao.delete(it.id) }
+            // Reuse the exact original prompt through the normal send path. The
+            // user message already exists in Room, so it must not be inserted
+            // again (persistUserMessage = false).
+            _state.value = _state.value.copy(input = lastUser.content)
+            sendInternal(persistUser = false)
+        }
+    }
+
     /** Cancels the previous conversation observer and observes the new one. */
     private fun observeMessages(convId: Long) {
         messagesJob?.cancel()
@@ -529,6 +663,14 @@ class ChatViewModel(application: Application) : AiViewModel(application) {
                 _state.value = _state.value.copy(messages = msgs)
             }
         }
+    }
+
+    /** Hard memory gate: refuses to load models that are MEASURED to exceed the
+     *  device's safe AI memory budget. Estimates only produce a warning. */
+    private suspend fun loadGate(model: CatalogModel): com.aichathub.app.device.LoadEligibilityResult {
+        val profile = container.deviceInfoProvider.getDeviceProfile()
+        val measured = container.settingsRepository.measuredMemoryOnce()
+        return container.compatibilityEngine.loadEligibility(model, profile, measured)
     }
 
     /** Battery-conscious mode throttles the native thread count to save power;

@@ -5,9 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.aichathub.app.chat.GenerationConfig
 import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.domain.model.CatalogModel
+import com.aichathub.app.domain.model.ChatTemplate
 import com.aichathub.app.domain.model.CompatibilityLevel
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.ui.AiViewModel
+import com.aichathub.app.util.TokenEstimator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,7 +29,8 @@ data class PlaygroundUiState(
     val stats: String? = null,
     val error: String? = null,
     val generatedTokens: Int = 0,
-    val tokensPerSecond: Float = 0f
+    val tokensPerSecond: Float = 0f,
+    val contextTokensMax: Int = 0
 )
 
 class PlaygroundViewModel(application: Application) : AiViewModel(application) {
@@ -84,7 +88,8 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
             container.inferenceRuntime.performance.collect { p ->
                 _state.value = _state.value.copy(
                     tokensPerSecond = p.tokensPerSecond,
-                    generatedTokens = p.tokensGenerated
+                    generatedTokens = p.tokensGenerated,
+                    contextTokensMax = p.contextTokensMax
                 )
             }
         }
@@ -120,6 +125,9 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
         }
         val model = _state.value.selectedModelId?.let { LocalModelCatalog.byId(it) } ?: return
         runInFlight = true
+        // Discard any cancellation a previous screen left behind so THIS run
+        // always starts fresh; the Stop button records against this run.
+        container.inferenceRuntime.clearCancellation()
         viewModelScope.launch {
             try {
                 val installed = container.modelRepository.stateFor(model.id)
@@ -128,13 +136,30 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
                     return@launch
                 }
                 _state.value = _state.value.copy(running = true, error = null, output = "", stats = null)
+
+                // Cap maxTokens to the model's native context headroom so a
+                // "max everything" run cannot overflow llama.cpp's context and
+                // crash the process. Also passes template stop sequences so the
+                // model stops at its natural end-of-turn token instead of
+                // generating until maxTokens (a multi-hundred-second runaway).
+                val ctxMax = _state.value.contextTokensMax.coerceAtLeast(model.contextLength)
+                val promptTokens = TokenEstimator.estimate(_state.value.prompt)
+                val headroom = ((ctxMax * 0.8).toInt() - promptTokens).coerceAtLeast(64)
+                val maxTokens = _state.value.maxTokens.coerceIn(1, headroom)
+
                 val settings = container.settingsRepository.settings.first()
                 val config = GenerationConfig(
                     temperature = _state.value.temperature,
                     topK = settings.topK,
                     topP = settings.topP,
-                    maxTokens = _state.value.maxTokens
+                    maxTokens = maxTokens,
+                    stopSequences = templateStopSequences(model.chatTemplate)
                 )
+                if (maxTokens != _state.value.maxTokens) {
+                    _state.value = _state.value.copy(
+                        stats = "Max tokens clamped to $maxTokens for this model's context."
+                    )
+                }
                 if (!container.inferenceRuntime.isLoaded || container.inferenceRuntime.activeModelId != model.id) {
                     container.chatCoordinator.loadModel(
                         model,
@@ -157,6 +182,14 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
                     running = false,
                     stats = "Completed in ${elapsedMs / 1000f}s · ~${_state.value.tokensPerSecond} tok/s · ${_state.value.generatedTokens} tokens"
                 )
+            } catch (e: CancellationException) {
+                // The user pressed Stop (or left the screen): that is a normal
+                // end state, NOT a failure. Discard the partial output.
+                _state.value = _state.value.copy(
+                    running = false,
+                    output = "",
+                    stats = "Stopped by user"
+                )
             } catch (e: OutOfMemoryError) {
                 _state.value = _state.value.copy(
                     running = false,
@@ -171,6 +204,14 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
                 runInFlight = false
             }
         }
+    }
+
+    private fun templateStopSequences(template: ChatTemplate): List<String> = when (template) {
+        ChatTemplate.CHATML -> listOf("<|im_end|>")
+        ChatTemplate.GEMMA -> listOf("<end_of_turn>")
+        ChatTemplate.LLAMA3 -> listOf("<|eot_id|>")
+        ChatTemplate.LLAMA2 -> listOf("</s>", "[/INST]")
+        ChatTemplate.GENERIC -> emptyList()
     }
 
     fun stop() {

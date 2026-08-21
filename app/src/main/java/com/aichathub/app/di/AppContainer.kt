@@ -30,7 +30,7 @@ class AppContainer(context: Context) {
         AiDatabase::class.java,
         "aichathub.db"
     )
-        .addMigrations(AiDatabase.MIGRATION_1_2)
+        .addMigrations(AiDatabase.MIGRATION_1_2, AiDatabase.MIGRATION_2_3)
         .build()
 
     val conversationDao: ConversationDao = database.conversationDao()
@@ -78,6 +78,9 @@ class AppContainer(context: Context) {
         messageDao = messageDao,
         modelRepository = modelRepository
     )
+
+    val chatBackupManager: com.aichathub.app.data.ChatBackupManager =
+        com.aichathub.app.data.ChatBackupManager(context.applicationContext, database)
 
     init {
         // Mirror persisted settings into synchronous caches used by components

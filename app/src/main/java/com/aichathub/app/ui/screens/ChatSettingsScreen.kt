@@ -26,10 +26,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aichathub.app.ui.components.AppCard
 import com.aichathub.app.ui.components.GradientButton
 import com.aichathub.app.ui.components.SectionHeader
-import com.aichathub.app.ui.theme.Primary
-import com.aichathub.app.ui.theme.SurfaceHigh
-import com.aichathub.app.ui.theme.TextPrimary
-import com.aichathub.app.ui.theme.TextSecondary
 
 @Composable
 fun ChatSettingsScreen(
@@ -42,11 +38,11 @@ fun ChatSettingsScreen(
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
     ) {
         item {
-            Text("Chat Settings", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
+            Text("Chat Settings", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
             Text(
                 "Applied when a model loads. Changes take effect on the next model load.",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(12.dp))
         }
@@ -54,21 +50,25 @@ fun ChatSettingsScreen(
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Temperature", style = MaterialTheme.typography.labelLarge, color = TextSecondary)
-                    Text("${state.temperature}", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    Text("Temperature", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${state.temperature}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                     Slider(value = state.temperature, onValueChange = viewModel::onTemperatureChange, valueRange = 0f..1f)
                     Spacer(Modifier.height(6.dp))
-                    Text("Top P", style = MaterialTheme.typography.labelLarge, color = TextSecondary)
-                    Text("${state.topP}", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    Text("Top P", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${state.topP}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                     Slider(value = state.topP, onValueChange = viewModel::onTopPChange, valueRange = 0.1f..1f)
                     Spacer(Modifier.height(6.dp))
-                    Text("Top K", style = MaterialTheme.typography.labelLarge, color = TextSecondary)
-                    Text("${state.topK}", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    Text("Top K", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${state.topK}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                     Slider(value = state.topK.toFloat(), onValueChange = { viewModel.onTopKChange(it.toInt()) }, valueRange = 1f..100f)
                     Spacer(Modifier.height(6.dp))
-                    Text("Max Tokens", style = MaterialTheme.typography.labelLarge, color = TextSecondary)
-                    Text("${state.maxTokens}", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    Text("Max Tokens", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${state.maxTokens}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                     Slider(value = state.maxTokens.toFloat(), onValueChange = { viewModel.onMaxTokensChange(it.toInt()) }, valueRange = 128f..2048f)
+                    Spacer(Modifier.height(6.dp))
+                    Text("History Turns", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${state.historyTurns}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                    Slider(value = state.historyTurns.toFloat(), onValueChange = { viewModel.onHistoryTurnsChange(it.toInt()) }, valueRange = 2f..20f)
                 }
             }
         }
@@ -81,17 +81,17 @@ fun ChatSettingsScreen(
                     OutlinedTextField(
                         value = state.systemPrompt,
                         onValueChange = viewModel::onSystemPromptChange,
-                        label = { Text("System prompt", color = TextSecondary) },
+                        label = { Text("System prompt", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                         minLines = 4,
                         maxLines = 8,
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Primary,
-                            unfocusedBorderColor = SurfaceHigh,
-                            focusedContainerColor = SurfaceHigh,
-                            unfocusedContainerColor = SurfaceHigh,
-                            cursorColor = Primary
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            cursorColor = MaterialTheme.colorScheme.primary
                         )
                     )
                 }

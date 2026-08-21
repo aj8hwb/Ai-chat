@@ -9,10 +9,10 @@ Built with **Jetpack Compose** and a real **llama.cpp** runtime (llama-android) 
 
 ## Features
 
-- **Model Store** — a curated catalog of 5 verified, low-refusal / uncensored GGUF models
+- **Model Store** — a curated catalog of 15 verified GGUF models
   with real compatibility analysis for your specific device (RAM, storage, ABI) and
   one-tap **Download** on each card.
-- **Production download engine** — parallel segmented downloads (4 segments over HTTP Range),
+- **Production download engine** — parallel segmented downloads (up to 8 segments over HTTP Range),
   pause / resume / cancel, resume across app restarts, SHA-256 checksum verification before
   install, storage preflight and real-time stats (progress %, current/avg speed, ETA, segments,
   network type).
@@ -45,7 +45,7 @@ Respect the license terms of each model. Gemma and Llama have usage requirements
 ## Tech Stack
 
 - **Kotlin 2.0.20** + **Jetpack Compose** (Material 3, dark theme)
-- **llama-android 0.1.1** (`dev.ffmpegkit-maintained`) — real llama.cpp on-device inference for GGUF
+- **llama-kotlin-android 0.1.7** (`org.codeshipping`) — real llama.cpp on-device inference for GGUF
 - **Room** — local persistence (models, conversations, messages)
 - **OkHttp** — parallel segmented, resumable, checksum-verified model downloads
 - **DataStore** — user settings
@@ -53,7 +53,7 @@ Respect the license terms of each model. Gemma and Llama have usage requirements
 
 ## Requirements
 
-- **Device**: Android 8.0+ (API 26), **arm64-v8a** (llama-android ships native libs for arm64 only)
+- **Device**: Android 8.0+ (API 26), **arm64-v8a** (llama-kotlin ships native libs for arm64 only)
 - **Build**: JDK 17, Gradle 8.9 (wrapper included), Android SDK 35
 
 ## Build

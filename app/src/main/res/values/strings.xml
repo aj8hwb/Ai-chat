@@ -9,4 +9,7 @@
     <string name="notification_download_ticker">Downloading model in background</string>
     <string name="notification_download_paused">Download paused — will resume automatically</string>
     <string name="notification_download_verifying">Verifying downloaded model</string>
+    <string name="notification_action_pause">Pause</string>
+    <string name="notification_action_resume">Resume</string>
+    <string name="notification_action_cancel">Cancel</string>
 </resources>

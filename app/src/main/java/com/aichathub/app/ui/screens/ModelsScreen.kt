@@ -41,11 +41,6 @@ import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.ui.components.GradientButton
 import com.aichathub.app.ui.components.ModelCard
 import com.aichathub.app.ui.navigation.Screen
-import com.aichathub.app.ui.theme.Error
-import com.aichathub.app.ui.theme.Primary
-import com.aichathub.app.ui.theme.SurfaceHigh
-import com.aichathub.app.ui.theme.TextPrimary
-import com.aichathub.app.ui.theme.TextSecondary
 import com.aichathub.app.util.Formatters
 
 @Composable
@@ -60,28 +55,28 @@ fun ModelsScreen(
         // Header
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(16.dp))
-            Text("Model Store", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
+            Text("Model Store", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(4.dp))
             Text(
                 "${state.models.size} models · all run on-device · GGUF",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = state.query,
                 onValueChange = viewModel::onQueryChange,
-                placeholder = { Text("Search models…", color = TextSecondary) },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = TextSecondary) },
+                placeholder = { Text("Search models…", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Primary,
-                    unfocusedBorderColor = SurfaceHigh,
-                    focusedContainerColor = SurfaceHigh,
-                    unfocusedContainerColor = SurfaceHigh,
-                    cursorColor = Primary
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    cursorColor = MaterialTheme.colorScheme.primary
                 )
             )
             Spacer(Modifier.height(12.dp))
@@ -93,8 +88,8 @@ fun ModelsScreen(
                         onClick = { viewModel.onCategoryChange(cat) },
                         label = { Text(cat) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Primary,
-                            selectedLabelColor = TextPrimary
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onSurface
                         )
                     )
                 }
@@ -117,14 +112,14 @@ fun ModelsScreen(
                         Text(
                             error,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Error,
+                            color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
                             "Dismiss",
                             style = MaterialTheme.typography.labelMedium,
-                            color = Primary,
-                            modifier = Modifier.padding(start = 8.dp).clickable { viewModel.clearError() }
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp).clickable { viewModel.clearMaterialTheme.colorScheme.error() }
                         )
                     }
                 }
@@ -173,17 +168,17 @@ fun ModelsScreen(
             text = {
                 Text(
                     "This is a ${Formatters.bytes(model.fileSizeBytes)} file. It will use storage (and mobile data if you're not on Wi-Fi). Continue?",
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.download(model)
                     pendingDownload = null
-                }) { Text("Download", color = Primary) }
+                }) { Text("Download", color = MaterialTheme.colorScheme.primary) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDownload = null }) { Text("Cancel", color = TextSecondary) }
+                TextButton(onClick = { pendingDownload = null }) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         )
     }
