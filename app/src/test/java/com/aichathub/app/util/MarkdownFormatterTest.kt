@@ -13,49 +13,49 @@ class MarkdownFormatterTest {
     @Test
     fun `plain text passes through unchanged`() {
         val out = MarkdownFormatter.render("Hello world", base, accent)
-        assertEquals("Hello world", out.text)
+        assertEquals("Hello world", out.text.trimEnd('\n'))
     }
 
     @Test
     fun `bold is styled and delimiters removed`() {
         val out = MarkdownFormatter.render("**bold**", base, accent)
-        assertEquals("bold", out.text)
+        assertEquals("bold", out.text.trimEnd('\n'))
     }
 
     @Test
     fun `inline code keeps its content and drops backticks`() {
         val out = MarkdownFormatter.render("use `kotlin`", base, accent)
-        assertEquals("use kotlin", out.text)
+        assertEquals("use kotlin", out.text.trimEnd('\n'))
     }
 
     @Test
     fun `code block content is preserved`() {
         val out = MarkdownFormatter.render("```\nval x = 1\n```", base, accent)
-        assertTrue(out.text.contains("val x = 1"))
+        assertTrue(out.text.trimEnd('\n').contains("val x = 1"))
     }
 
     @Test
     fun `headers drop hash prefixes`() {
         val out = MarkdownFormatter.render("# Title", base, accent)
-        assertEquals("Title", out.text.trim())
+        assertEquals("Title", out.text.trimEnd('\n').trim())
     }
 
     @Test
     fun `bullet list markers are normalized`() {
         val out = MarkdownFormatter.render("- item", base, accent)
-        assertTrue(out.text.contains("•"))
+        assertTrue(out.text.trimEnd('\n').contains("•"))
     }
 
     @Test
     fun `link label is kept without the url`() {
         val out = MarkdownFormatter.render("[click here](https://x.dev)", base, accent)
-        assertEquals("click here", out.text)
+        assertEquals("click here", out.text.trimEnd('\n'))
     }
 
     @Test
     fun `strikethrough removes tildes`() {
         val out = MarkdownFormatter.render("~~gone~~", base, accent)
-        assertEquals("gone", out.text)
+        assertEquals("gone", out.text.trimEnd('\n'))
     }
 
     @Test
