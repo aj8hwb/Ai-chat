@@ -1,8 +1,10 @@
 package com.aichathub.app.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -33,13 +35,30 @@ data class ConversationEntity(
     val modelId: String,
     val createdAt: Long,
     val updatedAt: Long,
-    /** Optional per-conversation system prompt; null/blank = use the global one. */
-    val systemPrompt: String? = null
+    /** Optional per-conversation system prompt override; null/blank = use the global one. */
+    val systemPrompt: String? = null,
+    /**
+     * LLM-generated summary of older messages in this conversation.
+     * When set, the summary is injected into the context instead of the
+     * full message history, enabling effective conversation compaction.
+     * Only populated when the context window fills up and SUMMARIZE
+     * compaction is triggered.
+     */
+    @ColumnInfo(defaultValue = "NULL")
+    val summary: String? = null
 )
 
 @Entity(
     tableName = "messages",
-    indices = [Index(value = ["conversationId"])]
+    indices = [Index(value = ["conversationId"])],
+    foreignKeys = [
+        ForeignKey(
+            entity = ConversationEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["conversationId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ]
 )
 data class MessageEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -101,6 +120,12 @@ interface ConversationDao {
     @Query("UPDATE conversations SET updatedAt = :updatedAt WHERE id = :id")
     suspend fun touch(id: Long, updatedAt: Long)
 
+    @Query("UPDATE conversations SET summary = :summary WHERE id = :id")
+    suspend fun setSummary(id: Long, summary: String?)
+
+    @Query("SELECT summary FROM conversations WHERE id = :id")
+    suspend fun getSummary(id: Long): String?
+
     /**
      * Removes "ghost" conversations that were created but never received a
      * message (e.g. a failed send). A chat is only worth keeping once the user
@@ -144,8 +169,8 @@ interface MessageDao {
         ConversationEntity::class,
         MessageEntity::class
     ],
-    version = 3,
-    exportSchema = false
+    version = 4,
+    exportSchema = true
 )
 abstract class AiDatabase : RoomDatabase() {
     abstract fun installedModelDao(): InstalledModelDao
@@ -154,9 +179,7 @@ abstract class AiDatabase : RoomDatabase() {
 
     companion object {
         /**
-         * v1 → v2: index the `messages.conversationId` column. Every chat screen
-         * reads messages filtered by conversation id, so the index turns those
-         * queries into index lookups as the message table grows.
+         * v1 → v2: index the `messages.conversationId` column.
          */
         val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
@@ -166,11 +189,21 @@ abstract class AiDatabase : RoomDatabase() {
 
         /**
          * v2 → v3: add the per-conversation system prompt override column.
-         * Existing conversations keep the global system prompt (NULL column).
          */
         val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `conversations` ADD COLUMN `systemPrompt` TEXT DEFAULT NULL")
+            }
+        }
+
+        /**
+         * v3 → v4: add the summary column for conversation compaction.
+         * When the context window fills up, older messages are summarized
+         * by the LLM and stored here to enable effective context management.
+         */
+        val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `conversations` ADD COLUMN `summary` TEXT DEFAULT NULL")
             }
         }
     }

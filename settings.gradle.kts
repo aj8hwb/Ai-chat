@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "AiChatHub"
 include(":app")
+include(":benchmark")

@@ -2,9 +2,12 @@
 <!--
     Backup rules for Android 11 and below (android:fullBackupContent).
 
-    Multi-GB model files and resumable download partials are rebuilt from the
-    catalog and must NOT be uploaded to cloud backups. Conversations (the Room
-    database) stay backed up.
+    Privacy-first backup policy (matches data_extraction_rules.xml):
+    - Model files: excluded (large, rebuildable)
+    - Downloads: excluded (partial files)
+    - Room database: excluded (privacy-sensitive conversations)
+    - Crash logs: excluded (diagnostic data)
+    - Settings: included (user preferences)
 -->
 <full-backup-content>
     <exclude
@@ -14,6 +17,9 @@
         domain="file"
         path="downloads/" />
     <exclude
-        domain="sharedpref"
-        path="settings.xml" />
+        domain="database"
+        path="AiDatabase" />
+    <exclude
+        domain="file"
+        path="crash_log.txt" />
 </full-backup-content>

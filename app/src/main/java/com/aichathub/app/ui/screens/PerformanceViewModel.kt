@@ -1,14 +1,18 @@
 package com.aichathub.app.ui.screens
 
-import android.app.Application
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aichathub.app.chat.ChatCoordinator
+import com.aichathub.app.chat.InferenceRuntime
 import com.aichathub.app.data.model.LocalModelCatalog
-import com.aichathub.app.ui.AiViewModel
+import com.aichathub.app.data.SettingsRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class PerformanceUiState(
     val tokensPerSecond: Float = 0f,
@@ -20,14 +24,19 @@ data class PerformanceUiState(
     val tokensGenerated: Int = 0
 )
 
-class PerformanceViewModel(application: Application) : AiViewModel(application) {
+@HiltViewModel
+class PerformanceViewModel @Inject constructor(
+    private val container_inferenceRuntime: InferenceRuntime,
+    private val container_chatCoordinator: ChatCoordinator,
+    private val container_settingsRepository: SettingsRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(PerformanceUiState())
     val state: StateFlow<PerformanceUiState> = _state.asStateFlow()
 
     init {
         viewModelScope.launch {
-            container.inferenceRuntime.performance.collect { p ->
+            container_inferenceRuntime.performance.collect { p ->
                 _state.value = _state.value.copy(
                     tokensPerSecond = p.tokensPerSecond,
                     tokensGenerated = p.tokensGenerated,
@@ -38,18 +47,16 @@ class PerformanceViewModel(application: Application) : AiViewModel(application) 
         }
         viewModelScope.launch {
             combine(
-                container.chatCoordinator.state,
-                container.settingsRepository.measuredMemory
+                container_chatCoordinator.state,
+                container_settingsRepository.measuredMemory
             ) { s, measured ->
                 val model = s.activeModelId?.let { LocalModelCatalog.byId(it) }
                 _state.value = _state.value.copy(
                     activeModelName = s.activeModelName,
-                    // Prefer the REAL measured footprint over the catalog estimate
-                    // so the monitor shows what the model actually uses on-device.
                     modelMemoryBytes = model?.let { measured[it.id] ?: it.estimatedMemoryBytes } ?: 0,
                     contextMax = model?.contextLength ?: 0
                 )
-            }.collect { /* state updated inside the transform */ }
+            }.collect { }
         }
     }
 }

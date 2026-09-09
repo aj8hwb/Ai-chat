@@ -3,72 +3,52 @@ package com.aichathub.app
 import android.app.Application
 import android.content.ComponentCallbacks2
 import android.util.Log
-import com.aichathub.app.di.AppContainer
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
+import com.aichathub.app.chat.RuntimeState
+import com.aichathub.app.data.CatalogSyncWorker
+import com.aichathub.app.data.SettingsRepository
+import com.aichathub.app.di.InferenceRuntimeEntryPoint
+import com.aichathub.app.privacy.CrashLogRepository
+import com.aichathub.app.privacy.PrivacyCenter
+import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
-class AiChatHubApplication : Application() {
+@HiltAndroidApp
+class AiChatHubApplication : Application(), Configuration.Provider {
 
-    companion object {
-        private const val CRASH_LOG_MAX_LINES = 4000
-    }
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
 
-    lateinit var container: AppContainer
-        private set
+    @Inject
+    lateinit var workerFactory: HiltWorkerFactory
+
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
 
     override fun onCreate() {
         super.onCreate()
-        container = AppContainer(this)
+        // Initialize PrivacyCenter with the settings repository
+        PrivacyCenter.init(settingsRepository)
+        settingsRepository.startCaching()
         installCrashLogger()
-        recoverExistingModels()
+        scheduleCatalogSync()
     }
 
-    /**
-     * Fresh-install recovery: scans the device (app-private models dir + the
-     * shared Download/AiChatHub/Models folder, which survives an uninstall)
-     * and imports any catalog-matched GGUF files that are already present.
-     *
-     * This is what makes models "reappear" after a reinstall WITHOUT a
-     * multi-GB re-download: the shared folder copy is re-imported and
-     * registered as READY automatically. Idempotent — already-installed
-     * models are skipped, so a normal (non-reinstall) start is a no-op.
-     */
-    private fun recoverExistingModels() {
-        CoroutineScope(Dispatchers.IO).launch {
-            runCatching {
-                // First reconcile the persisted registry against the real
-                // filesystem so stale rows cannot shadow a valid import.
-                container.modelRepository.reconcile()
-                val found = container.modelScanner.scanLocalDir() +
-                    container.modelScanner.scanSharedDownloads()
-                var imported = 0
-                var skipped = 0
-                for (file in found) {
-                    if (file.matchedModel == null) continue
-                    when (val result = container.modelScanner.import(file)) {
-                        is com.aichathub.app.device.ModelScanner.ImportResult.Imported -> imported++
-                        is com.aichathub.app.device.ModelScanner.ImportResult.AlreadyInstalled -> skipped++
-                        else -> {}
-                    }
-                }
-                Log.i("AiChatHubApp", "MODEL_RECOVERY_DONE found=${found.size} imported=$imported already=$skipped")
-            }.onFailure {
-                Log.w("AiChatHubApp", "MODEL_RECOVERY failed", it)
-            }
+    private fun scheduleCatalogSync() {
+        try {
+            CatalogSyncWorker.enqueue(this)
+            Log.d("AiChatHubApp", "Catalog sync work scheduled")
+        } catch (e: Exception) {
+            Log.w("AiChatHubApp", "Failed to schedule catalog sync", e)
         }
     }
 
     /**
-     * Records any uncaught Java exception (e.g. an OutOfMemoryError) to logcat
-     * and to a file inside filesDir so the crash can be diagnosed afterwards
-     * (pull the file via the debug file explorer or adb). Native SIGSEGV
-     * crashes from llama.cpp are NOT reported here — those show up in logcat
-     * as `Fatal signal` / `DEBUG`.
+     * Records any uncaught Java exception to logcat and to the centralized
+     * crash log file via [CrashLogRepository].
      */
     private fun installCrashLogger() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
@@ -82,51 +62,78 @@ class AiChatHubApplication : Application() {
                     "PSS=${info.totalPss / 1024}MB nativeHeap=${android.os.Debug.getNativeHeapAllocatedSize() / (1024 * 1024)}MB javaHeap=${(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024)}MB"
                 }.getOrElse { "memory stats unavailable" }
                 Log.e("AiChatHubApp", "CRASH memory: $mem")
-                val logFile = File(filesDir, "crash_log.txt")
-                val entry = StringBuilder()
-                    .append("=== ").append(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()))
-                    .append(" ===\n")
-                    .append("memory: ").append(mem).append("\n")
-                    .append(thread.name).append(" : ").append(throwable.toString()).append("\n")
-                    .append(stack).append("\n")
-                val combined = (if (logFile.exists()) logFile.readText() + "\n" else "") + entry
-                runCatching {
-                    // Bound the file to the last 20 crashes so it can never grow
-                    // without limit on a device that crashes repeatedly.
-                    val lines = combined.split("\n")
-                    val capped = if (lines.size > CRASH_LOG_MAX_LINES) {
-                        lines.takeLast(CRASH_LOG_MAX_LINES).joinToString("\n")
-                    } else combined
-                    logFile.writeText(capped)
-                }
+                // Write to centralized crash log
+                CrashLogRepository.write(
+                    this@AiChatHubApplication,
+                    throwable,
+                    mem,
+                    threadName = thread.name
+                )
             } catch (ignored: Throwable) {
             } finally {
-                // Always let the system terminate the process as normal.
                 previous?.uncaughtException(thread, throwable)
                     ?: throwable.printStackTrace()
             }
         }
     }
 
-    /**
-     * The loaded GGUF model holds several hundred MB of native memory. When
-     * the app leaves the foreground the OS may reclaim the process (Low Memory
-     * Killer) because of that footprint, which surfaces to the user as an
-     * instant "app stopped" after backgrounding. Unload the model as soon as
-     * the UI is hidden so the backgrounded process stays small and stable.
-     * The model reloads lazily on the next message (it is still READY).
-     * Respects the user's "Auto Unload Model" setting.
-     */
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN && ::container.isInitialized) {
-            if (!container.settingsRepository.cachedAutoUnload) return
-            CoroutineScope(Dispatchers.IO).launch {
-                runCatching {
-                    container.inferenceRuntime.unload()
-                    Log.i("AiChatHubApp", "MODEL_UNLOADED on background (trimMemory=$level)")
+        // Unload the native LLM model when the system is under memory pressure.
+        // A loaded GGUF model can consume hundreds of MB to several GB of native
+        // memory. If the app is backgrounded or the system is low on memory, the
+        // model should be released so the OS can reclaim it — preventing LMK
+        // kills, OOM crashes, and ANRs.
+        when {
+            level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> {
+                Log.i("AiChatHubApp", "onTrimMemory level=$level — attempting model unload")
+                attemptModelUnload()
+            }
+            level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
+                // UI is hidden (app backgrounded). If auto-unload is enabled,
+                // release the model proactively before memory pressure escalates.
+                if (settingsRepository.cachedAutoUnload) {
+                    Log.i("AiChatHubApp", "onTrimMemory UI_HIDDEN — auto-unload enabled, releasing model")
+                    attemptModelUnload()
                 }
             }
+        }
+    }
+
+    /**
+     * Safely unloads the currently loaded model via the [InferenceRuntime].
+     * Only unloads if the runtime is in READY state (not actively generating).
+     * Uses a background thread to avoid blocking the main thread during
+     * onTrimMemory callbacks.
+     */
+    private fun attemptModelUnload() {
+        try {
+            val entryPoint = dagger.hilt.EntryPoints.get(
+                this,
+                InferenceRuntimeEntryPoint::class.java
+            )
+            val runtime = entryPoint.inferenceRuntime()
+            if (!runtime.isLoaded) return
+
+            val state = runtime.runtimeState
+            if (state == RuntimeState.GENERATING || state == RuntimeState.LOADING) {
+                Log.i("AiChatHubApp", "Model is $state — skipping unload to avoid interrupting")
+                return
+            }
+
+            // Perform the unload on a background thread
+            Thread({
+                try {
+                    kotlinx.coroutines.runBlocking {
+                        runtime.unload()
+                    }
+                    Log.i("AiChatHubApp", "Model unloaded by onTrimMemory")
+                } catch (e: Exception) {
+                    Log.w("AiChatHubApp", "Failed to unload model on trim memory", e)
+                }
+            }, "model-unload-on-trim").start()
+        } catch (e: Exception) {
+            Log.w("AiChatHubApp", "Failed to access runtime for model unload", e)
         }
     }
 }

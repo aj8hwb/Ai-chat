@@ -27,6 +27,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * IMPORTANT: this is the concrete engine. The rest of the app only talks to
  * the [InferenceRuntime] interface, so the engine can be swapped later.
+ *
+ * GPU Status: Currently runs CPU-only (gpuLayers=0). GPU acceleration via
+ * Vulkan/Metal will be enabled when llama-kotlin-android adds support.
+ * The BackendSelector and UI will only report GPU acceleration when
+ * gpuLayers > 0 is actually functional.
  */
 class LlamaCppRuntime(
     private val context: Context,
@@ -36,6 +41,10 @@ class LlamaCppRuntime(
     private val tag = "LlamaCppRuntime"
     private val _performance = MutableStateFlow(InferenceRuntime.Performance())
     override val performance: StateFlow<InferenceRuntime.Performance> = _performance.asStateFlow()
+
+    @Volatile
+    override var runtimeState: RuntimeState = RuntimeState.UNLOADED
+        private set
 
     @Volatile
     private var model: LlamaModel? = null
@@ -92,10 +101,17 @@ class LlamaCppRuntime(
     ) = nativeMutex.withLock {
         withContext(Dispatchers.IO) {
             check(!closed.get()) { "Runtime already released" }
+            runtimeState = RuntimeState.LOADING
             reloadContextLength = contextLength
             reloadThreads = threads.coerceAtLeast(1)
-            unloadQuietly()
-            doLoad(modelId, file, contextLength, sampling)
+            try {
+                unloadQuietly()
+                doLoad(modelId, file, contextLength, sampling)
+                runtimeState = RuntimeState.READY
+            } catch (e: Exception) {
+                runtimeState = RuntimeState.ERROR
+                throw e
+            }
         }
     }
 
@@ -136,7 +152,9 @@ class LlamaCppRuntime(
 
     override suspend fun unload() = nativeMutex.withLock {
         withContext(Dispatchers.IO) {
+            runtimeState = RuntimeState.UNLOADING
             unloadQuietly()
+            runtimeState = RuntimeState.UNLOADED
             memoryLog("after unload")
         }
     }
@@ -152,6 +170,9 @@ class LlamaCppRuntime(
         isLoaded = false
         activeModelId = null
         _performance.value = InferenceRuntime.Performance()
+        if (runtimeState != RuntimeState.UNLOADING && runtimeState != RuntimeState.ERROR) {
+            runtimeState = RuntimeState.UNLOADED
+        }
     }
 
     override suspend fun generate(
@@ -159,11 +180,9 @@ class LlamaCppRuntime(
         config: GenerationConfig
     ): String = nativeMutex.withLock {
         check(!closed.get()) { "Runtime already released" }
-        // See [generateStreaming]: a Stop pressed during caller-side preparation
-        // must abort this generation, not be silently dropped. The caller clears
-        // stale cancellations via [clearCancellation] when it starts its flow.
         if (cancelled.get()) throw CancellationException("Generation cancelled before start")
         val m = requireModel()
+        runtimeState = RuntimeState.GENERATING
         generating.set(true)
         _performance.value = _performance.value.copy(generationActive = true)
         try {
@@ -176,9 +195,16 @@ class LlamaCppRuntime(
             if (cancelled.get()) throw CancellationException("Generation cancelled")
             updatePerformance(result, start, prompt, stream.tokens)
             result
+        } catch (e: CancellationException) {
+            runtimeState = RuntimeState.STOPPING
+            throw e
+        } catch (e: Exception) {
+            runtimeState = RuntimeState.ERROR
+            throw e
         } finally {
             generating.set(false)
             _performance.value = _performance.value.copy(generationActive = false)
+            if (runtimeState != RuntimeState.ERROR) runtimeState = RuntimeState.READY
         }
     }
 
@@ -188,11 +214,9 @@ class LlamaCppRuntime(
         onToken: (String) -> Unit
     ): String = nativeMutex.withLock {
         check(!closed.get()) { "Runtime already released" }
-        // See [generate]: a Stop pressed during caller-side preparation must
-        // abort this generation. The caller clears stale cancellations via
-        // [clearCancellation] when it starts its own flow.
         if (cancelled.get()) throw CancellationException("Generation cancelled before start")
         val m = requireModel()
+        runtimeState = RuntimeState.GENERATING
         generating.set(true)
         _performance.value = _performance.value.copy(generationActive = true)
         try {
@@ -205,9 +229,16 @@ class LlamaCppRuntime(
             if (cancelled.get()) throw CancellationException("Generation cancelled")
             updatePerformance(result, start, prompt, stream.tokens)
             result
+        } catch (e: CancellationException) {
+            runtimeState = RuntimeState.STOPPING
+            throw e
+        } catch (e: Exception) {
+            runtimeState = RuntimeState.ERROR
+            throw e
         } finally {
             generating.set(false)
             _performance.value = _performance.value.copy(generationActive = false)
+            if (runtimeState != RuntimeState.ERROR) runtimeState = RuntimeState.READY
         }
     }
 
@@ -297,19 +328,28 @@ class LlamaCppRuntime(
         // Real native cancellation: the engine checks the cancel flag between
         // generated tokens and stops promptly. The in-flight coroutine then
         // sees `cancelled` and discards the partial result cleanly.
+        //
+        // CRITICAL: The native cancel call MUST happen while holding
+        // modelAccessLock. Without this, a concurrent unloadQuietly() could
+        // close the native model between our read and the native call, causing
+        // a use-after-free SIGSEGV that Kotlin try/catch cannot save.
         cancelled.set(true)
-        val m = synchronized(modelAccessLock) { model }
-        m?.cancelGeneration()
+        synchronized(modelAccessLock) {
+            model?.cancelGeneration()
+        }
     }
 
     override fun clearCancellation() {
         cancelled.set(false)
     }
 
-    override fun release() {
+    override suspend fun release() {
         closed.set(true)
         cancelGeneration()
-        runCatching { unloadQuietly() }
+        nativeMutex.withLock {
+            runCatching { unloadQuietly() }
+            runtimeState = RuntimeState.UNLOADED
+        }
     }
 
     private fun requireModel(): LlamaModel =

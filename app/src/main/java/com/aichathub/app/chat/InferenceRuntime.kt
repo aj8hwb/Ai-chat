@@ -4,6 +4,25 @@ import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 
 /**
+ * Explicit runtime state machine for the inference engine.
+ *
+ * Valid transitions:
+ *   UNLOADED → LOADING → READY → GENERATING → STOPPING → READY
+ *   READY → UNLOADING → UNLOADED
+ *   GENERATING → (error) → ERROR → UNLOADED
+ *   Any → UNLOADED (force unload / background trim)
+ */
+enum class RuntimeState {
+    UNLOADED,
+    LOADING,
+    READY,
+    GENERATING,
+    STOPPING,
+    UNLOADING,
+    ERROR
+}
+
+/**
  * Abstraction over the on-device inference engine.
  *
  * The UI and business logic depend ONLY on this interface — never on a
@@ -13,6 +32,9 @@ import java.io.File
 interface InferenceRuntime {
 
     val isLoaded: Boolean
+
+    /** Explicit state of the runtime lifecycle. */
+    val runtimeState: RuntimeState
 
     /** Model currently loaded into this runtime, if any. */
     val activeModelId: String?
@@ -79,7 +101,12 @@ interface InferenceRuntime {
      */
     fun clearCancellation()
 
-    fun release()
+    /**
+     * Releases the runtime and all native resources. Must participate in the
+     * same serialized lifecycle as [load]/[unload]/[generate] to prevent
+     * use-after-free crashes when a generation is still in progress.
+     */
+    suspend fun release()
 }
 
 data class GenerationConfig(

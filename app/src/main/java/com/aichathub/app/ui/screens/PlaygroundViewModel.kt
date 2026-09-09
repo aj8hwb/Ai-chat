@@ -1,24 +1,27 @@
 package com.aichathub.app.ui.screens
 
-import android.app.Application
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aichathub.app.chat.ChatCoordinator
 import com.aichathub.app.chat.GenerationConfig
+import com.aichathub.app.chat.InferenceRuntime
 import com.aichathub.app.data.model.LocalModelCatalog
-import com.aichathub.app.domain.model.CatalogModel
+import com.aichathub.app.data.ModelRepository
+import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.domain.model.ChatTemplate
-import com.aichathub.app.domain.model.CompatibilityLevel
 import com.aichathub.app.domain.model.ModelLifecycleState
-import com.aichathub.app.ui.AiViewModel
 import com.aichathub.app.util.TokenEstimator
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class PlaygroundUiState(
-    val models: List<CatalogModel> = LocalModelCatalog.models,
+    val models: List<com.aichathub.app.domain.model.CatalogModel> = LocalModelCatalog.models,
     val states: Map<String, ModelLifecycleState> = emptyMap(),
     val selectedModelId: String? = null,
     val prompt: String = "Write a Python function to calculate Fibonacci numbers.",
@@ -33,10 +36,14 @@ data class PlaygroundUiState(
     val contextTokensMax: Int = 0
 )
 
-class PlaygroundViewModel(application: Application) : AiViewModel(application) {
+@HiltViewModel
+class PlaygroundViewModel @Inject constructor(
+    private val container_inferenceRuntime: InferenceRuntime,
+    private val container_chatCoordinator: ChatCoordinator,
+    private val container_modelRepository: ModelRepository,
+    private val container_settingsRepository: SettingsRepository
+) : ViewModel() {
 
-    /** Prompts beyond this size are rejected: an oversized prompt can overflow
-     *  llama.cpp's native context and crash the whole process. */
     companion object {
         const val MAX_PROMPT_CHARS = 3000
     }
@@ -51,17 +58,12 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
 
     private fun observeInstalled() {
         viewModelScope.launch {
-            container.modelRepository.installedModels.collect { installed ->
+            container_modelRepository.installedModels.collect { installed ->
                 val states = installed.associate { it.modelId to it.state }
                 _state.value = _state.value.copy(
                     states = states,
-                    // Installed models first so a freshly downloaded model is
-                    // visible immediately, not buried at the end of the list.
                     models = LocalModelCatalog.models.sortedByDescending { it.id in states.keys }
                 )
-                // Auto-select a usable model when none is selected yet, so a
-                // freshly downloaded model is immediately ready to run without
-                // hunting for it in the list. The newest READY model wins.
                 if (_state.value.selectedModelId == null) {
                     val newest = installed
                         .filter { it.state == ModelLifecycleState.READY }
@@ -75,17 +77,14 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
     }
 
     override fun onCleared() {
-        // Leaving the page mid-run: flag the generation as cancelled so its
-        // result is discarded once the (uninterruptible) native call returns,
-        // and the next Chat send never waits on a stale Playground run.
-        container.inferenceRuntime.cancelGeneration()
+        container_inferenceRuntime.cancelGeneration()
         _state.value = _state.value.copy(running = false)
         super.onCleared()
     }
 
     private fun observePerformance() {
         viewModelScope.launch {
-            container.inferenceRuntime.performance.collect { p ->
+            container_inferenceRuntime.performance.collect { p ->
                 _state.value = _state.value.copy(
                     tokensPerSecond = p.tokensPerSecond,
                     generatedTokens = p.tokensGenerated,
@@ -111,7 +110,6 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
         _state.value = _state.value.copy(maxTokens = v)
     }
 
-    /** Main-thread in-flight guard so a rapid double-tap cannot double-run. */
     @Volatile
     private var runInFlight = false
 
@@ -125,29 +123,22 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
         }
         val model = _state.value.selectedModelId?.let { LocalModelCatalog.byId(it) } ?: return
         runInFlight = true
-        // Discard any cancellation a previous screen left behind so THIS run
-        // always starts fresh; the Stop button records against this run.
-        container.inferenceRuntime.clearCancellation()
+        container_inferenceRuntime.clearCancellation()
         viewModelScope.launch {
             try {
-                val installed = container.modelRepository.stateFor(model.id)
+                val installed = container_modelRepository.stateFor(model.id)
                 if (installed?.filePath == null) {
                     _state.value = _state.value.copy(error = "This model is not installed yet. Install it first.")
                     return@launch
                 }
                 _state.value = _state.value.copy(running = true, error = null, output = "", stats = null)
 
-                // Cap maxTokens to the model's native context headroom so a
-                // "max everything" run cannot overflow llama.cpp's context and
-                // crash the process. Also passes template stop sequences so the
-                // model stops at its natural end-of-turn token instead of
-                // generating until maxTokens (a multi-hundred-second runaway).
                 val ctxMax = _state.value.contextTokensMax.coerceAtLeast(model.contextLength)
                 val promptTokens = TokenEstimator.estimate(_state.value.prompt)
                 val headroom = ((ctxMax * 0.8).toInt() - promptTokens).coerceAtLeast(64)
                 val maxTokens = _state.value.maxTokens.coerceIn(1, headroom)
 
-                val settings = container.settingsRepository.settings.first()
+                val settings = container_settingsRepository.settings.first()
                 val config = GenerationConfig(
                     temperature = _state.value.temperature,
                     topK = settings.topK,
@@ -160,8 +151,8 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
                         stats = "Max tokens clamped to $maxTokens for this model's context."
                     )
                 }
-                if (!container.inferenceRuntime.isLoaded || container.inferenceRuntime.activeModelId != model.id) {
-                    container.chatCoordinator.loadModel(
+                if (!container_inferenceRuntime.isLoaded || container_inferenceRuntime.activeModelId != model.id) {
+                    container_chatCoordinator.loadModel(
                         model,
                         java.io.File(installed.filePath),
                         config,
@@ -169,7 +160,7 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
                     )
                 }
                 val start = System.nanoTime()
-                val result = container.inferenceRuntime.generateStreaming(
+                val result = container_inferenceRuntime.generateStreaming(
                     prompt = _state.value.prompt,
                     config = config,
                     onToken = { partial ->
@@ -180,11 +171,9 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
                 _state.value = _state.value.copy(
                     output = result,
                     running = false,
-                    stats = "Completed in ${elapsedMs / 1000f}s · ~${_state.value.tokensPerSecond} tok/s · ${_state.value.generatedTokens} tokens"
+                    stats = "Completed in ${elapsedMs / 1000f}s ~${_state.value.tokensPerSecond} tok/s ${_state.value.generatedTokens} tokens"
                 )
             } catch (e: CancellationException) {
-                // The user pressed Stop (or left the screen): that is a normal
-                // end state, NOT a failure. Discard the partial output.
                 _state.value = _state.value.copy(
                     running = false,
                     output = "",
@@ -207,16 +196,14 @@ class PlaygroundViewModel(application: Application) : AiViewModel(application) {
     }
 
     private fun templateStopSequences(template: ChatTemplate): List<String> = when (template) {
-        ChatTemplate.CHATML -> listOf("<|im_end|>")
+        ChatTemplate.CHATML -> listOf("\n\n")
+        ChatTemplate.LLAMA2, ChatTemplate.LLAMA3 -> listOf("\n[INST]", "\n[/INST]")
+        ChatTemplate.MISTRAL -> listOf("\n[/INST]")
+        ChatTemplate.CHATGLM -> listOf("\n\n")
+        ChatTemplate.VICUNA -> listOf("USER:")
+        ChatTemplate.ALPACA -> listOf("### Human:")
+        ChatTemplate.ZEPHYR -> listOf("\n</s>")
         ChatTemplate.GEMMA -> listOf("<end_of_turn>")
-        ChatTemplate.LLAMA3 -> listOf("<|eot_id|>")
-        ChatTemplate.LLAMA2 -> listOf("</s>", "[/INST]")
-        ChatTemplate.GENERIC -> emptyList()
-    }
-
-    fun stop() {
-        container.inferenceRuntime.cancelGeneration()
-        // The in-flight coroutine clears `running` in its finally once the
-        // native call returns; do not race the state here.
+        ChatTemplate.UNKNOWN -> emptyList()
     }
 }

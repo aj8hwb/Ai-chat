@@ -32,7 +32,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,7 +42,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.aichathub.app.domain.model.CompatibilityLevel
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.download.DownloadStatus
@@ -69,10 +69,10 @@ fun ModelDetailsScreen(
     modelId: String,
     onBack: () -> Unit,
     onOpenChat: () -> Unit,
-    viewModel: ModelDetailsViewModel = viewModel()
+    viewModel: ModelDetailsViewModel = hiltViewModel()
 ) {
     LaunchedEffect(modelId) { viewModel.load(modelId) }
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val model = state.model
     val uriHandler = LocalUriHandler.current
     var pendingDownload by remember { mutableStateOf(false) }

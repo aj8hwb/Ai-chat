@@ -1,8 +1,13 @@
 package com.aichathub.app.ui.screens
 
-import android.app.Application
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aichathub.app.chat.InferenceRuntime
 import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.ModelRepository
+import com.aichathub.app.data.SettingsRepository
+import com.aichathub.app.device.CompatibilityEngine
+import com.aichathub.app.device.DeviceInfoProvider
 import com.aichathub.app.device.MemoryBudgetCalculator
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.CompatibilityLevel
@@ -10,15 +15,17 @@ import com.aichathub.app.domain.model.DeviceProfile
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.domain.model.Recommendation
 import com.aichathub.app.download.DownloadInfo
+import com.aichathub.app.download.DownloadManager
 import com.aichathub.app.download.DownloadStartResult
 import com.aichathub.app.download.DownloadStatus
-import com.aichathub.app.ui.AiViewModel
 import com.aichathub.app.util.Formatters
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class ModelsUiState(
     val models: List<CatalogModel> = LocalModelCatalog.models,
@@ -45,7 +52,14 @@ data class ModelsUiState(
         }
 }
 
-class ModelsViewModel(application: Application) : AiViewModel(application) {
+@HiltViewModel
+class ModelsViewModel @Inject constructor(
+    private val container_downloadManager: DownloadManager,
+    private val container_modelRepository: ModelRepository,
+    private val container_deviceInfoProvider: DeviceInfoProvider,
+    private val container_compatibilityEngine: CompatibilityEngine,
+    private val container_settingsRepository: SettingsRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(ModelsUiState())
     val state: StateFlow<ModelsUiState> = _state.asStateFlow()
@@ -57,11 +71,9 @@ class ModelsViewModel(application: Application) : AiViewModel(application) {
         observeMeasuredMemory()
     }
 
-    /** Re-runs the compatibility analysis when a model's real memory is measured.
-     *  Debounced so a burst of measurements triggers a single refresh. */
     private fun observeMeasuredMemory() {
         viewModelScope.launch {
-            container.settingsRepository.measuredMemory
+            container_settingsRepository.measuredMemory
                 .debounce(1500)
                 .collect {
                     refresh()
@@ -71,7 +83,7 @@ class ModelsViewModel(application: Application) : AiViewModel(application) {
 
     private fun observeInstalled() {
         viewModelScope.launch {
-            container.modelRepository.installedModels.collect { installed ->
+            container_modelRepository.installedModels.collect { installed ->
                 _state.value = _state.value.copy(
                     states = installed.associate { it.modelId to it.state }
                 )
@@ -81,7 +93,7 @@ class ModelsViewModel(application: Application) : AiViewModel(application) {
 
     private fun observeDownloads() {
         viewModelScope.launch {
-            container.downloadManager.downloads.collect { downloads ->
+            container_downloadManager.downloads.collect { downloads ->
                 _state.value = _state.value.copy(
                     downloads = downloads.associateBy { it.modelId }
                 )
@@ -92,10 +104,10 @@ class ModelsViewModel(application: Application) : AiViewModel(application) {
     fun refresh() {
         _state.value = _state.value.copy(loading = true)
         viewModelScope.launch {
-            val profile = container.deviceInfoProvider.getDeviceProfile()
+            val profile = container_deviceInfoProvider.getDeviceProfile()
             val budget = MemoryBudgetCalculator.calculate(profile)
-            val measured = container.settingsRepository.measuredMemoryOnce()
-            val recommendations = container.compatibilityEngine.recommendAll(
+            val measured = container_settingsRepository.measuredMemoryOnce()
+            val recommendations = container_compatibilityEngine.recommendAll(
                 LocalModelCatalog.models,
                 profile,
                 budget,
@@ -119,9 +131,9 @@ class ModelsViewModel(application: Application) : AiViewModel(application) {
 
     fun download(model: CatalogModel) {
         viewModelScope.launch {
-            when (val result = container.downloadManager.startDownload(model)) {
+            when (val result = container_downloadManager.startDownload(model)) {
                 is DownloadStartResult.Started -> {
-                    container.modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
+                    container_modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
                     _state.value = _state.value.copy(error = null)
                 }
                 is DownloadStartResult.AlreadyActive -> Unit
@@ -137,9 +149,9 @@ class ModelsViewModel(application: Application) : AiViewModel(application) {
         }
     }
 
-    fun pause(modelId: String) = container.downloadManager.pause(modelId)
-    fun resume(modelId: String) = container.downloadManager.resume(modelId)
-    fun cancel(modelId: String) = container.downloadManager.cancel(modelId)
+    fun pause(modelId: String) = container_downloadManager.pause(modelId)
+    fun resume(modelId: String) = container_downloadManager.resume(modelId)
+    fun cancel(modelId: String) = container_downloadManager.cancel(modelId)
 
     fun clearError() {
         _state.value = _state.value.copy(error = null)

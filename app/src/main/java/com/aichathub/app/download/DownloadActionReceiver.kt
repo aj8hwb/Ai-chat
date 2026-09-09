@@ -4,18 +4,18 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.aichathub.app.di.DownloadManagerEntryPoint
+import dagger.hilt.android.EntryPointAccessors
 
-/**
- * Handles tap actions on the download notification: Pause, Resume and Cancel.
- * The heavy lifting stays in [DownloadManager]; this receiver only translates
- * an intent action into the right manager call.
- */
 class DownloadActionReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val modelId = intent.getStringExtra(EXTRA_MODEL_ID) ?: return
-        val manager = (context.applicationContext as? com.aichathub.app.AiChatHubApplication)
-            ?.container?.downloadManager ?: return
+        val entryPoint = EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            DownloadManagerEntryPoint::class.java
+        )
+        val manager = entryPoint.downloadManager()
         when (intent.action) {
             ACTION_PAUSE -> {
                 Log.i("DownloadActionReceiver", "pause $modelId")
@@ -41,8 +41,6 @@ class DownloadActionReceiver : BroadcastReceiver() {
         private const val REQUEST_CODE = 0x1000
         private var requestCodeSeed = 0
 
-        /** Builds a unique PendingIntent for a specific action + model, so the
-         *  notification can carry independent Pause/Resume/Cancel buttons. */
         fun actionIntent(context: Context, action: String, modelId: String): android.app.PendingIntent {
             val intent = Intent(context, DownloadActionReceiver::class.java).apply {
                 this.action = action

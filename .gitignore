@@ -10,4 +10,43 @@ captures
 *.apk
 *.aab
 *.keystore
-!aichathub-release.keystore
+!debug.keystore
+
+# Signing secrets — NEVER commit
+keystore.properties
+*.jks
+*.pk8
+*.pem
+*.p12
+
+# Build artifacts
+app/build/
+benchmark/build/
+build/
+.gradle/
+.kotlin/
+*.class
+*.flat
+*.so
+generated/
+ksp/
+intermediates/
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Local properties
+local.properties
+
+# Generated
+**/generated/
+**/build/

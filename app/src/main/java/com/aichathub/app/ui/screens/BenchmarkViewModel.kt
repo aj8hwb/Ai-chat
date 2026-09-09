@@ -1,18 +1,23 @@
 package com.aichathub.app.ui.screens
 
-import android.app.Application
 import android.os.Debug
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aichathub.app.chat.ChatCoordinator
 import com.aichathub.app.chat.GenerationConfig
+import com.aichathub.app.chat.InferenceRuntime
 import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.ModelRepository
+import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.domain.model.CatalogModel
-import com.aichathub.app.ui.AiViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
+import javax.inject.Inject
 
 data class BenchmarkResult(
     val tokensPerSecond: Float,
@@ -29,15 +34,20 @@ data class BenchmarkUiState(
     val error: String? = null
 )
 
-class BenchmarkViewModel(application: Application) : AiViewModel(application) {
-
+@HiltViewModel
+class BenchmarkViewModel @Inject constructor(
+    private val container_inferenceRuntime: InferenceRuntime,
+    private val container_chatCoordinator: ChatCoordinator,
+    private val container_modelRepository: ModelRepository,
+    private val container_settingsRepository: SettingsRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(BenchmarkUiState())
     val state: StateFlow<BenchmarkUiState> = _state.asStateFlow()
 
     init {
         viewModelScope.launch {
-            val installed = container.modelRepository.installedModelsOnce()
+            val installed = container_modelRepository.installedModelsOnce()
             val model = installed.firstNotNullOfOrNull { LocalModelCatalog.byId(it.modelId) }
             _state.value = _state.value.copy(selectedModel = model)
         }
@@ -46,17 +56,14 @@ class BenchmarkViewModel(application: Application) : AiViewModel(application) {
     fun runBenchmark() {
         val model = _state.value.selectedModel ?: return
         viewModelScope.launch {
-            val installed = container.modelRepository.stateFor(model.id) ?: return@launch
-            _state.value = _state.value.copy(running = true, statusText = "Loading model…", result = null, error = null)
+            val installed = container_modelRepository.stateFor(model.id) ?: return@launch
+            _state.value = _state.value.copy(running = true, statusText = "Loading model...", result = null, error = null)
             try {
-                // Discard any cancellation a previous screen left behind so the
-                // benchmark never aborts on a stale Stop.
-                container.inferenceRuntime.clearCancellation()
-                val settings = container.settingsRepository.settings.first()
+                container_inferenceRuntime.clearCancellation()
+                val settings = container_settingsRepository.settings.first()
 
-                // Measure the REAL memory footprint: App PSS delta around the load.
                 val pssBefore = pssBytes()
-                container.chatCoordinator.loadModel(
+                container_chatCoordinator.loadModel(
                     model,
                     File(installed.filePath),
                     GenerationConfig(maxTokens = 64),
@@ -66,24 +73,22 @@ class BenchmarkViewModel(application: Application) : AiViewModel(application) {
 
                 val prompt = "Write a short paragraph about local AI."
 
-                // Warm-up run so page-cache / lazy init don't skew the measurement.
-                _state.value = _state.value.copy(statusText = "Warming up…")
-                container.inferenceRuntime.generateStreaming(
+                _state.value = _state.value.copy(statusText = "Warming up...")
+                container_inferenceRuntime.generateStreaming(
                     prompt = prompt,
                     config = GenerationConfig(maxTokens = 64),
                     onToken = {}
                 )
 
-                // Timed run. All stats come from the runtime's real native result.
-                _state.value = _state.value.copy(statusText = "Measuring…")
+                _state.value = _state.value.copy(statusText = "Measuring...")
                 val start = System.nanoTime()
-                container.inferenceRuntime.generateStreaming(
+                container_inferenceRuntime.generateStreaming(
                     prompt = prompt,
                     config = GenerationConfig(maxTokens = 256),
                     onToken = {}
                 )
                 val generationMs = (System.nanoTime() - start) / 1_000_000
-                val perf = container.inferenceRuntime.performance.value
+                val perf = container_inferenceRuntime.performance.value
                 val elapsedS = (generationMs.coerceAtLeast(1) / 1000f)
                 val tps = if (perf.tokensPerSecond > 0f) perf.tokensPerSecond
                 else if (elapsedS > 0f) perf.tokensGenerated / elapsedS else 0f

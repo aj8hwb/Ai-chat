@@ -1,24 +1,31 @@
 package com.aichathub.app.ui.screens
 
-import android.app.Application
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aichathub.app.chat.ChatCoordinator
 import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.ModelRepository
+import com.aichathub.app.data.SettingsRepository
+import com.aichathub.app.device.CompatibilityEngine
+import com.aichathub.app.device.DeviceInfoProvider
 import com.aichathub.app.device.MemoryBudgetCalculator
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.CompatibilityLevel
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.domain.model.Recommendation
 import com.aichathub.app.download.DownloadInfo
+import com.aichathub.app.download.DownloadManager
 import com.aichathub.app.download.DownloadStartResult
 import com.aichathub.app.download.DownloadStatus
-import com.aichathub.app.ui.AiViewModel
 import com.aichathub.app.util.Formatters
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
 data class ModelDetailsUiState(
     val model: CatalogModel? = null,
@@ -29,14 +36,19 @@ data class ModelDetailsUiState(
     val warningMessage: String? = null,
     val filePath: String? = null,
     val isDefaultModel: Boolean = false,
-    /** True when the current default model is NOT installed (edge case). */
     val defaultModelMissing: Boolean = false,
-    /** True while the screen is still loading; guards against a flash of the
-     *  "model not found" state on every navigation (model resolves async). */
     val loading: Boolean = false
 )
 
-class ModelDetailsViewModel(application: Application) : AiViewModel(application) {
+@HiltViewModel
+class ModelDetailsViewModel @Inject constructor(
+    private val container_chatCoordinator: ChatCoordinator,
+    private val container_modelRepository: ModelRepository,
+    private val container_downloadManager: DownloadManager,
+    private val container_deviceInfoProvider: DeviceInfoProvider,
+    private val container_compatibilityEngine: CompatibilityEngine,
+    private val container_settingsRepository: SettingsRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(ModelDetailsUiState())
     val state: StateFlow<ModelDetailsUiState> = _state.asStateFlow()
@@ -52,7 +64,7 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
         }
         _state.value = ModelDetailsUiState(model = model, loading = true)
         viewModelScope.launch {
-            val installed = container.modelRepository.stateFor(modelId)
+            val installed = container_modelRepository.stateFor(modelId)
             _state.value = _state.value.copy(
                 lifecycle = installed?.state ?: ModelLifecycleState.NOT_INSTALLED,
                 filePath = installed?.filePath
@@ -64,10 +76,9 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
         }
     }
 
-    /** Keep the "Set as default" toggle in sync with the stored preference. */
     private fun observeDefaultModel() {
         viewModelScope.launch {
-            container.settingsRepository.settings.collect { s ->
+            container_settingsRepository.settings.collect { s ->
                 val current = _state.value
                 _state.value = current.copy(
                     isDefaultModel = s.defaultModelId == current.model?.id,
@@ -81,22 +92,22 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
     fun setAsDefault() {
         val model = _state.value.model ?: return
         viewModelScope.launch {
-            container.settingsRepository.setDefaultModel(model.id)
+            container_settingsRepository.setDefaultModel(model.id)
         }
     }
 
     fun clearDefault() {
         viewModelScope.launch {
-            container.settingsRepository.setDefaultModel(null)
+            container_settingsRepository.setDefaultModel(null)
         }
     }
 
     private suspend fun analyzeCompatibility(model: CatalogModel?) {
         if (model == null) return
-        val profile = container.deviceInfoProvider.getDeviceProfile()
+        val profile = container_deviceInfoProvider.getDeviceProfile()
         val budget = MemoryBudgetCalculator.calculate(profile)
-        val measured = container.settingsRepository.measuredMemoryOnce()
-        val rec = container.compatibilityEngine.recommendAll(
+        val measured = container_settingsRepository.measuredMemoryOnce()
+        val rec = container_compatibilityEngine.recommendAll(
             listOf(model),
             profile,
             budget,
@@ -117,7 +128,7 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
 
     private fun observeDownload(model: CatalogModel) {
         viewModelScope.launch {
-            container.downloadManager.downloads.collect { downloads ->
+            container_downloadManager.downloads.collect { downloads ->
                 val d = downloads.firstOrNull { it.modelId == model.id }
                 _state.value = _state.value.copy(download = d)
                 when (d?.status) {
@@ -144,9 +155,9 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
     fun startDownload() {
         val model = _state.value.model ?: return
         viewModelScope.launch {
-            when (val result = container.downloadManager.startDownload(model)) {
+            when (val result = container_downloadManager.startDownload(model)) {
                 is DownloadStartResult.Started -> {
-                    container.modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
+                    container_modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
                     _state.value = _state.value.copy(
                         lifecycle = ModelLifecycleState.DOWNLOADING,
                         warningMessage = null,
@@ -167,26 +178,24 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
     }
 
     fun pauseDownload() {
-        container.downloadManager.pause(_state.value.model?.id ?: return)
+        container_downloadManager.pause(_state.value.model?.id ?: return)
     }
 
     fun resumeDownload() {
-        container.downloadManager.resume(_state.value.model?.id ?: return)
+        container_downloadManager.resume(_state.value.model?.id ?: return)
     }
 
     fun cancelDownload() {
-        container.downloadManager.cancel(_state.value.model?.id ?: return)
+        container_downloadManager.cancel(_state.value.model?.id ?: return)
     }
 
     fun deleteModel() {
         val model = _state.value.model ?: return
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                // Unload FIRST: llama.cpp maps the model file into native memory;
-                // deleting it while loaded can crash the process (native SIGSEGV).
-                container.chatCoordinator.unloadModel(model.id)
-                container.downloadManager.clearForModel(model.id)
-                container.modelRepository.remove(model.id)
+                container_chatCoordinator.unloadModel(model.id)
+                container_downloadManager.clearForModel(model.id)
+                container_modelRepository.remove(model.id)
             }
             _state.value = _state.value.copy(
                 lifecycle = ModelLifecycleState.NOT_INSTALLED,
@@ -197,9 +206,9 @@ class ModelDetailsViewModel(application: Application) : AiViewModel(application)
     }
 
     private suspend fun installCompleted(model: CatalogModel, d: DownloadInfo) {
-        val file = container.modelRepository.modelFile(model)
+        val file = container_modelRepository.modelFile(model)
         if (file.exists() && file.length() == d.totalBytes) {
-            container.modelRepository.markInstalled(model.id, file, d.totalBytes)
+            container_modelRepository.markInstalled(model.id, file, d.totalBytes)
             _state.value = _state.value.copy(
                 lifecycle = ModelLifecycleState.INSTALLED,
                 filePath = file.absolutePath,

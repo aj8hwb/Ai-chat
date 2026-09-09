@@ -10,14 +10,22 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
+import com.aichathub.app.di.SettingsRepositoryEntryPoint
 import com.aichathub.app.ui.navigation.Screen
 import com.aichathub.app.ui.navigation.bottomDestinations
 import com.aichathub.app.ui.screens.AboutScreen
@@ -31,15 +39,29 @@ import com.aichathub.app.ui.screens.HomeScreen
 import com.aichathub.app.ui.screens.ModelDetailsScreen
 import com.aichathub.app.ui.screens.ModelsScreen
 import com.aichathub.app.ui.screens.MyModelsScreen
+import com.aichathub.app.ui.screens.OnboardingScreen
 import com.aichathub.app.ui.screens.PerformanceScreen
 import com.aichathub.app.ui.screens.PlaygroundScreen
+import com.aichathub.app.ui.screens.PrivacySettingsScreen
 import com.aichathub.app.ui.screens.SettingsScreen
 import com.aichathub.app.ui.screens.StorageScreen
 import com.aichathub.app.ui.screens.SystemStatusScreen
+import com.aichathub.app.util.NavigationAnimations
 
 @Composable
 fun AiChatHubApp() {
     val navController = rememberNavController()
+    val context = LocalContext.current
+
+    // Determine start destination based on persisted onboarding state
+    val startDestination = remember {
+        val settingsRepo = dagger.hilt.EntryPoints.get(
+            context.applicationContext,
+            SettingsRepositoryEntryPoint::class.java
+        ).settingsRepository()
+        if (settingsRepo.cachedOnboardingCompleted) Screen.Home.route
+        else Screen.Onboarding.route
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -102,13 +124,34 @@ private fun AppNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route,
-        modifier = modifier
+        startDestination = startDestination,
+        modifier = modifier,
+        enterTransition = { NavigationAnimations.enterTransition() },
+        exitTransition = { NavigationAnimations.exitTransition() },
+        popEnterTransition = { NavigationAnimations.popEnterTransition() },
+        popExitTransition = { NavigationAnimations.popExitTransition() }
     ) {
-        composable(Screen.Home.route) {
+        composable(Screen.Onboarding.route) {
+            OnboardingScreen(
+                onComplete = {
+                    // Persist onboarding completion so future launches skip it
+                    kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                        val settingsRepo = dagger.hilt.EntryPoints.get(
+                            context.applicationContext,
+                            SettingsRepositoryEntryPoint::class.java
+                        ).settingsRepository()
+                        settingsRepo.setOnboardingCompleted(true)
+                    }
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Onboarding.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable(Screen.Home.route, deepLinks = listOf(navDeepLink { uriPattern = Screen.Home.deepLinkPattern })) {
             HomeScreen(onNavigate = navController::navigate)
         }
-        composable(Screen.Models.route) {
+        composable(Screen.Models.route, deepLinks = listOf(navDeepLink { uriPattern = Screen.Models.deepLinkPattern })) {
             ModelsScreen(onNavigate = navController::navigate)
         }
         composable(
@@ -179,6 +222,9 @@ private fun AppNavHost(
         }
         composable(Screen.About.route) {
             AboutScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Screen.PrivacyCenter.route, deepLinks = listOf(navDeepLink { uriPattern = Screen.PrivacyCenter.deepLinkPattern })) {
+            PrivacySettingsScreen(onNavigateBack = { navController.popBackStack() })
         }
         composable(
             route = Screen.Conversation.route,

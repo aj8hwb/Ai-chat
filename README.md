@@ -1,15 +1,15 @@
 # AI Chat Hub
 
 A local-first Android app for discovering, downloading and chatting with **uncensored (low-refusal) on-device AI models**.
-Everything runs on your phone — your data never leaves your device.
+Chats and AI inference stay on your device. Network access is used only for model/catalog downloads and related update checks.
 
-Built with **Jetpack Compose** and a real **llama.cpp** runtime (llama-android) that loads **GGUF** models directly.
+Built with **Jetpack Compose** and a real **llama.cpp** runtime (llama-kotlin-android) that loads **GGUF** models directly.
 
 ---
 
 ## Features
 
-- **Model Store** — a curated catalog of 15 verified GGUF models
+- **Model Store** — a curated catalog of verified GGUF models
   with real compatibility analysis for your specific device (RAM, storage, ABI) and
   one-tap **Download** on each card.
 - **Production download engine** — parallel segmented downloads (up to 8 segments over HTTP Range),
@@ -24,7 +24,9 @@ Built with **Jetpack Compose** and a real **llama.cpp** runtime (llama-android) 
 - **Device analysis** — real RAM / storage / CPU data, with a conservative
   memory budget so the OS is never starved.
 - **Conversation history** — saved locally in Room.
-- **Local-first privacy** — no accounts, no cloud, no telemetry.
+- **Local-first privacy** — no accounts, no cloud, no telemetry. Chats and
+  on-device AI inference stay on your device. Network access is used only for
+  model catalog updates and model file downloads.
 
 ## Model Catalog
 
@@ -44,23 +46,49 @@ Respect the license terms of each model. Gemma and Llama have usage requirements
 
 ## Tech Stack
 
-- **Kotlin 2.0.20** + **Jetpack Compose** (Material 3, dark theme)
+- **Kotlin 2.4.20** + **Jetpack Compose** (Material 3, dark theme)
 - **llama-kotlin-android 0.1.7** (`org.codeshipping`) — real llama.cpp on-device inference for GGUF
-- **Room** — local persistence (models, conversations, messages)
-- **OkHttp** — parallel segmented, resumable, checksum-verified model downloads
+- **Room 2.7.1** — local persistence (models, conversations, messages)
+- **OkHttp 4.12.0** — parallel segmented, resumable, checksum-verified model downloads
 - **DataStore** — user settings
-- **Navigation Compose** — app navigation
+- **Navigation Compose 2.9.0** — app navigation
+- **Hilt 2.56.2** — dependency injection
+- **WorkManager 2.10.1** — background catalog sync
+
+## Security
+
+- **Ed25519 signature verification** for remote catalog manifests with key rotation support
+- **Manifest version rollback protection**
+- **HTTPS-only** downloads with redirect validation and SSRF protection
+- **SHA-256 checksum** verification for all model files
+- **GGUF header validation** before installation
+- **Gitleaks** CI secret scanning (replaces naive grep-based detection)
+- **Signing secrets** loaded from environment variables (never committed to repository)
 
 ## Requirements
 
 - **Device**: Android 8.0+ (API 26), **arm64-v8a** (llama-kotlin ships native libs for arm64 only)
-- **Build**: JDK 17, Gradle 8.9 (wrapper included), Android SDK 35
+- **Build**: JDK 17, Gradle 8.12+ (wrapper included), Android SDK 36, Kotlin 2.4.20
 
 ## Build
 
 ```bash
+./gradlew assembleDebug
+```
+
+For release builds, set the following environment variables:
+```bash
+export KEYSTORE_FILE_PATH=path/to/keystore
+export KEYSTORE_PASSWORD=your_password
+export KEY_ALIAS=your_alias
+export KEY_PASSWORD=your_key_password
 ./gradlew assembleRelease
 ```
 
-The repo includes a GitHub Actions workflow (`.github/workflows/build-apk.yml`) that builds the
-signed release APK in the cloud and uploads it as a build artifact on every push to `main`.
+## CI/CD
+
+GitHub Actions workflows are included:
+- **CI** (`.github/workflows/ci.yml`) — runs on every push/PR: lint, tests, build, security scan (gitleaks)
+- **Release** (`.github/workflows/release.yml`) — builds signed release APK on tag push
+
+Signing secrets are stored in GitHub Secrets and injected as environment variables during the build.

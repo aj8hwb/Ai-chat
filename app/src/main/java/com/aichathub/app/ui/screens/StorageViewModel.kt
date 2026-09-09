@@ -1,18 +1,22 @@
 package com.aichathub.app.ui.screens
 
-import android.app.Application
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.ModelRepository
+import com.aichathub.app.device.DeviceInfoProvider
+import com.aichathub.app.download.DownloadManager
 import com.aichathub.app.download.DownloadSegmentPolicy
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.DeviceProfile
-import com.aichathub.app.ui.AiViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
 data class StorageUiState(
     val profile: DeviceProfile? = null,
@@ -22,17 +26,22 @@ data class StorageUiState(
     val orphanFiles: List<String> = emptyList()
 )
 
-class StorageViewModel(application: Application) : AiViewModel(application) {
+@HiltViewModel
+class StorageViewModel @Inject constructor(
+    private val container_deviceInfoProvider: DeviceInfoProvider,
+    private val container_modelRepository: ModelRepository,
+    private val container_downloadManager: DownloadManager
+) : ViewModel() {
 
     private val _state = MutableStateFlow(StorageUiState())
     val state: StateFlow<StorageUiState> = _state.asStateFlow()
 
     init {
         viewModelScope.launch {
-            _state.value = _state.value.copy(profile = container.deviceInfoProvider.getDeviceProfile())
+            _state.value = _state.value.copy(profile = container_deviceInfoProvider.getDeviceProfile())
         }
         viewModelScope.launch {
-            container.modelRepository.installedModels.collect { installed ->
+            container_modelRepository.installedModels.collect { installed ->
                 val sizes = installed.associate { it.modelId to it.fileSizeBytes }
                 _state.value = _state.value.copy(
                     models = installed.mapNotNull { LocalModelCatalog.byId(it.modelId) },
@@ -45,13 +54,9 @@ class StorageViewModel(application: Application) : AiViewModel(application) {
     }
 
     fun clearCache() {
-        // Temporary download files only — never touches installed models or chats.
-        // Covers single-stream `.part`, segmented `.part.N` AND the `.part.meta`
-        // segment marker (the old clear missed the last two). Runs off the main
-        // thread: deleting a multi-GB partial file can take a few seconds.
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                val downloadsDir = container.downloadManager.downloadsDir()
+                val downloadsDir = container_downloadManager.downloadsDir()
                 downloadsDir.listFiles()?.forEach { f ->
                     if (f.name.endsWith(DownloadSegmentPolicy.MERGED_PART_SUFFIX) ||
                         f.name.contains(".part.")
@@ -64,15 +69,10 @@ class StorageViewModel(application: Application) : AiViewModel(application) {
         }
     }
 
-    /**
-     * Removes files in the downloads directory that belong to NO catalog model.
-     * Stray files (e.g. a manual .gguf copy) never get auto-deleted on startup;
-     * this gives the user an explicit one-tap cleanup.
-     */
     fun deleteUnknownFiles() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                val downloadsDir = container.downloadManager.downloadsDir()
+                val downloadsDir = container_downloadManager.downloadsDir()
                 val known = knownArtifactNames()
                 downloadsDir.listFiles()?.forEach { f ->
                     if (f.name !in known) f.delete()
@@ -82,11 +82,10 @@ class StorageViewModel(application: Application) : AiViewModel(application) {
         }
     }
 
-    /** Files currently present in the downloads dir that match no catalog artifact. */
     private fun refreshOrphans() {
         viewModelScope.launch {
             val orphans = withContext(Dispatchers.IO) {
-                val downloadsDir = container.downloadManager.downloadsDir()
+                val downloadsDir = container_downloadManager.downloadsDir()
                 val known = knownArtifactNames()
                 downloadsDir.listFiles()
                     ?.filter { it.isFile && it.name !in known }

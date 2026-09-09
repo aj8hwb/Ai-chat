@@ -32,7 +32,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,7 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.ui.components.AppCard
 import com.aichathub.app.ui.components.EmptyState
@@ -50,9 +50,9 @@ import com.aichathub.app.util.ConversationGroups
 @Composable
 fun HistoryScreen(
     onNavigate: (String) -> Unit,
-    viewModel: HistoryViewModel = viewModel()
+    viewModel: HistoryViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var deleteTarget by remember { mutableStateOf<Long?>(null) }
     var renameTarget by remember { mutableStateOf<ConversationEntity?>(null) }
     var renameText by remember { mutableStateOf("") }

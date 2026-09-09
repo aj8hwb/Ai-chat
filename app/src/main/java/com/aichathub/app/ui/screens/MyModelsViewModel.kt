@@ -1,18 +1,23 @@
 package com.aichathub.app.ui.screens
 
-import android.app.Application
 import android.net.Uri
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aichathub.app.chat.ChatCoordinator
 import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.ModelRepository
+import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.device.ModelScanner
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
-import com.aichathub.app.ui.AiViewModel
+import com.aichathub.app.download.DownloadManager
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class MyModelsUiState(
     val models: List<CatalogModel> = emptyList(),
@@ -23,14 +28,21 @@ data class MyModelsUiState(
     val scanMessage: String? = null
 )
 
-class MyModelsViewModel(application: Application) : AiViewModel(application) {
+@HiltViewModel
+class MyModelsViewModel @Inject constructor(
+    private val container_chatCoordinator: ChatCoordinator,
+    private val container_modelRepository: ModelRepository,
+    private val container_downloadManager: DownloadManager,
+    private val container_modelScanner: ModelScanner,
+    private val container_settingsRepository: SettingsRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(MyModelsUiState())
     val state: StateFlow<MyModelsUiState> = _state.asStateFlow()
 
     init {
         viewModelScope.launch {
-            container.modelRepository.installedModels.collect { installed ->
+            container_modelRepository.installedModels.collect { installed ->
                 val models = installed.mapNotNull { LocalModelCatalog.byId(it.modelId) }
                 _state.value = _state.value.copy(
                     models = models,
@@ -43,32 +55,29 @@ class MyModelsViewModel(application: Application) : AiViewModel(application) {
 
     fun unload(modelId: String) {
         viewModelScope.launch {
-            container.chatCoordinator.unloadModel(modelId)
+            container_chatCoordinator.unloadModel(modelId)
         }
     }
 
     fun delete(modelId: String) {
         viewModelScope.launch {
-            // Unload FIRST: llama.cpp holds the model file mapped in native
-            // memory — deleting the file underneath a loaded model can SIGSEGV.
-            container.chatCoordinator.unloadModel(modelId)
-            container.downloadManager.clearForModel(modelId)
-            container.modelRepository.remove(modelId)
+            container_chatCoordinator.unloadModel(modelId)
+            container_downloadManager.clearForModel(modelId)
+            container_modelRepository.remove(modelId)
         }
     }
 
-    /** Scans device sources (private dir + shared Downloads + saved folder). */
     fun scan() {
         if (_state.value.scanning) return
         _state.value = _state.value.copy(scanning = true, scanMessage = null, discovered = emptyList())
         viewModelScope.launch {
             val results = mutableListOf<ModelScanner.DiscoveredFile>()
             runCatching {
-                results += container.modelScanner.scanLocalDir()
-                results += container.modelScanner.scanSharedDownloads()
-                val folderUri = container.settingsRepository.settings.first().modelsFolderUri
+                results += container_modelScanner.scanLocalDir()
+                results += container_modelScanner.scanSharedDownloads()
+                val folderUri = container_settingsRepository.settings.first().modelsFolderUri
                 if (!folderUri.isNullOrBlank()) {
-                    results += container.modelScanner.scanTree(Uri.parse(folderUri))
+                    results += container_modelScanner.scanTree(Uri.parse(folderUri))
                 }
             }.onFailure {
                 _state.value = _state.value.copy(
@@ -77,8 +86,6 @@ class MyModelsViewModel(application: Application) : AiViewModel(application) {
                 )
                 return@launch
             }
-            // De-duplicate by (fileName, size) so the same file found in several
-            // sources shows once (shared Downloads copy takes priority).
             val dedup = results
                 .distinctBy { it.fileName to it.sizeBytes }
                 .sortedBy { it.fileName }
@@ -93,8 +100,8 @@ class MyModelsViewModel(application: Application) : AiViewModel(application) {
     fun onFolderPicked(uri: Uri?) {
         viewModelScope.launch {
             if (uri != null) {
-                container.settingsRepository.setModelsFolderUri(uri.toString())
-                val folderResults = container.modelScanner.scanTree(uri)
+                container_settingsRepository.setModelsFolderUri(uri.toString())
+                val folderResults = container_modelScanner.scanTree(uri)
                 _state.value = _state.value.copy(
                     discovered = folderResults.sortedBy { it.fileName },
                     scanMessage = if (folderResults.isEmpty()) "No known model files in that folder." else null
@@ -109,7 +116,7 @@ class MyModelsViewModel(application: Application) : AiViewModel(application) {
         if (_state.value.scanning) return
         _state.value = _state.value.copy(scanning = true, scanMessage = null)
         viewModelScope.launch {
-            when (val result = container.modelScanner.import(file)) {
+            when (val result = container_modelScanner.import(file)) {
                 is ModelScanner.ImportResult.Imported -> {
                     _state.value = _state.value.copy(
                         scanning = false,

@@ -1,11 +1,6 @@
 package com.aichathub.app.download
 
-import android.content.ContentValues
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.os.Build
-import android.provider.MediaStore
 import android.util.Log
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.model.LocalModelCatalog
@@ -21,21 +16,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
-import java.io.FileOutputStream
 import java.io.RandomAccessFile
-import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.ceil
-import kotlin.math.roundToInt
 
 enum class DownloadStatus {
     QUEUED, DOWNLOADING, PAUSED, VERIFYING, COMPLETED, FAILED, CANCELLED
@@ -56,7 +47,7 @@ data class DownloadInfo(
     val error: String? = null
 ) {
     val progress: Int
-        get() = if (totalBytes > 0) ((downloadedBytes.toDouble() / totalBytes) * 100).roundToInt() else 0
+        get() = if (totalBytes > 0) ((downloadedBytes.toDouble() / totalBytes) * 100).toInt() else 0
 }
 
 sealed interface DownloadStartResult {
@@ -67,18 +58,21 @@ sealed interface DownloadStartResult {
 }
 
 /**
- * Production-grade model downloader.
+ * Production-grade model downloader with extracted components.
+ *
+ * Components:
+ *  - DownloadPersistence: disk state management
+ *  - DownloadVerifier: checksum and GGUF validation
+ *  - DownloadInstaller: file installation
+ *  - DownloadNetworkMonitor: network state
+ *  - DownloadProgressAggregator: progress reporting
  *
  * Features:
- *  - Parallel segmented downloads over HTTP Range requests (4 segments when the
- *    server supports ranges and the file is large, single stream otherwise).
- *  - Pause / resume / cancel; resumable state is derived from the partial
- *    `.part` files on disk, so downloads survive app restarts.
- *  - SHA-256 checksum verification before install (no corrupted models).
- *  - Storage preflight and real-time stats: progress %, current/avg speed,
- *    ETA, active segments and network type.
- *  - Auto-install: on success the file is moved into the models directory and
- *    the model repository is updated.
+ *  - Parallel segmented downloads over HTTP Range requests
+ *  - Pause / resume / cancel with disk persistence
+ *  - SHA-256 checksum verification
+ *  - Auto-install with shared Downloads mirror
+ *  - Real-time progress stats
  */
 class DownloadManager(
     private val context: Context,
@@ -92,26 +86,41 @@ class DownloadManager(
     private val tag = "DownloadManager"
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    // Extracted components
+    private val persistence = DownloadPersistence(downloadsDir)
+    private val verifier = DownloadVerifier()
+    private val installer = DownloadInstaller(context, modelsDir, modelRepository, settingsRepository)
+    private val networkMonitor = DownloadNetworkMonitor(context, settingsRepository)
+    private val progressAggregator = DownloadProgressAggregator(scope)
+
     private val _downloads = MutableStateFlow<List<DownloadInfo>>(emptyList())
     val downloads: StateFlow<List<DownloadInfo>> = _downloads.asStateFlow()
 
     private val jobs = ConcurrentHashMap<String, Job>()
     private val cancelFlags = ConcurrentHashMap<String, Boolean>()
     private val pauseFlags = ConcurrentHashMap<String, Boolean>()
-    private val startedAt = ConcurrentHashMap<String, Long>()
-    private val phaseStartBytes = ConcurrentHashMap<String, Long>()
-    private val updaterJobs = ConcurrentHashMap<String, Job>()
 
     companion object {
+        /**
+         * Creates an OkHttpClient with automatic redirects DISABLED.
+         * This is critical for security: the download pipeline must validate
+         * each redirect hop against the trusted domain allowlist before following
+         * it. With followRedirects(true), OkHttp would follow redirects silently
+         * before our validation code ever sees the response.
+         */
         fun defaultClient(): OkHttpClient =
             OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(120, TimeUnit.SECONDS)
                 .writeTimeout(60, TimeUnit.SECONDS)
+                .followRedirects(false)
+                .followSslRedirects(false)
                 .build()
 
         private const val MAX_RETRY_ATTEMPTS = 3
         private const val RETRY_BACKOFF_SECONDS = 2
+        /** Maximum number of redirect hops to follow before giving up. */
+        private const val MAX_REDIRECT_HOPS = 10
     }
 
     init {
@@ -119,20 +128,16 @@ class DownloadManager(
         modelsDir.mkdirs()
         scanForResumable()
         scope.launch {
-            // Startup reconciliation: make the persisted model registry agree
-            // with the real filesystem (crash / reinstall recovery).
             runCatching { modelRepository.reconcile() }
                 .onFailure { Log.w(tag, "Reconcile failed", it) }
         }
-        // Auto-resume: any download found half-done on disk is resumed the
-        // moment the app starts (unless Wi-Fi-only mode blocks mobile data).
         scope.launch {
             delay(1500)
             val resumable = _downloads.value
                 .filter { it.status == DownloadStatus.PAUSED && it.downloadedBytes > 0 }
                 .mapNotNull { LocalModelCatalog.byId(it.modelId) }
             resumable.forEach { model ->
-                if (networkBlocked()) {
+                if (networkMonitor.isNetworkBlocked()) {
                     Log.i(tag, "Auto-resume deferred for ${model.id} (Wi-Fi-only + mobile data)")
                     return@forEach
                 }
@@ -140,41 +145,31 @@ class DownloadManager(
                 resume(model.id)
             }
         }
-        // Wi-Fi-only mode: when the network state changes, automatically resume
-        // any download that was parked because the device was on mobile data.
         registerNetworkWatcher()
     }
 
     private fun registerNetworkWatcher() {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
-        try {
-            val callback = object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: android.net.Network) {
-                    if (!networkBlocked()) {
-                        val parked = _downloads.value
-                            .filter { it.status == DownloadStatus.PAUSED && it.downloadedBytes > 0 }
-                            .mapNotNull { LocalModelCatalog.byId(it.modelId) }
-                        parked.forEach { model ->
-                            Log.i(tag, "NETWORK_AVAILABLE auto-resume ${model.id}")
-                            resume(model.id)
-                        }
-                    }
-                }
-
-                override fun onLost(network: android.net.Network) {
-                    // If we just lost Wi-Fi while in Wi-Fi-only mode, park active
-                    // downloads immediately instead of burning the data plan.
-                    if (settingsRepository?.cachedWifiOnlyDownloads == true) {
-                        _downloads.value.filter { it.status == DownloadStatus.DOWNLOADING }.forEach { info ->
-                            pause(info.modelId)
-                        }
+        networkMonitor.startWatching(object : DownloadNetworkMonitor.NetworkCallback {
+            override fun onNetworkAvailable() {
+                if (!networkMonitor.isNetworkBlocked()) {
+                    val parked = _downloads.value
+                        .filter { it.status == DownloadStatus.PAUSED && it.downloadedBytes > 0 }
+                        .mapNotNull { LocalModelCatalog.byId(it.modelId) }
+                    parked.forEach { model ->
+                        Log.i(tag, "NETWORK_AVAILABLE auto-resume ${model.id}")
+                        resume(model.id)
                     }
                 }
             }
-            cm.registerDefaultNetworkCallback(callback)
-        } catch (e: Exception) {
-            Log.w(tag, "Could not register network callback", e)
-        }
+
+            override fun onNetworkLost() {
+                if (settingsRepository?.cachedWifiOnlyDownloads == true) {
+                    _downloads.value.filter { it.status == DownloadStatus.DOWNLOADING }.forEach { info ->
+                        pause(info.modelId)
+                    }
+                }
+            }
+        })
     }
 
     // ------------------------------------------------------------------
@@ -192,17 +187,25 @@ class DownloadManager(
             return DownloadStartResult.AlreadyActive
         }
 
-        val already = existingDownloadedBytes(model)
+        if (!com.aichathub.app.data.SecurityValidator.isValidDownloadUrl(model.downloadUrl)) {
+            Log.w(tag, "MODEL_DOWNLOAD_REJECTED ${model.id} - invalid URL")
+            return DownloadStartResult.Failed("Download URL failed security validation.")
+        }
+
+        if (!com.aichathub.app.data.SecurityValidator.isValidFileName(model.fileName)) {
+            Log.w(tag, "MODEL_DOWNLOAD_REJECTED ${model.id} - invalid filename")
+            return DownloadStartResult.Failed("Model filename failed security validation.")
+        }
+
+        val already = persistence.existingDownloadedBytes(model)
         val profile = deviceInfoProvider.getDeviceProfile()
-        // Wi-Fi-only enforcement: refuse to start over mobile data.
-        if (networkBlocked()) {
+
+        if (networkMonitor.isNetworkBlocked()) {
             return DownloadStartResult.Failed(
                 "Wi-Fi-only mode is on and the device is on mobile data. Enable Wi-Fi or turn off Wi-Fi-only in Settings."
             )
         }
-        // The install also mirrors the file into the shared Downloads folder
-        // (when enabled), so reserve room for that second copy up front — a
-        // half-completed download must never leave the device out of space.
+
         val sharedEnabled = settingsRepository?.let { repo ->
             runCatching { repo.settings.first().storeInSharedDownloads }.getOrDefault(true)
         } ?: true
@@ -214,8 +217,6 @@ class DownloadManager(
 
         cancelFlags[model.id] = false
         pauseFlags[model.id] = false
-        startedAt[model.id] = System.currentTimeMillis()
-        phaseStartBytes[model.id] = already
 
         upsert(
             DownloadInfo(
@@ -226,12 +227,10 @@ class DownloadManager(
                 downloadedBytes = already,
                 status = DownloadStatus.DOWNLOADING,
                 segments = 1,
-                networkType = currentNetworkType()
+                networkType = networkMonitor.currentNetworkType()
             )
         )
-modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
-        // Promote the process to foreground so the OS never kills the
-        // download when the app is backgrounded or swiped away.
+        modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
         DownloadForegroundService.start(context)
         Log.i(tag, "MODEL_DOWNLOAD_STARTED ${model.id} ($required bytes remaining)")
 
@@ -239,9 +238,6 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
             try {
                 withContext(Dispatchers.IO) { downloadLoop(model) }
             } catch (e: kotlinx.coroutines.CancellationException) {
-                // The app is shutting down (or the manager scope was cancelled).
-                // Leave the partial `.part` files on disk so the download stays
-                // resumable after restart — do NOT mark it FAILED.
                 Log.i(tag, "Download job cancelled for ${model.id} (resumable)")
                 throw e
             } catch (e: Exception) {
@@ -269,8 +265,6 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
         val model = LocalModelCatalog.byId(modelId) ?: return
         pauseFlags[modelId] = false
         cancelFlags[modelId] = false
-        startedAt[modelId] = System.currentTimeMillis()
-        phaseStartBytes[modelId] = existingDownloadedBytes(model)
 
         val job = jobs[modelId]
         if (job == null || !job.isActive) {
@@ -281,7 +275,6 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
                 try {
                     withContext(Dispatchers.IO) { downloadLoop(model) }
                 } catch (e: kotlinx.coroutines.CancellationException) {
-                    // Resumable on disk — see startDownload for the rationale.
                     Log.i(tag, "Resume job cancelled for ${model.id} (resumable)")
                     throw e
                 } catch (e: Exception) {
@@ -304,7 +297,7 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
 
     fun clearForModel(modelId: String) {
         val model = LocalModelCatalog.byId(modelId)
-        if (model != null) cleanupPartFiles(model)
+        if (model != null) persistence.cleanupPartFiles(model)
         removeRecord(modelId)
     }
 
@@ -316,36 +309,30 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
 
     private suspend fun downloadLoop(model: CatalogModel) {
         val supportsRange = probeRangeSupport(model)
-        val mergedPart = File(downloadsDir, DownloadSegmentPolicy.mergedPartFileName(model.fileName))
+        val mergedPart = persistence.mergedPartFile(model)
 
-        // Wi-Fi-only mode: pause immediately when the device is on mobile data
-        // (resume() re-enters here and stays paused until a Wi-Fi network is up).
-        if (networkBlocked()) {
+        if (networkMonitor.isNetworkBlocked()) {
             pauseFlags[model.id] = true
             markStatus(model.id, DownloadStatus.PAUSED)
             return
         }
 
-        // Resolve the segment mode ONCE and persist it in a .part.meta marker so
-        // every later resume (after restarts / crashes) uses the same layout.
         var segments = DownloadSegmentPolicy.resolveSegments(
-            meta = readMeta(model),
+            meta = persistence.readMeta(model),
             hasMergedPart = mergedPart.exists(),
-            hasSegmentFiles = hasAnySegmentFiles(model),
+            hasSegmentFiles = persistence.hasAnySegmentFiles(model),
             supportsRange = supportsRange,
             fileSizeBytes = model.fileSizeBytes
         )
         if (segments == 0) {
-            // Legacy segmented state without a marker: the intended ranges are
-            // unknown, so the stale segments are discarded and re-probed fresh.
             Log.w(tag, "Legacy segments without marker for ${model.id} — discarding and re-probing")
-            cleanupSegmentFiles(model)
+            persistence.cleanupSegmentFiles(model)
             segments = DownloadSegmentPolicy.resolveFresh(supportsRange, model.fileSizeBytes)
         }
-        writeMeta(model, segments)
+        persistence.writeMeta(model, segments)
 
-        val partFiles = List(segments) { File(downloadsDir, DownloadSegmentPolicy.partFileName(model.fileName, it)) }
-        val downloadedTotal = AtomicLong(existingDownloadedBytes(model))
+        val partFiles = persistence.segmentFiles(model, segments)
+        val downloadedTotal = AtomicLong(persistence.existingDownloadedBytes(model))
 
         upsert(
             _downloads.value.first { it.modelId == model.id }.copy(
@@ -354,7 +341,6 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
                 status = DownloadStatus.DOWNLOADING
             )
         )
-        startProgressUpdater(model)
 
         if (segments == 1) {
             val outcome = downloadSegmentWithRetry(
@@ -365,47 +351,72 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
                 downloadedTotal = downloadedTotal
             )
             if (outcome == SegmentOutcome.INTERRUPTED) {
-                stopProgressUpdater(model.id)
                 handleInterrupt(model)
                 return
             }
         } else {
             val segSize = ceil(model.fileSizeBytes.toDouble() / segments).toLong()
-            // Segments run as children of THIS coroutine (coroutineScope), not of
-            // the app-wide `scope`: when one segment hard-fails, coroutineScope
-            // cancels every sibling before the exception propagates, so a failed
-            // download can never leave sibling segments writing to disk while
-            // the download is already marked FAILED (that corrupted files on
-            // resume). The exception then surfaces to the caller, which marks
-            // the whole download FAILED.
-            coroutineScope {
-                partFiles.indices.map { i ->
-                    launch {
-                        val start = i * segSize
-                        val end = minOf(start + segSize - 1, model.fileSizeBytes - 1)
-                        val segFile = partFiles[i]
-                        downloadSegmentWithRetry(
-                            model = model,
-                            segFile = segFile,
-                            rangeStart = start,
-                            rangeEnd = end,
-                            downloadedTotal = downloadedTotal
-                        )
-                    }
-                }.forEach { it.join() }
+            var fellBackToSingle = false
+            try {
+                coroutineScope {
+                    partFiles.indices.map { i ->
+                        launch {
+                            val start = i * segSize
+                            val end = minOf(start + segSize - 1, model.fileSizeBytes - 1)
+                            val segFile = partFiles[i]
+                            downloadSegmentWithRetry(
+                                model = model,
+                                segFile = segFile,
+                                rangeStart = start,
+                                rangeEnd = end,
+                                downloadedTotal = downloadedTotal
+                            )
+                        }
+                    }.forEach { it.join() }
+                }
+            } catch (e: RangeUnsupportedException) {
+                Log.w(tag, "Range not supported for ${model.id} during segmented download; " +
+                    "falling back to single-stream")
+                persistence.cleanupSegmentFiles(model)
+                persistence.cleanupPartFiles(model)
+                downloadedTotal.set(0)
+                fellBackToSingle = true
             }
-            stopProgressUpdater(model.id)
 
-            if (cancelFlags[model.id] == true || pauseFlags[model.id] == true) {
-                handleInterrupt(model)
-                return
+            if (fellBackToSingle) {
+                segments = 1
+                persistence.writeMeta(model, 1)
+                val singlePart = persistence.mergedPartFile(model)
+                upsert(
+                    _downloads.value.first { it.modelId == model.id }.copy(
+                        downloadedBytes = 0,
+                        segments = 1,
+                        status = DownloadStatus.DOWNLOADING
+                    )
+                )
+                val retryOutcome = downloadSegmentWithRetry(
+                    model = model,
+                    segFile = singlePart,
+                    rangeStart = 0,
+                    rangeEnd = model.fileSizeBytes - 1,
+                    downloadedTotal = downloadedTotal
+                )
+                if (retryOutcome == SegmentOutcome.INTERRUPTED) {
+                    handleInterrupt(model)
+                    return
+                }
+            } else {
+                if (cancelFlags[model.id] == true || pauseFlags[model.id] == true) {
+                    handleInterrupt(model)
+                    return
+                }
+                persistence.mergeSegments(partFiles, mergedPart)
+                downloadedTotal.set(mergedPart.length())
             }
-            mergeSegments(partFiles, mergedPart)
-            downloadedTotal.set(mergedPart.length())
         }
 
         if (cancelFlags[model.id] == true) {
-            cleanupPartFiles(model)
+            persistence.cleanupPartFiles(model)
             removeRecord(model.id)
             return
         }
@@ -414,15 +425,13 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
             return
         }
 
-        // Verify integrity before installing. The verify + install steps are
-        // checked against cancel/pause flags so a user who pressed Cancel or
-        // Pause during checksum verification is never silently ignored (the
-        // file would otherwise be installed and marked COMPLETED anyway).
+        // Verify
         markStatus(model.id, DownloadStatus.VERIFYING)
         modelRepository.setState(model.id, ModelLifecycleState.VERIFYING)
         Log.i(tag, "MODEL_VERIFY_STARTED ${model.id}")
+
         if (cancelFlags[model.id] == true) {
-            cleanupPartFiles(model)
+            persistence.cleanupPartFiles(model)
             removeRecord(model.id)
             return
         }
@@ -430,23 +439,31 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
             markStatus(model.id, DownloadStatus.PAUSED)
             return
         }
-        if (!verifyChecksum(model, mergedPart)) {
-            if (cancelFlags[model.id] == true) {
-                cleanupPartFiles(model)
+
+        val verifyResult = verifier.verifyDownload(mergedPart, model) {
+            cancelFlags[model.id] == true || pauseFlags[model.id] == true
+        }
+
+        when (verifyResult) {
+            is DownloadVerifier.VerificationResult.ABORTED -> {
+                persistence.cleanupPartFiles(model)
                 removeRecord(model.id)
                 return
             }
-            cleanupPartFiles(model)
-            markStatus(model.id, DownloadStatus.FAILED, error = "Download verification failed — checksum mismatch. Please download again.")
-            modelRepository.setState(model.id, ModelLifecycleState.NOT_INSTALLED)
-            Log.w(tag, "MODEL_VERIFY_FAILED ${model.id}")
-            return
+            is DownloadVerifier.VerificationResult.FAILED -> {
+                persistence.cleanupPartFiles(model)
+                markStatus(model.id, DownloadStatus.FAILED, error = verifyResult.reason)
+                modelRepository.setState(model.id, ModelLifecycleState.NOT_INSTALLED)
+                Log.w(tag, "MODEL_VERIFY_FAILED ${model.id}: ${verifyResult.reason}")
+                return
+            }
+            is DownloadVerifier.VerificationResult.SUCCESS -> {
+                Log.i(tag, "MODEL_VERIFY_SUCCESS ${model.id}")
+            }
         }
-        Log.i(tag, "MODEL_VERIFY_SUCCESS ${model.id}")
 
-        // A pause/cancel pressed right after a successful verify still wins.
         if (cancelFlags[model.id] == true) {
-            cleanupPartFiles(model)
+            persistence.cleanupPartFiles(model)
             removeRecord(model.id)
             return
         }
@@ -454,13 +471,20 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
             markStatus(model.id, DownloadStatus.PAUSED)
             return
         }
-        install(model, mergedPart)
+
+        // Install
+        val installSuccess = installer.install(model, mergedPart)
+        if (installSuccess) {
+            markStatus(model.id, DownloadStatus.COMPLETED, downloadedBytes = model.fileSizeBytes, totalBytes = model.fileSizeBytes)
+        } else {
+            markStatus(model.id, DownloadStatus.FAILED, error = "Could not install the model file.")
+        }
     }
 
     private suspend fun handleInterrupt(model: CatalogModel) {
         when {
             cancelFlags[model.id] == true -> {
-                cleanupPartFiles(model)
+                persistence.cleanupPartFiles(model)
                 removeRecord(model.id)
             }
             pauseFlags[model.id] == true -> {
@@ -471,11 +495,8 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
 
     private enum class SegmentOutcome { COMPLETE, INTERRUPTED }
 
-    /**
-     * Downloads one byte range into a `.part` file, resuming from whatever is
-     * already on disk: the requested start is always `rangeStart + current
-     * file length`, so interrupted attempts continue where they stopped.
-     */
+    private class RangeUnsupportedException(message: String) : IllegalStateException(message)
+
     private suspend fun downloadSegment(
         model: CatalogModel,
         segFile: File,
@@ -486,22 +507,105 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
         val start = rangeStart + (if (segFile.exists()) segFile.length() else 0L)
         if (start > rangeEnd) return@withContext SegmentOutcome.COMPLETE
 
-        val request = Request.Builder()
-            .url(model.downloadUrl)
-            .header("Range", "bytes=$start-$rangeEnd")
-            .build()
+        // Follow redirects manually with domain validation
+        var currentUrl = model.downloadUrl
+        var redirectCount = 0
+        while (true) {
+            if (cancelFlags[model.id] == true || pauseFlags[model.id] == true) {
+                return@withContext SegmentOutcome.INTERRUPTED
+            }
 
-        client.newCall(request).execute().use { response ->
+            val request = Request.Builder()
+                .url(currentUrl)
+                .header("Range", "bytes=$start-$rangeEnd")
+                .build()
+
+            val response = client.newCall(request).execute()
+
+            // Handle redirects (301, 302, 303, 307, 308)
+            if (response.code in 301..308) {
+                val redirectUrl = response.header("Location")
+                response.body?.close()
+
+                if (redirectUrl == null) {
+                    throw IllegalStateException("Redirect ${response.code} without Location header")
+                }
+                redirectCount++
+                if (redirectCount > MAX_REDIRECT_HOPS) {
+                    throw IllegalStateException("Too many redirects ($redirectCount) for ${model.id}")
+                }
+
+                // Validate the redirect target
+                val isRedirectValid = com.aichathub.app.data.SecurityValidator.isValidRedirect(
+                    originalUrl = model.downloadUrl,
+                    redirectUrl = redirectUrl,
+                    trustedDomains = com.aichathub.app.data.RemoteCatalogRepository.TRUSTED_DOMAINS
+                )
+                if (!isRedirectValid) {
+                    throw IllegalStateException("Redirect to untrusted domain rejected: $redirectUrl")
+                }
+
+                Log.i(tag, "Following redirect $redirectCount for ${model.id}: $currentUrl -> $redirectUrl")
+                currentUrl = redirectUrl
+                continue
+            }
+
+            // Not a redirect — process the response
+            val isRangeRequest = start > rangeStart
             if (response.code != 200 && response.code != 206) {
+                response.body?.close()
                 throw IllegalStateException("HTTP ${response.code}")
             }
+
+            if (isRangeRequest && response.code == 200) {
+                Log.w(tag, "Server returned 200 instead of 206 for Range request on ${model.id}; " +
+                    "server does not support range requests — aborting segmented mode")
+                response.body?.close()
+                throw RangeUnsupportedException(
+                    "Server returned HTTP 200 for Range request — " +
+                    "Range requests are not supported by this server"
+                )
+            }
+
+            if (response.code == 206 && isRangeRequest) {
+                val contentRange = response.header("Content-Range")
+                if (contentRange != null) {
+                    val match = Regex("bytes\\s+(\\d+)-(\\d+)/(\\d+)").find(contentRange)
+                    if (match != null) {
+                        val respStart = match.groupValues[1].toLong()
+                        val respEnd = match.groupValues[2].toLong()
+                        if (respStart != start || respEnd != rangeEnd) {
+                            response.body?.close()
+                            Log.w(tag, "Content-Range mismatch on ${model.id}: " +
+                                "expected $start-$rangeEnd, got $respStart-$respEnd")
+                            throw IllegalStateException(
+                                "Server returned unexpected Content-Range: $contentRange"
+                            )
+                        }
+                    }
+                }
+            }
+
             val body = response.body ?: throw IllegalStateException("Empty response body")
+
+            if (response.code == 206) {
+                val contentLength = response.header("Content-Length")?.toLongOrNull()
+                if (contentLength != null) {
+                    val expectedLength = rangeEnd - start + 1
+                    if (contentLength != expectedLength) {
+                        body.close()
+                        Log.w(tag, "Content-Length mismatch on ${model.id}: " +
+                            "expected $expectedLength, got $contentLength")
+                        throw IllegalStateException(
+                            "Server returned unexpected Content-Length: $contentLength"
+                        )
+                    }
+                }
+            }
+
             RandomAccessFile(segFile, "rw").use { raf ->
                 raf.seek(segFile.length())
                 val source = body.source()
-                // Single reusable buffer keeps the read loop allocation-free:
-                // one big read + one big write per chunk beats a fresh
-                // okio.Buffer + byte-array copy on every 64 KiB chunk.
                 val buf = ByteArray(256 * 1024)
                 while (true) {
                     if (cancelFlags[model.id] == true || pauseFlags[model.id] == true) {
@@ -511,23 +615,17 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
                     if (read == -1) break
                     raf.write(buf, 0, read)
                     downloadedTotal.addAndGet(read.toLong())
-                    if (networkBlocked()) pauseFlags[model.id] = true
+                    if (networkMonitor.isNetworkBlocked()) pauseFlags[model.id] = true
                     if (cancelFlags[model.id] == true || pauseFlags[model.id] == true) {
                         return@use SegmentOutcome.INTERRUPTED
                     }
                 }
                 SegmentOutcome.COMPLETE
             }
+            break // Response processed, exit the redirect loop
         }
     }
 
-    /**
-     * Wraps [downloadSegment] with a bounded retry loop for TRANSIENT network
-     * errors (timeouts, connection resets). Each retry resumes from disk, so it
-     * never re-downloads what already arrived. Pause/cancel interrupt the
-     * backoff immediately, and a checksum failure is never retried (it is
-     * handled after the loop, in the verify step).
-     */
     private suspend fun downloadSegmentWithRetry(
         model: CatalogModel,
         segFile: File,
@@ -568,164 +666,14 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
                 .header("Range", "bytes=0-0")
                 .build()
             client.newCall(request).execute().use { resp ->
-                resp.code == 206 && (resp.header("Accept-Ranges")?.contains("bytes", true) ?: false)
+                if (resp.code != 206) return@use false
+                val contentRange = resp.header("Content-Range") ?: return@use false
+                val match = Regex("bytes\\s+\\d+-\\d+/(\\d+)").find(contentRange)
+                match != null
             }
         } catch (e: Exception) {
             false
         }
-    }
-
-    private fun mergeSegments(parts: List<File>, target: File) {
-        if (target.exists()) target.delete()
-        FileOutputStream(target).use { out ->
-            parts.forEach { p ->
-                if (p.exists()) {
-                    p.inputStream().use { it.copyTo(out) }
-                }
-            }
-        }
-        parts.forEach { it.delete() }
-    }
-
-    // ------------------------------------------------------------------
-    // Verification + install
-    // ------------------------------------------------------------------
-
-    private fun verifyChecksum(model: CatalogModel, file: File): Boolean {
-        val expected = model.checksumSha256 ?: return true
-        if (!file.exists()) return false
-        val actual = sha256Hex(file) { cancelFlags[model.id] == true || pauseFlags[model.id] == true }
-        Log.i(tag, "Checksum ${model.id}: expected=$expected actual=$actual")
-        return actual.equals(expected, ignoreCase = true)
-    }
-
-    /**
-     * Streaming SHA-256 over [file]. [shouldAbort] is checked between chunks so
-     * a multi-GB verification honors an in-flight Cancel/Pause instead of
-     * running to completion (which could take minutes). Returns "" on abort.
-     */
-    private fun sha256Hex(file: File, shouldAbort: () -> Boolean = { false }): String = try {
-        val md = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { input ->
-            val buf = ByteArray(64 * 1024)
-            while (true) {
-                if (shouldAbort()) return ""
-                val n = input.read(buf)
-                if (n == -1) break
-                md.update(buf, 0, n)
-            }
-        }
-        md.digest().joinToString("") { String.format("%02x", it) }
-    } catch (e: Exception) {
-        Log.w(tag, "Checksum computation failed", e)
-        ""
-    }
-
-    private suspend fun install(model: CatalogModel, mergedPart: File) {
-        val finalFile = File(modelsDir, model.fileName)
-        withContext(Dispatchers.IO) {
-            if (finalFile.exists()) finalFile.delete()
-            val moved = mergedPart.renameTo(finalFile)
-            if (!moved) {
-                mergedPart.copyTo(finalFile, overwrite = true)
-                mergedPart.delete()
-            }
-        }
-        if (finalFile.exists() && finalFile.length() > 0) {
-            modelRepository.markInstalled(model.id, finalFile, finalFile.length())
-            markStatus(model.id, DownloadStatus.COMPLETED, downloadedBytes = finalFile.length(), totalBytes = finalFile.length())
-            modelRepository.setState(model.id, ModelLifecycleState.READY)
-            Log.i(tag, "MODEL_REGISTERED ${model.id} -> READY (${finalFile.absolutePath})")
-            copyToSharedDownloads(model, finalFile)
-        } else {
-            markStatus(model.id, DownloadStatus.FAILED, error = "Could not install the model file.")
-        }
-    }
-
-    /**
-     * Mirrors the installed model into the shared Downloads folder
-     * (Download/AiChatHub/Models) via MediaStore. The copy is visible in the
-     * system file manager and survives app reinstall, so the file can be
-     * recovered with a rescan + re-import. Best-effort: failures are logged
-     * and never break the install.
-     */
-    private suspend fun copyToSharedDownloads(model: CatalogModel, file: File) {
-        val enabled = settingsRepository?.let { repo ->
-            runCatching { repo.settings.first().storeInSharedDownloads }.getOrDefault(true)
-        } ?: true
-        if (!enabled) return
-        // MediaStore.Downloads only exists on API 29+. On older devices the
-        // class reference itself throws NoClassDefFoundError (an Error, not an
-        // Exception), so guard with Build.VERSION and catch Throwable.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-        try {
-            val resolver = context.contentResolver
-            val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, model.fileName)
-                put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
-                put(MediaStore.Downloads.RELATIVE_PATH, "Download/AiChatHub/Models")
-                put(MediaStore.Downloads.IS_PENDING, 1)
-            }
-            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return
-            resolver.openOutputStream(uri)?.use { out ->
-                file.inputStream().use { it.copyTo(out) }
-            } ?: run {
-                resolver.delete(uri, null, null)
-                return
-            }
-            values.clear()
-            values.put(MediaStore.Downloads.IS_PENDING, 0)
-            resolver.update(uri, values, null, null)
-            Log.i(tag, "MODEL_SHARED_COPY ${model.id} -> Download/AiChatHub/Models/${model.fileName}")
-        } catch (e: Throwable) {
-            Log.w(tag, "Shared Downloads copy failed for ${model.id}", e)
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // Progress reporting
-    // ------------------------------------------------------------------
-
-    private fun startProgressUpdater(model: CatalogModel) {
-        stopProgressUpdater(model.id)
-        updaterJobs[model.id] = scope.launch {
-            var lastBytes = existingDownloadedBytes(model)
-            var lastTime = System.currentTimeMillis()
-            var lastSpeed = 0L
-            while (isActive && cancelFlags[model.id] != true && pauseFlags[model.id] != true) {
-                delay(500)
-                val current = existingDownloadedBytes(model)
-                val now = System.currentTimeMillis()
-                val dtMs = (now - lastTime).coerceAtLeast(1)
-                val instSpeed = ((current - lastBytes) * 1000L) / dtMs
-                if (instSpeed >= 0) lastSpeed = instSpeed
-                lastBytes = current
-                lastTime = now
-
-                val start = startedAt[model.id] ?: now
-                val phaseStart = phaseStartBytes[model.id] ?: 0L
-                val elapsedS = ((now - start).coerceAtLeast(1)) / 1000.0
-                val avgSpeed = if (elapsedS > 0) ((current - phaseStart) / elapsedS).toLong() else 0L
-                val remaining = (model.fileSizeBytes - current).coerceAtLeast(0)
-                val eta = if (avgSpeed > 0) remaining / avgSpeed else 0L
-
-                upsert(
-                    _downloads.value.firstOrNull { it.modelId == model.id }?.copy(
-                        downloadedBytes = current,
-                        totalBytes = model.fileSizeBytes,
-                        speedBytesPerSec = lastSpeed,
-                        averageSpeedBytesPerSec = avgSpeed,
-                        etaSeconds = eta,
-                        status = DownloadStatus.DOWNLOADING,
-                        networkType = currentNetworkType()
-                    ) ?: return@launch
-                )
-            }
-        }
-    }
-
-    private fun stopProgressUpdater(modelId: String) {
-        updaterJobs.remove(modelId)?.cancel()
     }
 
     // ------------------------------------------------------------------
@@ -733,110 +681,8 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
     // ------------------------------------------------------------------
 
     private fun scanForResumable() {
-        LocalModelCatalog.models.forEach { model ->
-            val bytes = existingDownloadedBytes(model)
-            if (bytes > 0) {
-                upsert(
-                    DownloadInfo(
-                        modelId = model.id,
-                        modelName = model.name,
-                        fileName = model.fileName,
-                        totalBytes = model.fileSizeBytes,
-                        downloadedBytes = bytes,
-                        status = DownloadStatus.PAUSED,
-                        networkType = currentNetworkType()
-                    )
-                )
-            }
-        }
-    }
-
-    /**
-     * Bytes already on disk for the model's ACTIVE download mode. The mode is
-     * read from the `.part.meta` marker; without a marker only a single-stream
-     * `.part` file is counted (legacy segmented files are ignored here and
-     * cleaned up by the download loop before re-probing).
-     */
-    private fun existingDownloadedBytes(model: CatalogModel): Long {
-        val meta = readMeta(model)
-        val merged = File(downloadsDir, DownloadSegmentPolicy.mergedPartFileName(model.fileName))
-        if (meta != null && meta > 1) {
-            return DownloadSegmentPolicy.bytesDownloaded(
-                mergedBytes = if (merged.exists()) merged.length() else 0L,
-                segmentBytes = (0 until 64).mapNotNull { i ->
-                    val f = File(downloadsDir, DownloadSegmentPolicy.partFileName(model.fileName, i))
-                    if (f.exists()) f.length() else null
-                },
-                segments = meta
-            )
-        }
-        return if (merged.exists()) merged.length() else 0L
-    }
-
-    private fun hasAnySegmentFiles(model: CatalogModel): Boolean {
-        var i = 0
-        while (i < 64) {
-            if (File(downloadsDir, DownloadSegmentPolicy.partFileName(model.fileName, i)).exists()) return true
-            i++
-        }
-        return false
-    }
-
-    private fun readMeta(model: CatalogModel): Int? {
-        val f = File(downloadsDir, DownloadSegmentPolicy.metaFileName(model.fileName))
-        if (!f.exists()) return null
-        return runCatching { f.readText().trim().toInt() }.getOrNull()
-    }
-
-    private fun writeMeta(model: CatalogModel, segments: Int) {
-        runCatching {
-            File(downloadsDir, DownloadSegmentPolicy.metaFileName(model.fileName))
-                .writeText(segments.toString())
-        }.onFailure { Log.w(tag, "Could not write segment marker for ${model.id}", it) }
-    }
-
-    private fun cleanupSegmentFiles(model: CatalogModel) {
-        runCatching {
-            var i = 0
-            while (true) {
-                val seg = File(downloadsDir, DownloadSegmentPolicy.partFileName(model.fileName, i))
-                if (!seg.exists()) break
-                seg.delete()
-                i++
-            }
-        }
-    }
-
-    private fun cleanupPartFiles(model: CatalogModel) {
-        runCatching {
-            File(downloadsDir, DownloadSegmentPolicy.mergedPartFileName(model.fileName)).delete()
-            cleanupSegmentFiles(model)
-            File(downloadsDir, DownloadSegmentPolicy.metaFileName(model.fileName)).delete()
-        }
-    }
-
-    private fun currentNetworkType(): String? {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return null
-        val network = cm.activeNetwork ?: return null
-        val caps = cm.getNetworkCapabilities(network) ?: return null
-        return when {
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "Mobile"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "VPN"
-            else -> null
-        }
-    }
-
-    /**
-     * True when Wi-Fi-only mode is enabled AND the device is on mobile data.
-     * Reads the synchronously-cached setting so it is cheap enough to consult
-     * inside the download loop.
-     */
-    private fun networkBlocked(): Boolean {
-        val wifiOnly = settingsRepository?.cachedWifiOnlyDownloads ?: false
-        if (!wifiOnly) return false
-        return currentNetworkType() == "Mobile"
+        val resumable = persistence.scanForResumable(LocalModelCatalog.models, networkMonitor.currentNetworkType())
+        resumable.forEach { upsert(it) }
     }
 
     private fun upsert(info: DownloadInfo) {
@@ -867,12 +713,9 @@ modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
     }
 
     private fun removeRecord(modelId: String) {
-        stopProgressUpdater(modelId)
         jobs.remove(modelId)?.cancel()
         cancelFlags.remove(modelId)
         pauseFlags.remove(modelId)
-        startedAt.remove(modelId)
-        phaseStartBytes.remove(modelId)
         _downloads.value = _downloads.value.filterNot { it.modelId == modelId }
     }
 }

@@ -1,0 +1,61 @@
+# gitleaks configuration for AiChatHub
+# See: https://github.com/gitleaks/gitleaks
+
+[allowlist]
+  description = "Global allowlist"
+  paths = [
+    '''(.*?)(jpg|gif|doc|pdf|bin|svg|socket|png|md|lock|gradle|xml|kt\.kts)$''',
+    '''CHANGE_ME''',
+    '''test''',
+    '''example''',
+    '''\.gradle/''',
+    '''build/''',
+  ]
+
+[[rules]]
+  id = "generic-api-key"
+  description = "Generic API key"
+  regex = '''(?i)(api[_-]?key|apikey)(\s*[:=]\s*["']?([A-Za-z0-9\-_]{20,})["']?)'''
+  tags = ["key", "API"]
+
+[[rules]]
+  id = "generic-password"
+  description = "Generic password"
+  regex = '''(?i)(password|passwd|pwd)(\s*[:=]\s*["']?(\S{8,})["']?)'''
+  tags = ["password"]
+
+[[rules]]
+  id = "generic-secret"
+  description = "Generic secret"
+  regex = '''(?i)(secret|client_secret)(\s*[:=]\s*["']?([A-Za-z0-9\-_]{20,})["']?)'''
+  tags = ["secret"]
+
+[[rules]]
+  id = "generic-token"
+  description = "Generic token"
+  regex = '''(?i)(access_token|auth_token|bearer_token)(\s*[:=]\s*["']?([A-Za-z0-9\-_\.]{20,})["']?)'''
+  tags = ["token"]
+
+[[rules]]
+  id = "private-key"
+  description = "Private key"
+  regex = '''-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'''
+  tags = ["key", "private"]
+
+[[rules]]
+  id = "github-pat"
+  description = "GitHub Personal Access Token"
+  regex = '''ghp_[A-Za-z0-9]{36}'''
+  tags = ["github", "token"]
+
+[[rules]]
+  id = "aws-access-key"
+  description = "AWS Access Key"
+  regex = '''AKIA[0-9A-Z]{16}'''
+  tags = ["aws", "key"]
+
+[[rules]]
+  id = "jwt-token"
+  description = "JWT token"
+  regex = '''eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_.+/]+=*'''
+  tags = ["jwt", "token"]

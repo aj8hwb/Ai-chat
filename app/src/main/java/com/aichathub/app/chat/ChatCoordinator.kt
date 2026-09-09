@@ -9,6 +9,7 @@ import com.aichathub.app.data.local.MessageEntity
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ChatTemplate
 import com.aichathub.app.domain.model.ModelLifecycleState
+import com.aichathub.app.privacy.PrivacyCenter
 import com.aichathub.app.util.TokenEstimator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -180,30 +181,64 @@ class ChatCoordinator(
         historyTurns: Int = DEFAULT_HISTORY_TURNS
     ): String {
         // Set the in-flight flag SYNCHRONOUSLY (before any suspension point).
-        // This closes the check-then-set race: a second caller cannot observe
-        // a non-GENERATING state while the first call is being set up.
         if (_state.value.generationState == ChatGenerationState.GENERATING) {
             throw IllegalStateException("Already generating")
         }
         _state.value = _state.value.copy(generationState = ChatGenerationState.GENERATING, error = null)
-        // Discard any cancellation a PREVIOUS screen left behind (e.g. the
-        // Playground was stopped mid-run). From here on, a Stop will be
-        // recorded against THIS generation — including a Stop pressed while the
-        // prompt below is still being built.
         runtime.clearCancellation()
 
+        val incognito = PrivacyCenter.isIncognitoMode()
         var conversationId = _activeConversationId.value
         val streamed = StringBuilder()
 
         return try {
             withContext(Dispatchers.IO) {
-                // A previously selected conversation may have been pruned (it
-                // never received a message) or deleted — fall back to a fresh one.
+                // Incognito mode: skip all Room persistence, use in-memory only
+                if (incognito) {
+                    // Generate a temporary conversation ID for UI state only
+                    if (conversationId == null) {
+                        conversationId = -System.currentTimeMillis() // Negative = ephemeral
+                        _activeConversationId.value = conversationId
+                    }
+                    val convId = conversationId!!
+
+                    Log.i("ChatCoordinator", "INFERENCE_STARTED (incognito) ${model.id}")
+
+                    // Build prompt from in-memory context (no Room history in incognito)
+                    val systemBlock = renderSystemBlock(model.chatTemplate, systemPrompt)
+                    val fullPrompt = systemBlock + renderPrompt(model.chatTemplate, listOf(
+                        MessageEntity(
+                            conversationId = convId,
+                            role = "user",
+                            content = prompt,
+                            createdAt = System.currentTimeMillis(),
+                            modelId = model.id
+                        )
+                    ))
+
+                    val effectiveConfig = config.copy(
+                        stopSequences = templateStopSequences(model.chatTemplate)
+                    )
+                    val result = runtime.generateStreaming(
+                        prompt = fullPrompt,
+                        config = effectiveConfig,
+                        onToken = { token ->
+                            streamed.append(token)
+                            onStream(streamed.toString())
+                        }
+                    )
+
+                    _state.value = _state.value.copy(generationState = ChatGenerationState.DONE)
+                    Log.i("ChatCoordinator", "INFERENCE_COMPLETED (incognito) ${model.id} tokens=${result.length}")
+                    return@withContext result
+                }
+
+                // Normal (non-incognito) path: persist to Room
                 if (conversationId != null && conversationDao.byId(conversationId) == null) {
                     conversationId = null
                 }
                 if (conversationId == null) {
-                    conversationId = createConversation(model.id, titleFromPrompt(prompt))
+                    conversationId = createConversation(model.id, com.aichathub.app.util.TextUtils.titleFromPrompt(prompt))
                 }
                 val convId = conversationId!!
 
@@ -279,10 +314,11 @@ class ChatCoordinator(
                     conversationDao.touch(conversationId!!, System.currentTimeMillis())
                 }
             }
-            _state.value = _state.value.copy(
-                generationState = ChatGenerationState.DONE,
-                error = null
-            )
+            // If state is STOPPING (user-initiated), keep it as STOPPING briefly
+            // then let resetToIdle() handle transition to IDLE
+            if (_state.value.generationState != ChatGenerationState.STOPPING) {
+                _state.value = _state.value.copy(generationState = ChatGenerationState.DONE)
+            }
             Log.i("ChatCoordinator", "INFERENCE_STOPPED ${model.id} partial=${partial.length}")
             throw e
         } catch (e: Exception) {
@@ -306,7 +342,8 @@ class ChatCoordinator(
         Log.i("ChatCoordinator", "INFERENCE_STOPPING requested")
         _state.value = _state.value.copy(generationState = ChatGenerationState.STOPPING)
         runtime.cancelGeneration()
-        _state.value = _state.value.copy(generationState = ChatGenerationState.DONE)
+        // Don't set DONE here - the sendMessage coroutine's CancellationException
+        // handler will transition to DONE when the coroutine actually completes.
     }
 
     suspend fun resetToIdle() {
@@ -431,8 +468,4 @@ class ChatCoordinator(
         const val DEFAULT_HISTORY_TURNS = 8
     }
 
-    private fun titleFromPrompt(prompt: String): String {
-        val clean = prompt.trim().replace("\n", " ")
-        return if (clean.length > 42) clean.take(42) + "…" else clean
-    }
 }

@@ -45,6 +45,8 @@ data class LoadEligibilityResult(
  */
 class CompatibilityEngine {
 
+    private val smartEngine = SmartRecommendationEngine()
+
     /** Overall compatibility of a model for the current device. */
     fun evaluate(
         model: CatalogModel,
@@ -150,6 +152,39 @@ class CompatibilityEngine {
                 compareByDescending<Recommendation> { it.level.rank }
                     .thenBy { it.model.fileSizeBytes }
             )
+
+    /**
+     * Enhanced recommendation using [SmartRecommendationEngine].
+     * Returns richer scoring data than [recommendAll] while preserving
+     * backward compatibility — callers that don't need the extra data
+     * can keep using [recommendAll].
+     *
+     * @param thermalStatus  Current device thermal throttle level.
+     * @param batteryLevel   0..100 percentage, or -1 if unknown.
+     * @param measuredPss    Real measured PSS in bytes per model id.
+     * @param pastBenchmarks Map of model id → tokens-per-second.
+     * @param mode           What the user cares about most.
+     */
+    fun smartRecommend(
+        models: List<CatalogModel>,
+        profile: DeviceProfile,
+        budget: AiMemoryBudget,
+        mode: RecommendationMode = RecommendationMode.BEST_BALANCE,
+        thermalStatus: ThermalStatus = ThermalStatus.NONE,
+        batteryLevel: Int = -1,
+        measuredPss: Map<String, Long> = emptyMap(),
+        pastBenchmarks: Map<String, Float> = emptyMap()
+    ): List<SmartRecommendation> =
+        smartEngine.recommendAll(
+            models = models,
+            profile = profile,
+            budget = budget,
+            mode = mode,
+            thermalStatus = thermalStatus,
+            batteryLevel = batteryLevel,
+            measuredPss = measuredPss,
+            pastBenchmarks = pastBenchmarks
+        )
 
     /**
      * Memory headroom against the SAME budget the load preflight uses

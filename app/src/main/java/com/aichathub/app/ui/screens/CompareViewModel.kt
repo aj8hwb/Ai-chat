@@ -1,16 +1,21 @@
 package com.aichathub.app.ui.screens
 
-import android.app.Application
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aichathub.app.chat.ChatCoordinator
 import com.aichathub.app.chat.GenerationConfig
+import com.aichathub.app.chat.InferenceRuntime
 import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.ModelRepository
+import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.domain.model.CatalogModel
-import com.aichathub.app.ui.AiViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class CompareResult(
     val modelId: String,
@@ -29,10 +34,14 @@ data class CompareUiState(
     val error: String? = null
 )
 
-class CompareViewModel(application: Application) : AiViewModel(application) {
+@HiltViewModel
+class CompareViewModel @Inject constructor(
+    private val container_inferenceRuntime: InferenceRuntime,
+    private val container_chatCoordinator: ChatCoordinator,
+    private val container_modelRepository: ModelRepository,
+    private val container_settingsRepository: SettingsRepository
+) : ViewModel() {
 
-    /** Prompts beyond this size are rejected: an oversized prompt can overflow
-     *  llama.cpp's native context and crash the whole process. */
     companion object {
         const val MAX_PROMPT_CHARS = 3000
     }
@@ -41,10 +50,8 @@ class CompareViewModel(application: Application) : AiViewModel(application) {
     val state: StateFlow<CompareUiState> = _state.asStateFlow()
 
     init {
-        // Reactively list ONLY installed models: the list updates as soon as a
-        // model is installed / deleted, without a stale companion-object cache.
         viewModelScope.launch {
-            container.modelRepository.installedModels.collect { installed ->
+            container_modelRepository.installedModels.collect { installed ->
                 val ids = installed.map { it.modelId }.toSet()
                 _state.value = _state.value.copy(
                     models = LocalModelCatalog.models.filter { it.id in ids }
@@ -71,34 +78,29 @@ class CompareViewModel(application: Application) : AiViewModel(application) {
         viewModelScope.launch {
             _state.value = _state.value.copy(running = true, results = emptyList(), error = null)
             val results = mutableListOf<CompareResult>()
-            val settings = container.settingsRepository.settings.first()
-            // Discard any cancellation a previous screen left behind so the
-            // comparison never aborts on a stale Stop.
-            container.inferenceRuntime.clearCancellation()
+            val settings = container_settingsRepository.settings.first()
+            container_inferenceRuntime.clearCancellation()
             for (model in models) {
                 try {
-                    val installed = container.modelRepository.stateFor(model.id) ?: continue
+                    val installed = container_modelRepository.stateFor(model.id) ?: continue
                     val config = GenerationConfig(
                         temperature = settings.temperature,
                         topK = settings.topK,
                         topP = settings.topP,
                         maxTokens = 300
                     )
-                    container.chatCoordinator.loadModel(
+                    container_chatCoordinator.loadModel(
                         model,
                         java.io.File(installed.filePath),
                         config,
                         threads = com.aichathub.app.util.ModelThreads.recommended(settings.batteryConscious)
                     )
-                    val output = container.inferenceRuntime.generateStreaming(
+                    val output = container_inferenceRuntime.generateStreaming(
                         prompt = prompt,
                         config = config,
                         onToken = {}
                     )
-                    // Real, measured stats come from the runtime's performance
-                    // snapshot (native tokens / tokens-per-second) — never from
-                    // dividing character length by a guessed constant.
-                    val perf = container.inferenceRuntime.performance.value
+                    val perf = container_inferenceRuntime.performance.value
                     results += CompareResult(
                         modelId = model.id,
                         modelName = model.name,

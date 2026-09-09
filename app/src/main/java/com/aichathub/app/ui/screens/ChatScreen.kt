@@ -1,12 +1,8 @@
 package com.aichathub.app.ui.screens
 
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,8 +38,10 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
@@ -65,8 +63,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -82,15 +81,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageEntity
-import com.aichathub.app.data.model.LocalModelCatalog
-import com.aichathub.app.ui.components.AppCard
+import com.aichathub.app.ui.components.ChatSearchBar
+import com.aichathub.app.ui.components.ContextWarningBar
 import com.aichathub.app.ui.components.GradientButton
+import com.aichathub.app.ui.components.MessageEditDialog
 import com.aichathub.app.ui.navigation.Screen
 import com.aichathub.app.ui.theme.Success
-import com.aichathub.app.util.ConversationGroups
+import com.aichathub.app.ui.screens.chat.ChatHistoryDrawer
+import com.aichathub.app.ui.screens.chat.StreamingBubble
+import com.aichathub.app.ui.screens.chat.ThinkingBubble
+import com.aichathub.app.ui.screens.chat.LiveThinkingTracePanel
+import com.aichathub.app.ui.screens.chat.ThinkingTracePanel
+import com.aichathub.app.ui.screens.chat.SystemPromptDialog
+import com.aichathub.app.ui.screens.chat.highlightSearchText
+import com.aichathub.app.ui.screens.chat.modelDisplayName
 import kotlinx.coroutines.launch
 
 @Composable
@@ -98,9 +105,9 @@ fun ChatScreen(
     onNavigate: (String) -> Unit,
     conversationId: Long? = null,
     modelId: String? = null,
-    viewModel: ChatViewModel = viewModel()
+    viewModel: ChatViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
@@ -112,6 +119,10 @@ fun ChatScreen(
     var traceExpanded by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<Long?>(null) }
     var showSystemPrompt by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var searchCurrentIndex by remember { mutableIntStateOf(0) }
+    var showExportMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(conversationId) {
         if (conversationId != null) viewModel.loadConversation(conversationId)
@@ -121,6 +132,26 @@ fun ChatScreen(
     // pre-selects that model for the chat.
     LaunchedEffect(modelId) {
         if (modelId != null && modelId.isNotBlank()) viewModel.selectModelById(modelId)
+    }
+
+    // Share exported content
+    LaunchedEffect(state.exportedContent, state.exportedFileName) {
+        val content = state.exportedContent
+        val fileName = state.exportedFileName
+        if (content != null && fileName != null) {
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = when {
+                    fileName.endsWith(".md") -> "text/markdown"
+                    fileName.endsWith(".json") -> "application/json"
+                    else -> "text/plain"
+                }
+                putExtra(Intent.EXTRA_TEXT, content)
+                putExtra(Intent.EXTRA_SUBJECT, fileName)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(shareIntent, "Export conversation"))
+            viewModel.clearExportState()
+        }
     }
 
     // Auto-scroll to bottom when messages change, but NEVER yank the list away
@@ -137,6 +168,18 @@ fun ChatScreen(
                 if (lastVisible != target) listState.animateScrollToItem(target)
             }
         }
+    }
+
+    val searchResults = remember(searchQuery, state.messages) {
+        if (searchQuery.isBlank()) emptyList()
+        else state.messages.mapIndexedNotNull { index, msg ->
+            if (msg.content.contains(searchQuery, ignoreCase = true)) index to msg else null
+        }
+    }
+    val totalSearchResults = searchResults.size
+
+    LaunchedEffect(searchQuery, state.messages.size) {
+        searchCurrentIndex = 0
     }
 
     ModalNavigationDrawer(
@@ -256,11 +299,72 @@ fun ChatScreen(
                     IconButton(onClick = { onNavigate(Screen.ChatSettings.route) }) {
                         Icon(Icons.Filled.Tune, contentDescription = "Chat Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    IconButton(onClick = { showSearch = !showSearch }) {
+                        Icon(Icons.Filled.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Box {
+                        IconButton(onClick = { showExportMenu = true }) {
+                            Icon(Icons.Filled.IosShare, contentDescription = "Export", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        DropdownMenu(
+                            expanded = showExportMenu,
+                            onDismissRequest = { showExportMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Export as Markdown", color = MaterialTheme.colorScheme.onSurface) },
+                                onClick = {
+                                    showExportMenu = false
+                                    viewModel.exportConversation("markdown")
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export as JSON", color = MaterialTheme.colorScheme.onSurface) },
+                                onClick = {
+                                    showExportMenu = false
+                                    viewModel.exportConversation("json")
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export as Plain Text", color = MaterialTheme.colorScheme.onSurface) },
+                                onClick = {
+                                    showExportMenu = false
+                                    viewModel.exportConversation("plaintext")
+                                }
+                            )
+                        }
+                    }
                     IconButton(onClick = { showSystemPrompt = true }) {
                         Icon(Icons.Filled.MoreVert, contentDescription = "System prompt", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
+
+                // Search bar
+                ChatSearchBar(
+                    visible = showSearch,
+                    query = searchQuery,
+                    currentResult = if (searchResults.isEmpty()) 0 else searchCurrentIndex + 1,
+                    totalResults = totalSearchResults,
+                    onQueryChange = { searchQuery = it },
+                    onNext = {
+                        if (searchResults.isNotEmpty()) {
+                            searchCurrentIndex = (searchCurrentIndex + 1) % searchResults.size
+                            val targetIndex = searchResults[searchCurrentIndex].first
+                            scope.launch { listState.animateScrollToItem(targetIndex) }
+                        }
+                    },
+                    onPrevious = {
+                        if (searchResults.isNotEmpty()) {
+                            searchCurrentIndex = (searchCurrentIndex - 1 + searchResults.size) % searchResults.size
+                            val targetIndex = searchResults[searchCurrentIndex].first
+                            scope.launch { listState.animateScrollToItem(targetIndex) }
+                        }
+                    },
+                    onClose = {
+                        showSearch = false
+                        searchQuery = ""
+                    }
+                )
 
                 // Messages
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -297,7 +401,8 @@ HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                                         clipboard.setText(AnnotatedString(msg.content))
                                         Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
                                     },
-                                    onLongPress = { longPressMessage = msg }
+                                    onLongPress = { longPressMessage = msg },
+                                    searchQuery = searchQuery
                                 )
                                 Spacer(Modifier.height(10.dp))
                             }
@@ -361,6 +466,15 @@ HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                     enabled = !state.generating && !state.isLoadingModel
                 )
 
+                // Context warning bar
+                state.contextStatus?.let { ctxStatus ->
+                    ContextWarningBar(
+                        contextStatus = ctxStatus,
+                        suggestion = state.compactionSuggestion,
+                        onSuggestionAction = viewModel::handleCompaction
+                    )
+                }
+
                 // Composer
                 ComposerBar(
                     input = state.input,
@@ -375,17 +489,14 @@ HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
 
             // Full-screen message editor overlay
             editingMessage?.let { msg ->
-                FullScreenEditor(
-                    message = msg,
-                    onSave = { newContent ->
+                MessageEditDialog(
+                    messageId = msg.id,
+                    originalContent = msg.content,
+                    onDismiss = { editingMessage = null },
+                    onSave = { id, newContent ->
                         viewModel.updateMessage(msg.copy(content = newContent))
                         editingMessage = null
-                    },
-                    onCopyAll = {
-                        clipboard.setText(AnnotatedString(msg.content))
-                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
-                    },
-                    onClose = { editingMessage = null }
+                    }
                 )
             }
         }
@@ -411,11 +522,11 @@ HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                             longPressMessage = null
                             viewModel.regenerate()
                         }) { Text("Regenerate", color = MaterialTheme.colorScheme.primary) }
+                        TextButton(onClick = {
+                            longPressMessage = null
+                            editingMessage = msg
+                        }) { Text("Edit", color = MaterialTheme.colorScheme.primary) }
                     }
-                    TextButton(onClick = {
-                        longPressMessage = null
-                        editingMessage = msg
-                    }) { Text("Edit", color = MaterialTheme.colorScheme.primary) }
                 }
             }
         )
@@ -451,122 +562,11 @@ HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
     }
 }
 
-@Composable
-private fun ChatHistoryDrawer(
-    conversations: List<ConversationEntity>,
-    activeConversationId: Long?,
-    onSelect: (Long) -> Unit,
-    onDelete: (Long) -> Unit,
-    onNewChat: () -> Unit
-) {
-    val groups = remember(conversations) { ConversationGroups.groupByDay(conversations) }
-    ModalDrawerSheet(
-        modifier = Modifier.width(300.dp),
-        drawerContainerColor = MaterialTheme.colorScheme.background
-    ) {
-        Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Chats", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.weight(1f))
-                GradientButton(
-                    text = "New chat",
-                    onClick = onNewChat,
-                    icon = Icons.Filled.Add,
-                    modifier = Modifier.padding(0.dp)
-                )
-            }
-HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
-
-            if (conversations.isEmpty()) {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(Icons.Filled.Menu, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(36.dp))
-                    Spacer(Modifier.height(10.dp))
-                    Text("No chats yet", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "Your past conversations will appear here.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    groups.forEach { group ->
-                        item(key = "header_${group.label}") {
-                            Text(
-                                group.label,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                            )
-                        }
-                        items(group.conversations, key = { it.id }) { conv ->
-                            DrawerConversationRow(
-                                conv = conv,
-                                selected = conv.id == activeConversationId,
-                                onClick = { onSelect(conv.id) },
-                                onDelete = { onDelete(conv.id) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DrawerConversationRow(
-    conv: ConversationEntity,
-    selected: Boolean,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)))
-        Spacer(Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                conv.title.ifBlank { "New chat" },
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                "${modelDisplayName(conv.modelId)} · ${ConversationGroups.timeLabel(conv.updatedAt)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun MessageBubble(
+    // Long-press options
     message: MessageEntity,
     onCopy: () -> Unit,
-    onLongPress: () -> Unit
+    onLongPress: () -> Unit,
+    searchQuery: String = ""
 ) {
     val isUser = message.role == "user"
     Row(
@@ -587,7 +587,7 @@ private fun MessageBubble(
             // (code blocks, bold, lists, links) so code-heavy answers read well.
             if (isUser) {
                 Text(
-                    message.content,
+                    highlightSearchText(message.content, searchQuery),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White
                 )
@@ -621,342 +621,6 @@ private fun MessageBubble(
         }
     }
 }
-
-@Composable
-private fun ThinkingBubble(thinkingSec: Int) {
-    val transition = rememberInfiniteTransition(label = "thinking")
-    val d1 by transition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
-        label = "dot1"
-    )
-    val d2 by transition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(600, delayMillis = 200), RepeatMode.Reverse),
-        label = "dot2"
-    )
-    val d3 by transition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(600, delayMillis = 400), RepeatMode.Reverse),
-        label = "dot3"
-    )
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = 320.dp)
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(18.dp))
-                .padding(horizontal = 14.dp, vertical = 10.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Generating", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.width(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Dot(alpha = d1)
-                    Spacer(Modifier.width(4.dp))
-                    Dot(alpha = d2)
-                    Spacer(Modifier.width(4.dp))
-                    Dot(alpha = d3)
-                }
-            }
-            if (thinkingSec > 0) {
-                Spacer(Modifier.height(4.dp))
-                // Real-time feedback while the native model works. The free-tier
-                // engine returns the whole reply at once, so the live timer is
-                // what makes "the AI is thinking" visible immediately.
-                Text(
-                    "thinking… ${thinkingSec}s",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun Dot(alpha: Float) {
-    Box(
-        modifier = Modifier
-            .size(6.dp)
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha), RoundedCornerShape(50))
-    )
-}
-
-@Composable
-private fun StreamingBubble(text: String, thinkingSec: Int) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = 320.dp)
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(18.dp))
-                .padding(horizontal = 14.dp, vertical = 10.dp)
-        ) {
-            Text(
-                com.aichathub.app.util.MarkdownFormatter.render(
-                    text,
-                    baseColor = MaterialTheme.colorScheme.onSurface,
-                    accentColor = MaterialTheme.colorScheme.primary
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(6.dp).background(Success, RoundedCornerShape(50)))
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    if (thinkingSec > 0) "Generating… ${thinkingSec}s" else "Generating…",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun LiveThinkingTracePanel(
-    trace: List<String>,
-    expanded: Boolean,
-    liveThinkingSec: Int,
-    contextTokensMax: Int,
-    onToggle: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(onClick = onToggle)
-                .padding(vertical = 4.dp, horizontal = 4.dp)
-        ) {
-            Icon(
-                if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(Modifier.width(6.dp))
-            Text("Thinking… ${liveThinkingSec}s", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            if (contextTokensMax > 0) {
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "ctx $contextTokensMax",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            }
-        }
-        AnimatedVisibility(visible = expanded) {
-            AppCard(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 240.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(14.dp)
-                ) {
-                    trace.forEach { line -> TraceRow(line) }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ThinkingTracePanel(
-    info: ThinkingInfo,
-    expanded: Boolean,
-    onToggle: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.clickable(onClick = onToggle)
-        ) {
-            Icon(
-                if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(Modifier.width(4.dp))
-            Text("How the AI thought", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-        }
-        AnimatedVisibility(visible = expanded) {
-            AppCard(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    TraceRow("Generated ${info.tokens} tokens in ${info.elapsedSec}s at ${info.tps} tok/s.")
-                    TraceRow("Response length: ${info.responseChars} characters.")
-                    TraceRow("Ran entirely on-device with llama.cpp.")
-                    TraceRow("Memory usage was recorded in the device logs (AICHATHUB_MEM).")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TraceRow(text: String) {
-    Row(modifier = Modifier.padding(vertical = 3.dp)) {
-        Box(modifier = Modifier.size(5.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)).align(Alignment.CenterVertically))
-        Spacer(Modifier.width(8.dp))
-        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun ThinkingModeRow(
-    mode: String,
-    onSelect: (String) -> Unit,
-    enabled: Boolean
-) {
-    val modes = listOf("INSTANT" to "Instant", "DEFAULT" to "Default", "HARD" to "Hard")
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        modes.forEach { (id, label) ->
-            FilterChip(
-                selected = mode == id,
-                onClick = { onSelect(id) },
-                enabled = enabled,
-                label = {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (mode == id) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
-            )
-            Spacer(Modifier.width(8.dp))
-        }
-    }
-}
-
-@Composable
-private fun SystemPromptDialog(
-    onDismiss: () -> Unit,
-    onSave: (String) -> Unit
-) {
-    var text by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("System prompt for this chat", color = MaterialTheme.colorScheme.onSurface) },
-        text = {
-            Column {
-                Text(
-                    "Leave blank to use the global system prompt from Chat Settings.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    placeholder = { Text("Custom instructions for this conversation…", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    minLines = 4,
-                    maxLines = 8,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        cursorColor = MaterialTheme.colorScheme.primary
-                    )
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(text.trim()) }) { Text("Save", color = MaterialTheme.colorScheme.primary) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        }
-    )
-}
-
-@Composable
-private fun FullScreenEditor(
-    message: MessageEntity,
-    onSave: (String) -> Unit,
-    onCopyAll: () -> Unit,
-    onClose: () -> Unit
-) {
-    var text by remember(message.id) { mutableStateOf(message.content) }
-    var toolsMenu by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).imePadding()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onClose) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
-            }
-            Text(
-                "Edit message",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center
-            )
-            Box {
-                IconButton(onClick = { toolsMenu = true }) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = "Tools", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                DropdownMenu(expanded = toolsMenu, onDismissRequest = { toolsMenu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Copy all text", color = MaterialTheme.colorScheme.onSurface) },
-                        onClick = {
-                            toolsMenu = false
-                            onCopyAll()
-                        }
-                    )
-                }
-            }
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(16.dp),
-            minLines = 8,
-            shape = RoundedCornerShape(16.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                cursorColor = MaterialTheme.colorScheme.primary
-            )
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            GradientButton(
-                text = "Save",
-                onClick = { onSave(text) },
-                icon = Icons.Filled.Check,
-                enabled = text.isNotBlank()
-            )
-        }
-    }
-}
-
-private fun modelDisplayName(modelId: String): String =
-    LocalModelCatalog.byId(modelId)?.name ?: modelId
 
 @Composable
 private fun ComposerBar(

@@ -9,29 +9,24 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.aichathub.app.AiChatHubApplication
 import com.aichathub.app.MainActivity
 import com.aichathub.app.R
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-/**
- * Foreground service that keeps model downloads alive when the app leaves the
- * foreground or is swiped away. The heavy lifting stays in [DownloadManager];
- * this service only:
- *  1. promotes the process to foreground so the OS never kills it mid-download,
- *  2. shows a live progress notification,
- *  3. stops itself once no download is active.
- *
- * Downloads also survive a full app restart — resumable `.part` files are
- * re-scanned and re-paused on startup (see [DownloadManager.init]).
- */
+@AndroidEntryPoint
 class DownloadForegroundService : Service() {
+
+    @Inject
+    lateinit var downloadManager: DownloadManager
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
@@ -49,13 +44,56 @@ class DownloadForegroundService : Service() {
         return START_STICKY
     }
 
+    /**
+     * Android 15+ (API 35) enforces a 6-hour runtime limit for dataSync
+     * foreground services within each 24-hour period. When the limit is
+     * reached, the system calls this method. We must stop the service
+     * promptly to avoid ANR or force-stop.
+     *
+     * Large model downloads (8-20 GB) may exceed this limit. The download
+     * state is persisted via DownloadManager's .part files, so the download
+     * can be resumed after the service is restarted.
+     */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        super.onTimeout(startId, fgsType)
+        Log.w(TAG, "FGS timeout reached (startId=$startId, type=$fgsType). Stopping service.")
+        // Notify the user that the download was paused due to system timeout
+        showTimeoutNotification()
+        // Stop the service — downloads are resumable via .part files
+        scope.cancel()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
+    /**
+     * Android 14+ (API 34) callback for foreground service timeout.
+     * Called when the dataSync FGS runtime limit is exceeded.
+     */
+    override fun onTimeout(startId: Int) {
+        if (Build.VERSION.SDK_INT >= 35) {
+            // Delegate to the 3-parameter version on API 35+
+            onTimeout(startId, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            super.onTimeout(startId)
+        }
+    }
+
+    private fun showTimeoutNotification() {
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_download)
+            .setContentTitle("Download paused by system")
+            .setContentText("Large downloads are limited to 6 hours. Your download will resume when you open the app.")
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setAutoCancel(true)
+            .build()
+        nm.notify(TIMEOUT_NOTIFICATION_ID, notification)
+    }
+
     override fun onDestroy() {
         scope.cancel()
         super.onDestroy()
     }
-
-    private fun downloadManager(): DownloadManager? =
-        (application as? AiChatHubApplication)?.container?.downloadManager
 
     private fun startForegroundCompat() {
         val notification = buildNotification(null)
@@ -68,16 +106,14 @@ class DownloadForegroundService : Service() {
 
     private fun observeDownloads() {
         progressJob?.cancel()
-        val manager = downloadManager() ?: run { stopSelf(); return }
         progressJob = scope.launch {
-            manager.downloads.collect { list ->
+            downloadManager.downloads.collect { list ->
                 val active = list.firstOrNull {
                     it.status == DownloadStatus.DOWNLOADING ||
                         it.status == DownloadStatus.QUEUED ||
                         it.status == DownloadStatus.VERIFYING
                 }
                 if (active == null) {
-                    // Nothing left to do — drop the foreground state and die.
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                 } else {
@@ -88,7 +124,7 @@ class DownloadForegroundService : Service() {
         }
     }
 
-    private fun buildNotification(info: com.aichathub.app.download.DownloadInfo?): Notification {
+    private fun buildNotification(info: DownloadInfo?): Notification {
         val openIntent = PendingIntent.getActivity(
             this,
             0,
@@ -108,11 +144,7 @@ class DownloadForegroundService : Service() {
             builder.setContentText(info.modelName)
             when (info.status) {
                 DownloadStatus.VERIFYING -> {
-                    builder.setContentText(
-                        getString(R.string.notification_download_verifying)
-                    )
-                    // Verification is short and can't be paused, but the user
-                    // may still want to abort it.
+                    builder.setContentText(getString(R.string.notification_download_verifying))
                     builder.addAction(
                         0,
                         getString(R.string.notification_action_cancel),
@@ -120,9 +152,7 @@ class DownloadForegroundService : Service() {
                     )
                 }
                 DownloadStatus.PAUSED -> {
-                    builder.setContentText(
-                        getString(R.string.notification_download_paused)
-                    )
+                    builder.setContentText(getString(R.string.notification_download_paused))
                     builder.addAction(
                         0,
                         getString(R.string.notification_action_resume),
@@ -137,8 +167,8 @@ class DownloadForegroundService : Service() {
                 else -> {
                     builder.setProgress(100, info.progress, false)
                     builder.setContentText(
-                        "${info.progress}% · ${formatBytes(info.downloadedBytes)} / ${formatBytes(info.totalBytes)}" +
-                            (if (info.speedBytesPerSec > 0) " · ${formatBytes(info.speedBytesPerSec)}/s" else "")
+                        "${info.progress}% . ${formatBytes(info.downloadedBytes)} / ${formatBytes(info.totalBytes)}" +
+                            (if (info.speedBytesPerSec > 0) " . ${formatBytes(info.speedBytesPerSec)}/s" else "")
                     )
                     builder.addAction(
                         0,
@@ -179,10 +209,11 @@ class DownloadForegroundService : Service() {
     }
 
     companion object {
+        private const val TAG = "DownloadFGS"
         private const val CHANNEL_ID = "model_downloads"
         private const val NOTIFICATION_ID = 1001
+        private const val TIMEOUT_NOTIFICATION_ID = 1002
 
-        /** Kick the service into life for an active download. */
         fun start(context: Context) {
             val intent = Intent(context, DownloadForegroundService::class.java)
             try {
@@ -192,10 +223,6 @@ class DownloadForegroundService : Service() {
                     context.startService(intent)
                 }
             } catch (e: Exception) {
-                // On API 31+ starting a foreground service from the background is
-                // restricted (ForegroundServiceStartNotAllowedException). The
-                // download continues in the app process regardless; the service
-                // simply can't promote to foreground until the next opportunity.
                 android.util.Log.w("DownloadForegroundService", "Foreground start blocked", e)
             }
         }

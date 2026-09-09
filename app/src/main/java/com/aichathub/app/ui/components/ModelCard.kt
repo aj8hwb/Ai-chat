@@ -34,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -68,7 +70,9 @@ fun ModelCard(
     onResume: (() -> Unit)? = null,
     onCancel: (() -> Unit)? = null
 ) {
-    AppCard(modifier = modifier.clickable(onClick = onClick)) {
+    AppCard(modifier = modifier.semantics {
+        contentDescription = "Model: ${model.name}, ${model.parameters}, ${model.provider}"
+    }.clickable(onClick = onClick)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -191,7 +195,9 @@ fun DownloadProgressBlock(
     onCancel: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(modifier = modifier.fillMaxWidth().semantics {
+        contentDescription = "Download progress: ${download.progress}%, ${download.downloadedBytes} of ${download.totalBytes}"
+    }.padding(horizontal = 16.dp, vertical = 8.dp)) {
         val verifying = download.status == DownloadStatus.VERIFYING
         val paused = download.status == DownloadStatus.PAUSED
         Row(verticalAlignment = Alignment.CenterVertically) {

@@ -18,20 +18,31 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.aichathub.app.di.AppContainer
+import com.aichathub.app.data.SettingsRepository
+import com.aichathub.app.privacy.BiometricAuthManager
 import com.aichathub.app.ui.AiChatHubApp
 import com.aichathub.app.ui.theme.AiChatHubTheme
 import com.aichathub.app.ui.theme.Primary
 import com.aichathub.app.ui.theme.TextPrimary
 import com.aichathub.app.ui.theme.TextSecondary
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
+
+    /** Whether the user is currently authenticated (unlocked). */
+    private var isUnlocked by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,23 +67,55 @@ class MainActivity : ComponentActivity() {
             }
             return
         }
-        val container = (application as AiChatHubApplication).container
         enableEdgeToEdge()
         setContent {
-            // Theme mode + dynamic color are read live from settings so the
-            // change is applied immediately, no restart needed.
-            val settings by container.settingsRepository.settings.collectAsState(initial = null)
+            val settings by settingsRepository.settings.collectAsState(initial = null)
+            val appLockEnabled = settings?.appLockEnabled ?: false
             val themeMode = settings?.themeMode ?: "dark"
             val dynamicColor = settings?.dynamicColor ?: false
+
             AiChatHubTheme(themeMode = themeMode, dynamicColor = dynamicColor) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AiChatHubApp()
+                    if (appLockEnabled && !isUnlocked) {
+                        // Show lock screen — prompt biometric on display
+                        LockScreen(
+                            onUnlockRequested = { showBiometricPrompt() }
+                        )
+                    } else {
+                        AiChatHubApp()
+                    }
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Re-lock if the user backgrounded the app and the timeout expired
+        val settings = settingsRepository.cachedSettingsSnapshot()
+        if (settings?.appLockEnabled == true && BiometricAuthManager.needsReAuthentication()) {
+            isUnlocked = false
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // When going to background, start the re-lock timer
+    }
+
+    private fun showBiometricPrompt() {
+        BiometricAuthManager.authenticate(
+            activity = this,
+            onAuthSuccess = {
+                isUnlocked = true
+            },
+            onAuthFailure = {
+                // Stay locked — user can try again
+            }
+        )
     }
 
     private val notificationPermissionLauncher =
@@ -86,6 +129,40 @@ class MainActivity : ComponentActivity() {
             if (!granted) {
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
+        }
+    }
+}
+
+@Composable
+private fun LockScreen(onUnlockRequested: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            "AIChatHub",
+            style = MaterialTheme.typography.headlineLarge,
+            color = Primary
+        )
+        Text(
+            "App is locked",
+            style = MaterialTheme.typography.headlineSmall,
+            color = TextSecondary,
+            modifier = Modifier.padding(top = 16.dp)
+        )
+        Text(
+            "Tap below to unlock with biometric or PIN",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextPrimary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        androidx.compose.material3.Button(
+            onClick = onUnlockRequested,
+            modifier = Modifier.padding(top = 32.dp)
+        ) {
+            Text("Unlock")
         }
     }
 }

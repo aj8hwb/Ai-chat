@@ -43,6 +43,17 @@ class SettingsRepository(private val context: Context) {
     var cachedWifiOnlyDownloads: Boolean = false
         private set
 
+    /** Whether onboarding has been completed (mirrored for synchronous checks). */
+    @Volatile
+    var cachedOnboardingCompleted: Boolean = false
+        private set
+
+    @Volatile
+    private var cachedSettings: Settings? = null
+
+    /** Returns a synchronous snapshot of the current settings (for non-suspend callers). */
+    fun cachedSettingsSnapshot(): Settings? = cachedSettings
+
     /** Starts mirroring persisted settings into the synchronous caches. */
     fun startCaching() {
         scope.launch {
@@ -50,6 +61,8 @@ class SettingsRepository(private val context: Context) {
                 cachedAutoUnload = s.autoUnload
                 cachedBatteryConscious = s.batteryConscious
                 cachedWifiOnlyDownloads = s.wifiOnlyDownloads
+                cachedOnboardingCompleted = s.onboardingCompleted
+                cachedSettings = s
             }
         }
     }
@@ -78,7 +91,17 @@ class SettingsRepository(private val context: Context) {
         /** Number of recent message turns included in the chat prompt (2..20). */
         val historyTurns: Int = 8,
         /** User dismissed the first-run "How it works" card on Home. */
-        val helpDismissed: Boolean = false
+        val helpDismissed: Boolean = false,
+        /** Require biometric/PIN unlock when opening the app. */
+        val appLockEnabled: Boolean = false,
+        /** Incognito mode: don't persist conversation data locally. */
+        val incognitoMode: Boolean = false,
+        /** Automatically clear the clipboard after a short timeout. */
+        val clipboardAutoClear: Boolean = false,
+        /** Purge crash logs on next launch. */
+        val crashLogPurge: Boolean = false,
+        /** Whether the onboarding flow has been completed at least once. */
+        val onboardingCompleted: Boolean = false
     )
 
     private object Keys {
@@ -99,6 +122,11 @@ class SettingsRepository(private val context: Context) {
         val historyTurns = intPreferencesKey("history_turns")
         val helpDismissed = booleanPreferencesKey("help_dismissed")
         val measuredMemory = stringPreferencesKey("measured_memory")
+        val appLockEnabled = booleanPreferencesKey("app_lock_enabled")
+        val incognitoMode = booleanPreferencesKey("incognito_mode")
+        val clipboardAutoClear = booleanPreferencesKey("clipboard_auto_clear")
+        val crashLogPurge = booleanPreferencesKey("crash_log_purge")
+        val onboardingCompleted = booleanPreferencesKey("onboarding_completed")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -118,7 +146,12 @@ class SettingsRepository(private val context: Context) {
             thinkingMode = p[Keys.thinkingMode] ?: "DEFAULT",
             wifiOnlyDownloads = p[Keys.wifiOnlyDownloads] ?: false,
             historyTurns = (p[Keys.historyTurns] ?: 8).coerceIn(2, 20),
-            helpDismissed = p[Keys.helpDismissed] ?: false
+            helpDismissed = p[Keys.helpDismissed] ?: false,
+            appLockEnabled = p[Keys.appLockEnabled] ?: false,
+            incognitoMode = p[Keys.incognitoMode] ?: false,
+            clipboardAutoClear = p[Keys.clipboardAutoClear] ?: false,
+            crashLogPurge = p[Keys.crashLogPurge] ?: false,
+            onboardingCompleted = p[Keys.onboardingCompleted] ?: false
         )
     }
 
@@ -165,4 +198,9 @@ class SettingsRepository(private val context: Context) {
     suspend fun setWifiOnlyDownloads(v: Boolean) = context.dataStore.edit { it[Keys.wifiOnlyDownloads] = v }
     suspend fun setHistoryTurns(v: Int) = context.dataStore.edit { it[Keys.historyTurns] = v.coerceIn(2, 20) }
     suspend fun setHelpDismissed(v: Boolean) = context.dataStore.edit { it[Keys.helpDismissed] = v }
+    suspend fun setAppLockEnabled(v: Boolean) = context.dataStore.edit { it[Keys.appLockEnabled] = v }
+    suspend fun setIncognitoMode(v: Boolean) = context.dataStore.edit { it[Keys.incognitoMode] = v }
+    suspend fun setClipboardAutoClear(v: Boolean) = context.dataStore.edit { it[Keys.clipboardAutoClear] = v }
+    suspend fun setCrashLogPurge(v: Boolean) = context.dataStore.edit { it[Keys.crashLogPurge] = v }
+    suspend fun setOnboardingCompleted(v: Boolean) = context.dataStore.edit { it[Keys.onboardingCompleted] = v }
 }
