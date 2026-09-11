@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Backup rules for Android 11 and below (android:fullBackupContent).
+
+    Privacy-first backup policy (matches data_extraction_rules.xml):
+    - Model files: excluded (large, rebuildable)
+    - Downloads: excluded (partial files)
+    - Room database: excluded (privacy-sensitive conversations)
+    - Crash logs: excluded (diagnostic data)
+    - Settings: included (user preferences)
+-->
+<full-backup-content>
+    <exclude
+        domain="file"
+        path="models/" />
+    <exclude
+        domain="file"
+        path="downloads/" />
+    <exclude
+        domain="database"
+        path="AiDatabase" />
+    <exclude
+        domain="file"
+        path="crash_log.txt" />
+</full-backup-content>

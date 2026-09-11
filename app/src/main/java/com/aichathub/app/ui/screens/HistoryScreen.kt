@@ -1,0 +1,289 @@
+package com.aichathub.app.ui.screens
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.aichathub.app.data.local.ConversationEntity
+import com.aichathub.app.ui.components.AppCard
+import com.aichathub.app.ui.components.EmptyState
+import com.aichathub.app.ui.navigation.Screen
+import com.aichathub.app.util.ConversationGroups
+
+@Composable
+fun HistoryScreen(
+    onNavigate: (String) -> Unit,
+    viewModel: HistoryViewModel = hiltViewModel()
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    var deleteTarget by remember { mutableStateOf<Long?>(null) }
+    var renameTarget by remember { mutableStateOf<ConversationEntity?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
+
+    // Backup = create a new JSON document via the system file picker;
+    // Restore = pick an existing backup JSON to import.
+    val backupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> if (uri != null) viewModel.backup(uri) }
+    val restoreLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) viewModel.restore(uri) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Conversations",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    enabled = state.busy.not(),
+                    onClick = {
+                        backupLauncher.launch(viewModel.suggestedBackupFileName())
+                    }
+                ) {
+                    Text("Backup", color = MaterialTheme.colorScheme.primary)
+                }
+                TextButton(
+                    enabled = state.busy.not(),
+                    onClick = {
+                        restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "*/*"))
+                    }
+                ) {
+                    Text("Restore", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text("Search conversations…", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    cursorColor = MaterialTheme.colorScheme.primary
+                )
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+
+        state.message?.let { msg ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    msg,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "Dismiss",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 8.dp).clickable { viewModel.clearMessage() }
+                )
+            }
+        }
+
+        val visible = if (query.isBlank()) {
+            state.conversations
+        } else {
+            val q = query.trim()
+            state.conversations.filter { conv ->
+                conv.title.contains(q, ignoreCase = true) ||
+                    conv.modelId.contains(q, ignoreCase = true)
+            }
+        }
+        val groups = remember(visible) {
+            ConversationGroups.groupByDay(visible)
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (visible.isEmpty()) {
+                item {
+                    EmptyState(
+                        icon = Icons.Filled.History,
+                        title = if (query.isBlank()) "No Conversations" else "No matches",
+                        description = if (query.isBlank())
+                            "Start your first local AI conversation."
+                        else
+                            "No conversations match \"$query\".",
+                        modifier = Modifier.padding(vertical = 40.dp)
+                    )
+                }
+            } else {
+                groups.forEach { group ->
+                    item(key = "header_${group.label}") {
+                        Text(
+                            group.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                        )
+                    }
+                    items(group.conversations, key = { it.id }) { conv ->
+                        ConversationRow(
+                            conv = conv,
+                            onClick = { onNavigate(Screen.Conversation.routeFor(conv.id)) },
+                            onRename = {
+                                renameTarget = conv
+                                renameText = conv.title.ifBlank { "New chat" }
+                            },
+                            onExport = { viewModel.export(conv.id) },
+                            onDelete = { deleteTarget = conv.id }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    deleteTarget?.let { id ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete Conversation?") },
+            text = { Text("This will permanently remove the conversation.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.delete(id)
+                    deleteTarget = null
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        )
+    }
+
+    renameTarget?.let { conv ->
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("Rename conversation") },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        cursorColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.rename(conv.id, renameText)
+                    renameTarget = null
+                }) { Text("Save", color = MaterialTheme.colorScheme.primary) }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        )
+    }
+}
+
+@Composable
+private fun ConversationRow(
+    conv: ConversationEntity,
+    onClick: () -> Unit,
+    onRename: () -> Unit,
+    onExport: () -> Unit,
+    onDelete: () -> Unit
+) {
+    AppCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    conv.title.ifBlank { "New chat" },
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(4.dp))
+                Row {
+                    Text(
+                        com.aichathub.app.data.model.LocalModelCatalog.byId(conv.modelId)?.name ?: conv.modelId,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        ConversationGroups.timeLabel(conv.updatedAt),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            IconButton(onClick = onRename) {
+                Icon(Icons.Filled.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = onExport) {
+                Icon(Icons.Filled.Download, contentDescription = "Export", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}

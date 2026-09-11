@@ -1,0 +1,185 @@
+<resources>
+    <!-- App -->
+    <string name="app_name">AI Chat Hub</string>
+    <string name="tagline">Your AI. Your Data. Your Device.</string>
+    <string name="local_ai">Local AI</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_downloads">Model downloads</string>
+    <string name="notification_channel_downloads_desc">Shows progress while models download in the background.</string>
+    <string name="notification_download_title">Downloading model</string>
+    <string name="notification_download_ticker">Downloading model in background</string>
+    <string name="notification_download_paused">Download paused — will resume automatically</string>
+    <string name="notification_download_verifying">Verifying downloaded model</string>
+    <string name="notification_action_pause">Pause</string>
+    <string name="notification_action_resume">Resume</string>
+    <string name="notification_action_cancel">Cancel</string>
+
+    <!-- Common -->
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="done">Done</string>
+    <string name="next">Next</string>
+    <string name="skip">Skip</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="download">Download</string>
+    <string name="open_chat">Open Chat</string>
+    <string name="explore_models">Explore Models</string>
+    <string name="not_set">Not set</string>
+    <string name="ready">Ready</string>
+    <string name="not_ready">Not ready</string>
+    <string name="no_models_yet">No models yet</string>
+    <string name="unknown">Unknown</string>
+    <string name="system">System</string>
+    <string name="dark">Dark</string>
+    <string name="light">Light</string>
+
+    <!-- Error messages (ChatCoordinator) -->
+    <string name="error_model_file_missing">The model file is missing or incomplete. Please re-download it.</string>
+    <string name="error_insufficient_memory">Insufficient memory to load this model safely. Try a lighter model.</string>
+    <string name="error_model_load_failed">The model could not be loaded with the current device resources.</string>
+    <string name="error_generation_oom">Generation ran out of memory. Try a lighter model or a shorter message.</string>
+    <string name="error_generation_failed">Generation failed. Please try again.</string>
+
+    <!-- Error messages (DownloadManager) -->
+    <string name="error_download_url_invalid">Download URL failed security validation.</string>
+    <string name="error_filename_invalid">Model filename failed security validation.</string>
+    <string name="error_wifi_only">Wi-Fi-only mode is on and the device is on mobile data. Enable Wi-Fi or turn off Wi-Fi-only in Settings.</string>
+    <string name="error_install_failed">Could not install the model file.</string>
+
+    <!-- Error messages (ChatViewModel) -->
+    <string name="error_model_not_ready">This model is not ready yet. Download and verify it first.</string>
+    <string name="error_model_load_select">The model could not be loaded. Please select another installed model.</string>
+    <string name="error_message_too_long">That message is too long (max %d characters). Please shorten it.</string>
+    <string name="error_select_model">Select a model to start chatting.</string>
+    <string name="preparing_message">Preparing message…</string>
+    <string name="error_export_failed">Export failed: %s</string>
+
+    <!-- Home Screen -->
+    <string name="home_title">AI Chat Hub</string>
+    <string name="home_subtitle">Your Local AI</string>
+    <string name="home_system_status">System Status</string>
+    <string name="home_analyzing">Analyzing your device…</string>
+    <string name="home_new_chat">New Chat</string>
+    <string name="home_model_store">Model Store</string>
+    <string name="home_playground">Playground</string>
+    <string name="home_recommended_for_you">Recommended for You</string>
+    <string name="home_how_it_works">How it works</string>
+    <string name="home_help_step_1">1. Pick a model that fits your device from the Model Store.</string>
+    <string name="home_help_step_2">2. It downloads, verifies, and installs automatically.</string>
+    <string name="home_help_step_3">3. Chat with it — fully on-device, offline, private.</string>
+    <string name="home_hero_ready">Local AI Ready</string>
+    <string name="home_hero_models_installed">Models Installed</string>
+    <string name="home_hero_get_started">Get Started with Local AI</string>
+    <string name="home_hero_ready_count">%d model ready · %d installed</string>
+    <string name="home_hero_installed_count">%d models installed · none ready to chat yet</string>
+    <string name="home_hero_no_models">Install a model to start chatting</string>
+    <string name="home_system_overview">System Overview</string>
+    <string name="home_view_system_status">View System Status</string>
+    <string name="home_ram">RAM</string>
+    <string name="home_storage_free">Storage Free</string>
+    <string name="home_safe_ai_budget">Safe AI Budget</string>
+    <string name="home_installed_badge">✓ Installed</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_general">General</string>
+    <string name="settings_default_model">Default Model</string>
+    <string name="settings_system_status">System Status</string>
+    <string name="settings_device_analysis">Device analysis</string>
+    <string name="settings_storage">Storage</string>
+    <string name="settings_manage_models_cache">Manage models &amp; cache</string>
+    <string name="settings_conversations">Conversations</string>
+    <string name="settings_history">History</string>
+    <string name="settings_chat_settings">Chat Settings</string>
+    <string name="settings_generation_parameters">Generation parameters</string>
+    <string name="settings_section_performance">Performance</string>
+    <string name="settings_battery_conscious">Battery-Conscious Mode</string>
+    <string name="settings_battery_conscious_desc">Reduce power use when generating</string>
+    <string name="settings_auto_unload">Auto Unload Model</string>
+    <string name="settings_auto_unload_desc">Release memory when inactive</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_dynamic_color">Dynamic Color</string>
+    <string name="settings_dynamic_color_desc">Use Android Material You wallpaper colors</string>
+    <string name="settings_section_downloads">Downloads</string>
+    <string name="settings_wifi_only">Wi-Fi Only</string>
+    <string name="settings_wifi_only_desc">Pause model downloads on mobile data</string>
+    <string name="settings_section_generation_defaults">Generation Defaults</string>
+    <string name="settings_temperature">Temperature: </string>
+    <string name="settings_top_k">Top K: </string>
+    <string name="settings_max_tokens">Max Tokens: </string>
+    <string name="settings_section_privacy">Privacy</string>
+    <string name="settings_local_first">Local-First</string>
+    <string name="settings_privacy_center">Privacy Center</string>
+    <string name="settings_privacy_center_desc">App lock, incognito, data hygiene</string>
+    <string name="settings_section_advanced">Advanced</string>
+    <string name="settings_performance_monitor">Performance Monitor</string>
+    <string name="settings_performance_monitor_desc">Live metrics</string>
+    <string name="settings_device_benchmark">Device Benchmark</string>
+    <string name="settings_device_benchmark_desc">Measure performance</string>
+    <string name="settings_compare_models">Compare Models</string>
+    <string name="settings_compare_models_desc">A/B testing</string>
+    <string name="settings_downloads_queue">Download queue</string>
+    <string name="settings_about">About</string>
+    <string name="settings_about_desc">Version &amp; info</string>
+    <string name="settings_default_model_dialog_title">Default Model</string>
+    <string name="settings_default_model_dialog_desc">The model the chat opens with when you start a new conversation.</string>
+    <string name="settings_default_model_auto_pick">Not set (auto-pick best)</string>
+    <string name="settings_no_models_installed">No models installed yet. Install a model first.</string>
+
+    <!-- Onboarding Screen -->
+    <string name="onboarding_welcome_title">Welcome to AI Chat Hub</string>
+    <string name="onboarding_welcome_desc">Your personal AI assistant that runs entirely on your device. No cloud, no accounts, no data leaving your phone.</string>
+    <string name="onboarding_models_title">On-Device AI Models</string>
+    <string name="onboarding_models_desc">Download and run AI models directly on your device. Choose from a curated catalog of models optimized for mobile hardware.</string>
+    <string name="onboarding_performance_title">Blazing Fast Performance</string>
+    <string name="onboarding_performance_desc">Experience real AI inference with optimized models. Benchmark and compare models to find the perfect one for your needs.</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_get_started">Get Started</string>
+    <string name="onboarding_skip">Skip</string>
+
+    <!-- Model Details Screen -->
+    <string name="model_details_not_found">Model not found</string>
+    <string name="model_details_not_found_desc">This model is not in the catalog.</string>
+    <string name="model_details_title">Model Details</string>
+    <string name="model_details_by_provider">By %s</string>
+    <string name="model_details_status_queued">Queued</string>
+    <string name="model_details_status_paused">Paused</string>
+    <string name="model_details_status_verifying">Verifying integrity…</string>
+    <string name="model_details_status_downloading">Downloading</string>
+    <string name="model_details_section_overview">Overview</string>
+    <string name="model_details_section_purpose">Purpose</string>
+    <string name="model_details_best_for">Best for: %s</string>
+    <string name="model_details_strengths">Strengths</string>
+    <string name="model_details_limitations">Limitations</string>
+    <string name="model_details_section_compatibility">Compatibility</string>
+    <string name="model_details_ram">RAM</string>
+    <string name="model_details_estimated_ram">Estimated RAM</string>
+    <string name="model_details_runtime">Runtime</string>
+    <string name="model_details_format">Format</string>
+    <string name="model_details_storage">Storage</string>
+    <string name="model_details_checksum">Checksum</string>
+    <string name="model_details_sha256_verified">SHA-256 verified</string>
+    <string name="model_details_note">Note</string>
+    <string name="model_details_section_information">Model Information</string>
+    <string name="model_details_parameters">Parameters</string>
+    <string name="model_details_quantization">Quantization</string>
+    <string name="model_details_context_length">Context Length</string>
+    <string name="model_details_tokens_suffix"> tokens</string>
+    <string name="model_details_license">License</string>
+    <string name="model_details_license_type">License Type</string>
+    <string name="model_details_section_source">Source</string>
+    <string name="model_details_official_source">Official source</string>
+    <string name="model_details_view_repository">View repository</string>
+    <string name="model_details_set_default">Set as default</string>
+    <string name="model_details_is_default">Default model</string>
+    <string name="model_details_delete">Delete Model</string>
+    <string name="model_details_download_title">Download %s?</string>
+    <string name="model_details_download_desc">This is a %s file. It will use storage (and mobile data if you\'re not on Wi-Fi). Continue?</string>
+    <string name="model_details_compat_excellent">Excellent</string>
+    <string name="model_details_compat_recommended">Recommended</string>
+    <string name="model_details_compat_good">Good</string>
+    <string name="model_details_compat_heavy">Heavy</string>
+    <string name="model_details_compat_not_recommended">Not Recommended</string>
+</resources>

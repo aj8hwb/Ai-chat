@@ -1,0 +1,196 @@
+package com.aichathub.app.data
+
+import android.content.Context
+import android.os.Build
+import android.provider.MediaStore
+import com.aichathub.app.data.local.AiDatabase
+import com.aichathub.app.data.local.InstalledModelEntity
+import com.aichathub.app.domain.model.CatalogModel
+import com.aichathub.app.domain.model.ModelLifecycleState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import java.io.File
+
+/**
+ * Manages installed models: filesystem layout + persisted state.
+ * Single source of truth for model lifecycle state across all screens.
+ */
+class ModelRepository(
+    context: Context,
+    private val database: AiDatabase,
+    private val catalogRepository: CatalogRepository
+) {
+    private val context = context.applicationContext
+    private val modelsDir = File(context.filesDir, "models")
+
+    data class ModelState(
+        val modelId: String,
+        val filePath: String?,
+        val fileSizeBytes: Long,
+        val state: ModelLifecycleState,
+        val installedAt: Long
+    )
+
+    init {
+        modelsDir.mkdirs()
+    }
+
+    val installedModels: Flow<List<ModelState>> =
+        database.installedModelDao().observeAll().map { list ->
+            list.map { it.toState() }
+        }
+
+    suspend fun installedModelsOnce(): List<ModelState> =
+        database.installedModelDao().getAll().map { it.toState() }
+
+    suspend fun stateFor(modelId: String): ModelState? =
+        database.installedModelDao().byId(modelId)?.toState()
+
+    suspend fun isInstalled(modelId: String): Boolean =
+        database.installedModelDao().byId(modelId) != null
+
+    suspend fun modelFile(model: CatalogModel): File =
+        File(modelsDir, model.fileName)
+
+    suspend fun setState(modelId: String, state: ModelLifecycleState) = withContext(Dispatchers.IO) {
+        val existing = database.installedModelDao().byId(modelId)
+        val entity = existing ?: InstalledModelEntity(
+            modelId = modelId,
+            installedAt = System.currentTimeMillis(),
+            filePath = "",
+            fileSizeBytes = 0,
+            state = state.name
+        )
+        database.installedModelDao().upsert(
+            entity.copy(state = state.name)
+        )
+    }
+
+    /**
+     * Marks a model as fully installed (verified) after a completed download or
+     * a successful import. The model is immediately "ready" — selectable in the
+     * Chat model selector and loadable on demand.
+     */
+    suspend fun markInstalled(modelId: String, file: File, sizeBytes: Long) = withContext(Dispatchers.IO) {
+        val existing = database.installedModelDao().byId(modelId)
+        val entity = existing ?: InstalledModelEntity(
+            modelId = modelId,
+            installedAt = System.currentTimeMillis(),
+            filePath = "",
+            fileSizeBytes = sizeBytes,
+            state = ModelLifecycleState.READY.name
+        )
+        database.installedModelDao().upsert(
+            entity.copy(
+                filePath = file.absolutePath,
+                fileSizeBytes = sizeBytes,
+                state = ModelLifecycleState.READY.name,
+                installedAt = if (existing == null) System.currentTimeMillis() else existing.installedAt
+            )
+        )
+    }
+
+    /**
+     * Registers a model that was discovered/imported from an existing file on
+     * the device (shared folder, SAF picker, or reinstall recovery).
+     */
+    suspend fun registerImported(modelId: String, filePath: String, sizeBytes: Long) = withContext(Dispatchers.IO) {
+        val existing = database.installedModelDao().byId(modelId)
+        database.installedModelDao().upsert(
+            InstalledModelEntity(
+                modelId = modelId,
+                installedAt = existing?.installedAt ?: System.currentTimeMillis(),
+                filePath = filePath,
+                fileSizeBytes = sizeBytes,
+                state = ModelLifecycleState.READY.name,
+                lastUsedAt = existing?.lastUsedAt ?: 0L
+            )
+        )
+    }
+
+    /**
+     * Startup reconciliation: the persisted registry must agree with the real
+     * filesystem. Installed rows whose file vanished are removed; legacy
+     * INSTALLED rows are promoted to READY; stale DOWNLOADING/VERIFYING rows
+     * from process death are reset to NOT_INSTALLED.
+     */
+    suspend fun reconcile() = withContext(Dispatchers.IO) {
+        val rows = database.installedModelDao().getAll()
+        for (row in rows) {
+            val st = runCatching { ModelLifecycleState.valueOf(row.state) }
+                .getOrDefault(ModelLifecycleState.NOT_INSTALLED)
+            val hasPath = row.filePath.isNotBlank()
+            val fileExists = hasPath && File(row.filePath).isFile
+            when (st) {
+                ModelLifecycleState.INSTALLED, ModelLifecycleState.LOADING,
+                ModelLifecycleState.RUNNING, ModelLifecycleState.UNLOADING -> {
+                    if (!fileExists) {
+                        database.installedModelDao().delete(row.modelId)
+                    } else {
+                        database.installedModelDao().upsert(row.copy(state = ModelLifecycleState.READY.name))
+                    }
+                }
+                ModelLifecycleState.READY -> {
+                    if (!fileExists) {
+                        database.installedModelDao().delete(row.modelId)
+                    }
+                }
+                ModelLifecycleState.DOWNLOADING, ModelLifecycleState.VERIFYING -> {
+                    // After process death, these states are stale — the download
+                    // may or may not have completed. Check if the file exists and
+                    // the model is actually ready.
+                    if (fileExists) {
+                        database.installedModelDao().upsert(row.copy(state = ModelLifecycleState.READY.name))
+                    } else {
+                        // File not found — reset to NOT_INSTALLED so the user
+                        // can re-download. The download .part files are still on
+                        // disk and will be detected by DownloadManager.scanForResumable().
+                        database.installedModelDao().upsert(row.copy(
+                            state = ModelLifecycleState.NOT_INSTALLED,
+                            filePath = ""
+                        ))
+                    }
+                }
+                else -> {
+                    // NOT_INSTALLED — leave alone
+                }
+            }
+        }
+    }
+
+    suspend fun remove(modelId: String, deleteFile: Boolean = true) = withContext(Dispatchers.IO) {
+        val existing = database.installedModelDao().byId(modelId)
+        if (existing != null && deleteFile && existing.filePath.isNotBlank()) {
+            runCatching { File(existing.filePath).delete() }
+        }
+        // Also delete the shared Downloads mirror copy (Download/AiChatHub/Models)
+        // so removing a model does not leave a multi-GB orphan behind. The
+        // MediaStore.Downloads class only exists on API 29+, hence the guard.
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val model = catalogRepository.getModelById(modelId)
+                if (model != null) {
+                    val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ? AND " +
+                        "${MediaStore.Downloads.RELATIVE_PATH} LIKE ?"
+                    val args = arrayOf(model.fileName, "Download/AiChatHub/Models/%")
+                    context.contentResolver.delete(
+                        MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                        selection,
+                        args
+                    )
+                }
+            }
+        }
+        database.installedModelDao().delete(modelId)
+    }
+
+    private fun InstalledModelEntity.toState() = ModelState(
+        modelId = modelId,
+        filePath = filePath.ifBlank { null },
+        fileSizeBytes = fileSizeBytes,
+        state = runCatching { ModelLifecycleState.valueOf(state) }.getOrDefault(ModelLifecycleState.INSTALLED),
+        installedAt = installedAt
+    )
+}
