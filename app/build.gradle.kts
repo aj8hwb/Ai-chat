@@ -121,6 +121,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     // Coroutines & Serialization
+    implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
 
