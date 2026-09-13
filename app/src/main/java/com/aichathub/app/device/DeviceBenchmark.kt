@@ -132,9 +132,10 @@ object DeviceBenchmark {
         chunks.clear() // Release
 
         // Get system memory info
-        val memInfo = Debug.MemoryInfo()
-        Debug.getMemoryInfo(memInfo)
-        val availableMb = memInfo.availMem / 1024 // Already in KB
+        val activityManager = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val memInfo = android.app.ActivityManager.MemoryInfo()
+        activityManager.getMemoryInfo(memInfo)
+        val availableMb = memInfo.availMem / (1024 * 1024)
 
         // Score based on total and available RAM
         val score = when {
@@ -189,7 +190,7 @@ object DeviceBenchmark {
                     raf.write(buffer, 0, toWrite)
                     written += toWrite
                 }
-                raf.sync()
+                raf.fd.sync()
             }
             val writeMs = (System.nanoTime() - writeStart) / 1_000_000.0
 

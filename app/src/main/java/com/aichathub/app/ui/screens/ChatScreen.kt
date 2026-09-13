@@ -96,6 +96,7 @@ import com.aichathub.app.ui.screens.chat.ThinkingBubble
 import com.aichathub.app.ui.screens.chat.LiveThinkingTracePanel
 import com.aichathub.app.ui.screens.chat.ThinkingTracePanel
 import com.aichathub.app.ui.screens.chat.SystemPromptDialog
+import com.aichathub.app.ui.screens.chat.ThinkingModeRow
 import com.aichathub.app.ui.screens.chat.highlightSearchText
 import com.aichathub.app.ui.screens.chat.modelDisplayName
 import kotlinx.coroutines.launch
@@ -562,6 +563,8 @@ HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
     }
 }
 
+@Composable
+private fun MessageBubble(
     // Long-press options
     message: MessageEntity,
     onCopy: () -> Unit,

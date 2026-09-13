@@ -103,7 +103,7 @@ class ThermalManager @Inject constructor(
     private fun readTemperature(): Float? {
         return try {
             // Try to read from battery temperature (most reliable on Android)
-            val intent = context.registerReceiver(null, android.content.IntentFilter android.content.Intent.ACTION_BATTERY_CHANGED)
+            val intent = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
             val temp = intent?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, -1)
             if (temp != null && temp > 0) {
                 temp / 10.0f // Convert from tenths of degree to Celsius
