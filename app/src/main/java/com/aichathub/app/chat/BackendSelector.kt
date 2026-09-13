@@ -182,7 +182,7 @@ class BackendSelector @Inject constructor(
 
         // Method 1: PackageManager feature check (most reliable)
         val pm = context.packageManager
-        if (pm.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE)) {
+        if (pm.hasSystemFeature("android.hardware.vulkan")) {
             Log.d(TAG, "Vulkan detected via PackageManager")
             return true
         }
