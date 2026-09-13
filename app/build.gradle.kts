@@ -99,10 +99,6 @@ android {
     }
 }
 
-kotlin {
-    jvmToolchain(17)
-}
-
 dependencies {
     // AndroidX Core
     implementation(libs.androidx.core.ktx)
