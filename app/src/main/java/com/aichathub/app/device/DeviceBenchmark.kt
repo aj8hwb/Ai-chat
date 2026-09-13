@@ -42,7 +42,7 @@ object DeviceBenchmark {
         Log.i(TAG, "Starting device benchmark...")
 
         val cpuScore = benchmarkCpu()
-        val ramResult = benchmarkRam()
+        val ramResult = benchmarkRam(context)
         val storageScore = benchmarkStorage(context)
         val storageSpeed = measureStorageSpeed(context)
 
@@ -109,7 +109,7 @@ object DeviceBenchmark {
     /**
      * RAM benchmark: measures available memory and allocation speed.
      */
-    private fun benchmarkRam(): RamResult {
+    private fun benchmarkRam(context: Context): RamResult {
         val runtime = Runtime.getRuntime()
         val totalMb = runtime.totalMemory() / (1024 * 1024)
         val freeMb = runtime.freeMemory() / (1024 * 1024)

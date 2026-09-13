@@ -201,7 +201,7 @@ class RemoteCatalogRepository(private val context: Context) {
             }
 
             val manifest = fetchManifest()
-            manifest.version > localVersion
+            manifest.version.toLong() > localVersion
         } catch (e: Exception) {
             Log.e(TAG, "Failed to check for updates", e)
             false

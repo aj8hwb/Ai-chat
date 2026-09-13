@@ -61,15 +61,9 @@ fun ChatComposer(
             GradientButton(
                 text = "Send",
                 onClick = onSend,
+                icon = null,
                 enabled = input.isNotBlank()
             )
         }
     }
-}
-
-private fun androidx.compose.material3.Text(
-    text: String,
-    color: androidx.compose.ui.graphics.Color
-) {
-    // Placeholder - actual Text is imported from Material3
 }

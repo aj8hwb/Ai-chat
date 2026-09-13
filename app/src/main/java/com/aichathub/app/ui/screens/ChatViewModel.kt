@@ -309,15 +309,17 @@ class ChatViewModel @Inject constructor(
             _state.value = _state.value.copy(isLoadingModel = true, error = null)
             try {
                 val settings = container_settingsRepository.settings.first()
-                val gate = loadGate(model)
-                if (gate.eligibility == LoadEligibility.BLOCK) {
+                val profile = container_deviceInfoProvider.getDeviceProfile()
+                val measured = container_settingsRepository.measuredMemoryOnce()
+                val gate = container_compatibilityEngine.loadEligibility(model, profile, measured)
+                if (gate.eligibility == com.aichathub.app.device.LoadEligibility.BLOCK) {
                     _state.value = _state.value.copy(
                         isLoadingModel = false,
                         error = gate.message
                     )
                     return@launch
                 }
-                if (gate.eligibility == LoadEligibility.WARN) {
+                if (gate.eligibility == com.aichathub.app.device.LoadEligibility.WARN) {
                     _state.value = _state.value.copy(error = gate.message)
                 }
                 coordinator.loadModel(
@@ -329,7 +331,7 @@ class ChatViewModel @Inject constructor(
                         topP = settings.topP,
                         maxTokens = settings.maxTokens
                     ),
-                    threads = nativeThreads(settings)
+                    threads = com.aichathub.app.util.ModelThreads.recommended(settings.batteryConscious)
                 )
                 if (session != loadSession) return@launch
                 _state.value = _state.value.copy(

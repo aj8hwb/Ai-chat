@@ -216,10 +216,8 @@ private fun ExpandedNavigation(
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val drawerState = rememberDrawerState(DrawerValue.Open)
 
     PermanentNavigationDrawer(
-        drawerState = drawerState,
         drawerContent = {
             Column(
                 modifier = Modifier

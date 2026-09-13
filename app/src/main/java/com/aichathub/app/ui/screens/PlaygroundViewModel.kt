@@ -199,12 +199,12 @@ class PlaygroundViewModel @Inject constructor(
     private fun templateStopSequences(template: ChatTemplate): List<String> = when (template) {
         ChatTemplate.CHATML -> listOf("\n\n")
         ChatTemplate.LLAMA2, ChatTemplate.LLAMA3 -> listOf("\n[INST]", "\n[/INST]")
-        ChatTemplate.MISTRAL -> listOf("\n[/INST]")
-        ChatTemplate.CHATGLM -> listOf("\n\n")
-        ChatTemplate.VICUNA -> listOf("USER:")
-        ChatTemplate.ALPACA -> listOf("### Human:")
-        ChatTemplate.ZEPHYR -> listOf("\n</s>")
         ChatTemplate.GEMMA -> listOf("<end_of_turn>")
-        ChatTemplate.UNKNOWN -> emptyList()
+        ChatTemplate.GENERIC -> emptyList()
+    }
+
+    fun stop() {
+        container_inferenceRuntime.cancelGeneration()
+        _state.value = _state.value.copy(running = false, output = _state.value.output, stats = "Stopped by user")
     }
 }

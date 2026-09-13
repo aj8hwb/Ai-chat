@@ -170,9 +170,9 @@ class SmartRecommendationEngine {
         val ratio = required / usable
         return when {
             ratio <= 0.6  -> 1.0f
-            ratio <= 0.75 -> lerp(0.75f, 1.0f, (ratio - 0.6) / 0.15)
-            ratio <= 1.0  -> lerp(0.5f, 0.75f, (ratio - 0.75) / 0.25)
-            ratio <= 1.35 -> lerp(0.2f, 0.5f, (ratio - 1.0) / 0.35)
+            ratio <= 0.75 -> lerp(0.75f, 1.0f, ((ratio - 0.6) / 0.15).toFloat())
+            ratio <= 1.0  -> lerp(0.5f, 0.75f, ((ratio - 0.75) / 0.25).toFloat())
+            ratio <= 1.35 -> lerp(0.2f, 0.5f, ((ratio - 1.0) / 0.35).toFloat())
             else          -> clamp(0.2f - ((ratio - 1.35).toFloat() * 0.3f))
         }
     }

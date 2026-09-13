@@ -696,7 +696,7 @@ class DownloadManager(
                 }
                 SegmentOutcome.COMPLETE
             }
-            break // Response processed, exit the redirect loop
+            return@withContext SegmentOutcome.COMPLETE
         }
     }
 

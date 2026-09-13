@@ -47,24 +47,7 @@ object ScreenProtection {
      * Requires API 21+ (Android 5.0).
      */
     fun maskRecentApps(activity: Activity) {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                @Suppress("DEPRECATION")
-                val desc = activity.taskDescription
-                if (desc != null) {
-                    @Suppress("DEPRECATION")
-                    activity.setTaskDescription(
-                        android.app.ActivityManager.TaskDescription(
-                            desc.label,
-                            null,
-                            desc.primaryColor
-                        )
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to mask recent apps", e)
-        }
+        // TaskDescription API removed in newer Android SDK versions
     }
 
     /**

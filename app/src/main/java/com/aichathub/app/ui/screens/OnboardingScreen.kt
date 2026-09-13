@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import com.aichathub.app.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,14 +56,18 @@ data class OnboardingPage(
 fun OnboardingScreen(
     onComplete: () -> Unit
 ) {
+    val primary = MaterialTheme.colorScheme.primary
+    val secondary = MaterialTheme.colorScheme.secondary
+    val tertiary = MaterialTheme.colorScheme.tertiary
+
     val pages = listOf(
         OnboardingPage(
             title = stringResource(R.string.onboarding_welcome_title),
             description = stringResource(R.string.onboarding_welcome_desc),
             icon = Icons.Filled.SmartToy,
             gradient = listOf(
-                MaterialTheme.colorScheme.primary,
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                primary,
+                primary.copy(alpha = 0.7f)
             )
         ),
         OnboardingPage(
@@ -70,8 +75,8 @@ fun OnboardingScreen(
             description = stringResource(R.string.onboarding_models_desc),
             icon = Icons.Filled.Storage,
             gradient = listOf(
-                MaterialTheme.colorScheme.secondary,
-                MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f)
+                secondary,
+                secondary.copy(alpha = 0.7f)
             )
         ),
         OnboardingPage(
@@ -79,8 +84,8 @@ fun OnboardingScreen(
             description = stringResource(R.string.onboarding_performance_desc),
             icon = Icons.Filled.Speed,
             gradient = listOf(
-                MaterialTheme.colorScheme.tertiary,
-                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f)
+                tertiary,
+                tertiary.copy(alpha = 0.7f)
             )
         )
     )

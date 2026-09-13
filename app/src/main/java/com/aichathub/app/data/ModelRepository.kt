@@ -148,7 +148,7 @@ class ModelRepository(
                         // can re-download. The download .part files are still on
                         // disk and will be detected by DownloadManager.scanForResumable().
                         database.installedModelDao().upsert(row.copy(
-                            state = ModelLifecycleState.NOT_INSTALLED,
+                            state = ModelLifecycleState.NOT_INSTALLED.name,
                             filePath = ""
                         ))
                     }

@@ -205,10 +205,6 @@ object RuntimeProviderModule {
     }
 }
 
-private fun CoroutineScope.launch(block: suspend CoroutineScope.() -> Unit) {
-    kotlinx.coroutines.launch(block = block)
-}
-
 /**
  * Lazy wrapper that defers runtime provider selection until first use.
  * Avoids blocking during Hilt dependency graph construction.

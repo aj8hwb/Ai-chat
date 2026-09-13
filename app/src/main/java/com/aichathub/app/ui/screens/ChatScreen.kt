@@ -668,6 +668,7 @@ private fun ComposerBar(
             GradientButton(
                 text = "Send",
                 onClick = onSend,
+                icon = null,
                 enabled = input.isNotBlank()
             )
         }
