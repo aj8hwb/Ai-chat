@@ -66,6 +66,8 @@ fun OnboardingScreen(
     val modelsDesc = stringResource(R.string.onboarding_models_desc)
     val perfTitle = stringResource(R.string.onboarding_performance_title)
     val perfDesc = stringResource(R.string.onboarding_performance_desc)
+    val nextLabel = stringResource(R.string.onboarding_next)
+    val getStartedLabel = stringResource(R.string.onboarding_get_started)
 
     val pages = listOf(
         OnboardingPage(
@@ -143,9 +145,9 @@ fun OnboardingScreen(
                 .padding(16.dp)
                 .semantics {
                     contentDescription = if (pagerState.currentPage < pages.size - 1) {
-                        stringResource(R.string.onboarding_next)
+                        nextLabel
                     } else {
-                        stringResource(R.string.onboarding_get_started)
+                        getStartedLabel
                     }
                 },
             shape = RoundedCornerShape(16.dp),
@@ -159,7 +161,7 @@ fun OnboardingScreen(
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = if (pagerState.currentPage < pages.size - 1) stringResource(R.string.onboarding_next) else stringResource(R.string.onboarding_get_started),
+                    text = if (pagerState.currentPage < pages.size - 1) nextLabel else getStartedLabel,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold
                 )

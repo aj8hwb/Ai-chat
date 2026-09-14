@@ -236,9 +236,6 @@ private class LazyInferenceRuntime(
             return _delegate ?: fallbackRuntime
 }
 
-private fun CoroutineScope.launch(block: suspend CoroutineScope.() -> Unit) {
-    kotlinx.coroutines.launch(block = block)
-}
 
 /**
      * Resolves the runtime provider synchronously. [RuntimeProviderRegistry.getBestProvider]

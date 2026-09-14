@@ -335,7 +335,9 @@ object CatalogSignatureVerifier {
         val xSq = oneMinusDSq.multiply(invOnePlusY).mod(p)
         val x = tonelliShanks(xSq, p)
 
-        val finalX: BigInteger = if (x.testBit(0) != (signBit != 0)) p.subtract(x) else x
+        val xIsOdd = x.and(java.math.BigInteger.ONE).signum() == 1
+        val signIsOne = signBit != 0
+        val finalX: BigInteger = if (xIsOdd != signIsOne) p.subtract(x) else x
 
         return java.security.spec.EdECPoint(finalX, y)
     }

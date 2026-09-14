@@ -60,7 +60,7 @@ object ImageLoader {
                 .data(url)
                 .crossfade(true)
                 .apply {
-                    size?.let { size(it.dp, it.dp) }
+                    size?.let { sz -> size(sz, sz) }
                 }
                 .build()
         }

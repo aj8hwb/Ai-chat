@@ -109,7 +109,7 @@ class RemoteCatalogRepository(private val context: Context) {
             .header("Accept", "application/json")
             .cacheControl(
                 CacheControl.Builder()
-                    .maxStale(MAX_CACHE_AGE_HOURS, TimeUnit.HOURS)
+                    .maxStale(MAX_CACHE_AGE_HOURS.toInt(), TimeUnit.HOURS)
                     .build()
             )
 
