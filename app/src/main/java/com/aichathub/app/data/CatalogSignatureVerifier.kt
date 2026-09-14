@@ -339,7 +339,7 @@ object CatalogSignatureVerifier {
         val signIsOne = signBit != 0
         val finalX: BigInteger = if (xIsOdd != signIsOne) p.subtract(x) else x
 
-        return java.security.spec.EdECPoint(finalX, y)
+        return java.security.spec.EdECPoint(xIsOdd, y)
     }
 
     /**

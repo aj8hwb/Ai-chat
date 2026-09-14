@@ -60,7 +60,10 @@ object ImageLoader {
                 .data(url)
                 .crossfade(true)
                 .apply {
-                    size?.let { sz -> size(sz, sz) }
+                    size?.let { sz ->
+                        val px = (sz.value * context.resources.displayMetrics.density).toInt()
+                        size(px, px)
+                    }
                 }
                 .build()
         }

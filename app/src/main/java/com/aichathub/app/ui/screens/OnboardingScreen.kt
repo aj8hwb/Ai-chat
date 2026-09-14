@@ -68,6 +68,7 @@ fun OnboardingScreen(
     val perfDesc = stringResource(R.string.onboarding_performance_desc)
     val nextLabel = stringResource(R.string.onboarding_next)
     val getStartedLabel = stringResource(R.string.onboarding_get_started)
+    val skipLabel = stringResource(R.string.onboarding_skip)
 
     val pages = listOf(
         OnboardingPage(
@@ -184,7 +185,7 @@ fun OnboardingScreen(
                     .align(Alignment.BottomStart)
                     .padding(16.dp)
                     .semantics {
-                        contentDescription = stringResource(R.string.onboarding_skip)
+                        contentDescription = skipLabel
                     },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.surface,

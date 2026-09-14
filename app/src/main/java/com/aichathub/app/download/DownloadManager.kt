@@ -698,6 +698,7 @@ class DownloadManager(
             }
             return@withContext SegmentOutcome.COMPLETE
         }
+        return@withContext SegmentOutcome.COMPLETE
     }
 
     private suspend fun downloadSegmentWithRetry(

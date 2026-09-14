@@ -25,6 +25,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.ElementsIntoSet
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Qualifier
 import javax.inject.Singleton
