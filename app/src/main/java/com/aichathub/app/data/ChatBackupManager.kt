@@ -13,6 +13,8 @@ import java.io.OutputStream
 import java.util.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Full chat backup & restore.
@@ -44,8 +46,9 @@ import java.util.Locale
  * Import is additive: imported conversations are inserted as NEW conversations
  * (existing chats are never overwritten). Message timestamps are preserved.
  */
-class ChatBackupManager(
-    private val context: Context,
+@Singleton
+class ChatBackupManager @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context,
     private val database: AiDatabase
 ) {
 

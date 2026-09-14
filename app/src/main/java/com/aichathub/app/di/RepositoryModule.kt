@@ -3,7 +3,6 @@ package com.aichathub.app.di
 import android.content.Context
 import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
-import com.aichathub.app.data.RemoteCatalogRepository
 import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.data.local.AiDatabase
 import com.aichathub.app.device.DeviceInfoProvider
@@ -40,9 +39,4 @@ object RepositoryModule {
         return DeviceInfoProvider(context.applicationContext)
     }
 
-    @Provides
-    @Singleton
-    fun provideRemoteCatalogRepository(@ApplicationContext context: Context): RemoteCatalogRepository {
-        return RemoteCatalogRepository(context.applicationContext)
-    }
 }
