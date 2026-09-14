@@ -46,6 +46,24 @@ class DownloadVerifier {
         return actual.equals(expected, ignoreCase = true)
     }
 
+    fun verifySha256(file: File, expectedHash: String): Boolean {
+        if (expectedHash.isEmpty()) return false
+        if (!file.exists()) return false
+        val actual = sha256Hex(file)
+        if (actual.isEmpty()) return false
+        return actual.equals(expectedHash, ignoreCase = true)
+    }
+
+    fun verifyFileIntegrity(file: File, expectedSize: Long): Boolean {
+        if (!file.exists()) return false
+        return file.length() == expectedSize
+    }
+
+    fun computeSha256(file: File): String {
+        if (!file.exists()) return ""
+        return sha256Hex(file)
+    }
+
     /**
      * Computes SHA-256 hash of a file in streaming fashion.
      * Returns empty string on abort or error.

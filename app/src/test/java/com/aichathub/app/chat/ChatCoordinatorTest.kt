@@ -139,7 +139,8 @@ class ChatCoordinatorTest {
             "result"
         }
 
-        val sendJob = kotlinx.coroutines.launch {
+        val testScope = kotlinx.coroutines.CoroutineScope(testDispatcher)
+        val sendJob = testScope.launch {
             try {
                 coordinator.sendMessage(
                     prompt = "Hello",
@@ -196,7 +197,8 @@ class ChatCoordinatorTest {
             loadLatch.await()
         }
 
-        val loadJob = kotlinx.coroutines.launch {
+        val testScope2 = kotlinx.coroutines.CoroutineScope(testDispatcher)
+        val loadJob = testScope2.launch {
             try {
                 coordinator.loadModel(testModel, file)
             } catch (_: Exception) { }
