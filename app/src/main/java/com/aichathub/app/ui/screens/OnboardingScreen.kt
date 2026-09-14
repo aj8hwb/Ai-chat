@@ -60,33 +60,31 @@ fun OnboardingScreen(
     val secondary = MaterialTheme.colorScheme.secondary
     val tertiary = MaterialTheme.colorScheme.tertiary
 
+    val welcomeTitle = stringResource(R.string.onboarding_welcome_title)
+    val welcomeDesc = stringResource(R.string.onboarding_welcome_desc)
+    val modelsTitle = stringResource(R.string.onboarding_models_title)
+    val modelsDesc = stringResource(R.string.onboarding_models_desc)
+    val perfTitle = stringResource(R.string.onboarding_performance_title)
+    val perfDesc = stringResource(R.string.onboarding_performance_desc)
+
     val pages = listOf(
         OnboardingPage(
-            title = stringResource(R.string.onboarding_welcome_title),
-            description = stringResource(R.string.onboarding_welcome_desc),
+            title = welcomeTitle,
+            description = welcomeDesc,
             icon = Icons.Filled.SmartToy,
-            gradient = listOf(
-                primary,
-                primary.copy(alpha = 0.7f)
-            )
+            gradient = listOf(primary, primary.copy(alpha = 0.7f))
         ),
         OnboardingPage(
-            title = stringResource(R.string.onboarding_models_title),
-            description = stringResource(R.string.onboarding_models_desc),
+            title = modelsTitle,
+            description = modelsDesc,
             icon = Icons.Filled.Storage,
-            gradient = listOf(
-                secondary,
-                secondary.copy(alpha = 0.7f)
-            )
+            gradient = listOf(secondary, secondary.copy(alpha = 0.7f))
         ),
         OnboardingPage(
-            title = stringResource(R.string.onboarding_performance_title),
-            description = stringResource(R.string.onboarding_performance_desc),
+            title = perfTitle,
+            description = perfDesc,
             icon = Icons.Filled.Speed,
-            gradient = listOf(
-                tertiary,
-                tertiary.copy(alpha = 0.7f)
-            )
+            gradient = listOf(tertiary, tertiary.copy(alpha = 0.7f))
         )
     )
 

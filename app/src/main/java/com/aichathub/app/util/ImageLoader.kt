@@ -103,8 +103,7 @@ object ImageLoader {
                         model = request,
                         contentDescription = contentDescription,
                         modifier = modifier.fillMaxSize(),
-                        contentScale = contentScale,
-                        painter = painter
+                        contentScale = contentScale
                     )
                 }
                 else -> {

@@ -191,7 +191,7 @@ class RemoteCatalogRepository(private val context: Context) {
     suspend fun isUpdateAvailable(): Boolean = withContext(Dispatchers.IO) {
         try {
             val prefs = context.catalogDataStore.data.first()
-            val localVersion = prefs[Keys.lastVersion] ?: 0L
+            val localVersion = prefs[Keys.lastVersion]?.toLong() ?: 0L
             val lastFetch = prefs[Keys.lastFetchAt] ?: 0L
 
             // Don't check more than once per hour

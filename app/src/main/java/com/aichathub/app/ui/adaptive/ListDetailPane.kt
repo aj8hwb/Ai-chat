@@ -179,9 +179,9 @@ class ListDetailState<T>(
 
     companion object {
         @Suppress("UNCHECKED_CAST")
-        fun <T> Saver() = androidx.compose.runtime.saveable.Saver<ListDetailState<T>, String?>(
+        fun <T> Saver() = androidx.compose.runtime.saveable.Saver<ListDetailState<T>, Any?>(
             save = { state -> state.selectedItemId?.toString() },
-            restore = { saved -> ListDetailState<T>(saved) }
+            restore = { saved -> ListDetailState<T>(saved?.toString()) }
         )
     }
 }

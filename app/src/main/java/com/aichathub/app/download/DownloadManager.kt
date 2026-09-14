@@ -696,7 +696,7 @@ class DownloadManager(
                 }
                 SegmentOutcome.COMPLETE
             }
-            return@withContext SegmentOutcome.COMPLETE
+            break
         }
     }
 
