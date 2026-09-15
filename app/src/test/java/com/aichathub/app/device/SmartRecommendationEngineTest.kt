@@ -377,7 +377,7 @@ class SmartRecommendationEngineTest {
     @Test
     fun `low score maps to NOT_RECOMMENDED compatibility`() {
         val rec = engine.score(
-            model = model(estimatedMemoryMb = 10000, fileSizeMb = 8000),
+            model = model(estimatedMemoryMb = 10000, fileSizeMb = 29500),
             profile = lowRamProfile,
             budget = tightBudget,
             thermalStatus = ThermalStatus.CRITICAL,
