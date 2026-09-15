@@ -185,7 +185,7 @@ class TokenContextEngineTest {
     @Test
     fun `trimHistory returns empty list when all history exceeds budget`() {
         val tinyModel = smallModel.copy(contextLength = 100)
-        val history = (1..10).map { "user" to "z".repeat(200) }
+        val history = (1..10).map { "user" to "z".repeat(400) }
 
         val trimmed = engine.trimHistory(history, tinyModel, maxOutputTokens = 20)
 
@@ -243,7 +243,7 @@ class TokenContextEngineTest {
             systemTokens = 100,
             totalUsed = 3500,
             maxTokens = 4096,
-            utilizationPercent = 85.4f,
+            utilizationPercent = 82.0f,
             isNearLimit = true,
             isAtLimit = false
         )

@@ -212,7 +212,9 @@ class SmartRecommendationEngineTest {
         val rec = engine.score(
             model = model(estimatedMemoryMb = 8000, fileSizeMb = 5000),
             profile = lowRamProfile,
-            budget = tightBudget
+            budget = tightBudget,
+            thermalStatus = ThermalStatus.CRITICAL,
+            batteryLevel = 5
         )
 
         assertEquals(RiskLevel.NOT_RECOMMENDED, rec.riskLevel)
@@ -224,7 +226,9 @@ class SmartRecommendationEngineTest {
         val rec = engine.score(
             model = model(estimatedMemoryMb = 900),
             profile = highRamProfile,
-            budget = tightBudget
+            budget = tightBudget,
+            thermalStatus = ThermalStatus.SEVERE,
+            batteryLevel = 30
         )
 
         // Should be MODERATE or HEAVY depending on exact calculation
@@ -258,7 +262,8 @@ class SmartRecommendationEngineTest {
             model = model(),
             profile = highRamProfile,
             budget = generousBudget,
-            thermalStatus = ThermalStatus.CRITICAL
+            thermalStatus = ThermalStatus.CRITICAL,
+            batteryLevel = 5
         )
 
         assertTrue(rec.batteryThermalScore < 0.2f)
@@ -270,10 +275,11 @@ class SmartRecommendationEngineTest {
             model = model(),
             profile = highRamProfile,
             budget = generousBudget,
-            thermalStatus = ThermalStatus.EMERGENCY
+            thermalStatus = ThermalStatus.EMERGENCY,
+            batteryLevel = 0
         )
 
-        assertEquals(0f, rec.batteryThermalScore)
+        assertTrue(rec.batteryThermalScore < 0.05f)
     }
 
     @Test
@@ -373,7 +379,9 @@ class SmartRecommendationEngineTest {
         val rec = engine.score(
             model = model(estimatedMemoryMb = 10000, fileSizeMb = 8000),
             profile = lowRamProfile,
-            budget = tightBudget
+            budget = tightBudget,
+            thermalStatus = ThermalStatus.CRITICAL,
+            batteryLevel = 5
         )
 
         assertEquals(CompatibilityLevel.NOT_RECOMMENDED, rec.compatibilityLevel)

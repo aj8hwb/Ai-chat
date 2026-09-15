@@ -29,11 +29,13 @@ object TextUtils {
             val bytes = when {
                 code <= 0x7F -> 1
                 code <= 0x7FF -> 2
-                code in 0xD800..0xDFFF -> 4 // surrogate pair
+                code in 0xD800..0xDFFF -> 8 // surrogate pair → ~2 tokens
                 code <= 0xFFFF -> 3
                 else -> 4
             }
-            tokens += (bytes / 4).coerceAtLeast(1)
+            val cost = (bytes / 4).coerceAtLeast(1)
+            if (tokens + cost > maxTokens) break
+            tokens += cost
             // Skip surrogate pair
             if (code in 0xD800..0xDBFF && i + 1 < chars.size && chars[i + 1].code in 0xDC00..0xDFFF) {
                 i += 2

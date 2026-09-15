@@ -42,29 +42,29 @@ object TokenEstimator {
                 // English: BPE typically produces ~4 chars/token
                 // But code mixed with English is denser
                 if (containsCode(text)) {
-                    (chars / 2.5).toInt()
+                    kotlin.math.ceil(chars / 2.5).toInt()
                 } else {
-                    (chars / 4.0).toInt()
+                    kotlin.math.ceil(chars / 4.0).toInt()
                 }
             }
             Script.CJK -> {
                 // Chinese/Japanese: ~1-1.5 chars/token
-                (chars / 1.2).toInt()
+                kotlin.math.ceil(chars / 1.2).toInt()
             }
             Script.HANGUL -> {
                 // Korean: syllable blocks map closely to tokens
-                (chars / 1.3).toInt()
+                kotlin.math.ceil(chars / 1.3).toInt()
             }
             Script.DEVANAGARI,
             Script.BENGALI,
             Script.THAI,
             Script.ARABIC -> {
                 // These scripts: each character is typically 1 token
-                (chars / 1.1).toInt()
+                kotlin.math.ceil(chars / 1.1).toInt()
             }
             Script.CYRILLIC -> {
                 // Russian/Ukrainian: ~3-4 chars/token
-                (chars / 3.5).toInt()
+                kotlin.math.ceil(chars / 3.5).toInt()
             }
             Script.MIXED -> {
                 // Mixed scripts: use byte-based estimation (conservative)
