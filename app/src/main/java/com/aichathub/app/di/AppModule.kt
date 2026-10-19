@@ -112,12 +112,6 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideRemoteCatalogRepository(@ApplicationContext context: Context): RemoteCatalogRepository {
-        return RemoteCatalogRepository(context.applicationContext)
-    }
-
-    @Provides
-    @Singleton
     fun provideCatalogRepository(
         @ApplicationContext context: Context,
         remoteCatalogRepository: RemoteCatalogRepository

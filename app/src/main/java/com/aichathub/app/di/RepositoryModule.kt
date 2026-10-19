@@ -2,6 +2,7 @@ package com.aichathub.app.di
 
 import android.content.Context
 import com.aichathub.app.data.CatalogRepository
+import com.aichathub.app.data.ChatBackupManager
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.RemoteCatalogRepository
 import com.aichathub.app.data.SettingsRepository
@@ -38,6 +39,15 @@ object RepositoryModule {
     @Singleton
     fun provideDeviceInfoProvider(@ApplicationContext context: Context): DeviceInfoProvider {
         return DeviceInfoProvider(context.applicationContext)
+    }
+
+    @Provides
+    @Singleton
+    fun provideChatBackupManager(
+        @ApplicationContext context: Context,
+        database: AiDatabase
+    ): ChatBackupManager {
+        return ChatBackupManager(context.applicationContext, database)
     }
 
     @Provides
