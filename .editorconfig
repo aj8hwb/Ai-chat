@@ -1,0 +1,24 @@
+# Root EditorConfig — effective for ktlint 1.x (both the Gradle plugin and CI).
+#
+# max_line_length = 120 matches the project's detekt MaxLineLength (120) and
+# the established source convention; ktlint's own android_studio default (100)
+# would contradict detekt otherwise.
+#
+# function-naming is disabled because it false-positives on every PascalCase
+# @Composable function (Compose API convention) in this codebase.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{kt,kts}]
+ktlint_code_style = android_studio
+max_line_length = 120
+ktlint_standard_function-naming = disabled
+ij_kotlin_allow_trailing_comma_on_call_site = true
+ij_kotlin_allow_trailing_comma_on_declaration_site = true

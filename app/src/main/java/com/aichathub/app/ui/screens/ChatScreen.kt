@@ -562,7 +562,9 @@ HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
     }
 }
 
-    // Long-press options
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MessageBubble(
     message: MessageEntity,
     onCopy: () -> Unit,
     onLongPress: () -> Unit,
