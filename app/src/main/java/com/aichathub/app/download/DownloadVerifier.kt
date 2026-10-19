@@ -64,6 +64,36 @@ class DownloadVerifier {
     }
 
     /**
+     * Convenience wrapper: verifies a file against a mandatory (non-null)
+     * SHA-256 hash, case-insensitive. False when the file does not exist.
+     */
+    fun verifySha256(file: File, expected: String): Boolean {
+        if (!file.exists()) return false
+        val actual = sha256Hex(file)
+        if (actual.isEmpty()) return false
+        return actual.equals(expected, ignoreCase = true)
+    }
+
+    /**
+     * Verifies the on-disk size of a file matches [expectedSize].
+     * A missing or deleted file never matches. An existing empty file
+     * matches a zero expectation; a non-empty file never matches zero.
+     */
+    fun verifyFileIntegrity(file: File, expectedSize: Long): Boolean {
+        if (file.length() == 0L) return expectedSize == 0L && file.exists()
+        return file.length() == expectedSize
+    }
+
+    /**
+     * Computes the SHA-256 hex digest of a file. Returns the empty string
+     * when the file is missing, unreadable or aborted mid-computation.
+     */
+    fun computeSha256(file: File): String {
+        if (!file.exists()) return ""
+        return sha256Hex(file)
+    }
+
+    /**
      * Validates that a file has a valid GGUF header.
      * Delegates to SecurityValidator for the actual check.
      */

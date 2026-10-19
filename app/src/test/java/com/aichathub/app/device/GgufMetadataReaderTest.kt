@@ -23,20 +23,23 @@ class GgufMetadataReaderTest {
     private class GgufWriter {
         private val out = ByteArrayOutputStream()
 
-        private val le: ByteBuffer get() = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN)
+        private val le = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN)
 
         fun u8(v: Int) {
-            le.rewind().put(v.toByte())
+            le.clear()
+            le.put(v.toByte())
             out.write(le.array(), 0, 1)
         }
 
         fun u32(v: Int) {
-            le.rewind().putInt(v)
+            le.clear()
+            le.putInt(v)
             out.write(le.array(), 0, 4)
         }
 
         fun u64(v: Long) {
-            le.rewind().putLong(v)
+            le.clear()
+            le.putLong(v)
             out.write(le.array(), 0, 8)
         }
 

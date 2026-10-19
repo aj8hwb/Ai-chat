@@ -14,6 +14,7 @@ import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -137,7 +138,7 @@ class ChatCoordinatorTest {
             "result"
         }
 
-        val sendJob = kotlinx.coroutines.launch {
+        val sendJob = launch {
             try {
                 coordinator.sendMessage(
                     prompt = "Hello",
@@ -214,7 +215,7 @@ class ChatCoordinatorTest {
             loadLatch.await()
         }
 
-        val loadJob = kotlinx.coroutines.launch {
+        val loadJob = launch {
             try {
                 coordinator.loadModel(testModel, file)
             } catch (_: Exception) { }

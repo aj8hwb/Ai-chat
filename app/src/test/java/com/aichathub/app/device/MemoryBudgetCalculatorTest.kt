@@ -3,6 +3,7 @@ package com.aichathub.app.device
 import com.aichathub.app.domain.model.AiMemoryBudget
 import com.aichathub.app.domain.model.DeviceProfile
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MemoryBudgetCalculatorTest {
