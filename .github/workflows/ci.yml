@@ -26,6 +26,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Ensure gradlew is executable
+        run: chmod +x gradlew
+
       - name: Run ktlint
         run: ./gradlew ktlintCheck
 
@@ -48,7 +51,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run unit tests
-        run: ./gradlew testDebugUnitTest
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest
 
       - name: Upload test results
         if: always()
@@ -74,6 +79,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Ensure gradlew is executable
+        run: chmod +x gradlew
+
       - name: Build debug APK
         run: ./gradlew assembleDebug
 
@@ -94,6 +102,7 @@ jobs:
           else
             echo "KEYSTORE_BASE64 secret not configured — building UNSIGNED release APK."
           fi
+          chmod +x gradlew
           ./gradlew assembleRelease
 
       - name: Upload debug APK
