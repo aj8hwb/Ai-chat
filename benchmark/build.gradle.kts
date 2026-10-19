@@ -20,12 +20,12 @@ android {
     }
 
     buildTypes {
-        // This benchmark buildType is used for benchmarking, and should function like your
-        // temporary release build. It's signed with a debug key for convenience.
+        // Benchmark-ish build type kept for local macrobenchmark work. NOTE:
+        // this is a LIBRARY module — library build types have no
+        // isDebuggable/signingConfig knobs (those belong to app modules), so
+        // the old script's isDebuggable line never compiled and fails now that
+        // :benchmark is actually included in CI.
         create("benchmark") {
-            isDebuggable = true
-            signingConfig = getByName("debug").signingConfig
-            matchingFallbacks += listOf("release")
             isMinifyEnabled = false
         }
     }
