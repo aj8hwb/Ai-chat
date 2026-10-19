@@ -1,12 +1,13 @@
 [versions]
 # AndroidX Core
-# Kotlin ↔ KSP pairing note: KSP2 has plain versions since 2.3.0; each mirrors
-# the Kotlin compiler it embeds (KSP 2.3.12 embeds Kotlin 2.3.20). PIN KSP to
-# the release matching the Kotlin version here — a mismatched pair fails
-# plugin resolution or compilation.
-agp = "9.0.0"
-kotlin = "2.3.20"
-ksp = "2.3.12"
+# Toolchain (Kotlin ↔ KSP ↔ Gradle ↔ AGP): pinned to the version set proven to
+# build this project in CI (Gradle 8.13 + AGP 8.12.1 + Kotlin 2.2.21 +
+# KSP 2.2.21-2.0.4). AGP 9 was tried but requires migrating to its built-in
+# Kotlin DSL (the org.jetbrains.kotlin.android plugin is FORBIDDEN with it) —
+# a dedicated migration, not a version bump.
+agp = "8.12.1"
+kotlin = "2.2.21"
+ksp = "2.2.21-2.0.4"
 core-ktx = "1.16.0"
 activity-compose = "1.10.1"
 
