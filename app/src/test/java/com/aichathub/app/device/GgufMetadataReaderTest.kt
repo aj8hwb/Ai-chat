@@ -25,32 +25,37 @@ class GgufMetadataReaderTest {
 
         private val le = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN)
 
-        fun u8(v: Int) {
+        fun u8(v: Int): GgufWriter {
             le.clear()
             le.put(v.toByte())
             out.write(le.array(), 0, 1)
+            return this
         }
 
-        fun u32(v: Int) {
+        fun u32(v: Int): GgufWriter {
             le.clear()
             le.putInt(v)
             out.write(le.array(), 0, 4)
+            return this
         }
 
-        fun u64(v: Long) {
+        fun u64(v: Long): GgufWriter {
             le.clear()
             le.putLong(v)
             out.write(le.array(), 0, 8)
+            return this
         }
 
-        fun str(s: String) {
+        fun str(s: String): GgufWriter {
             u64(s.length.toLong())
             out.write(s.toByteArray(Charsets.UTF_8))
+            return this
         }
 
-        fun keyType(key: String, type: Int) {
+        fun keyType(key: String, type: Int): GgufWriter {
             str(key)
             u32(type)
+            return this
         }
 
         fun magic(): GgufWriter {
