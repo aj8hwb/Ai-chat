@@ -1,6 +1,12 @@
 plugins {
-    alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
+    // Version-less ids on purpose: the AGP jar (loaded by the root project's
+    // `com.android.application apply false`) already carries these plugin
+    // classes on the classpath WITHOUT a resolvable version, so requesting
+    // them via a versioned catalog alias fails with "already on the classpath
+    // with an unknown version". This is the same pattern the repo used when
+    // CI previously built successfully.
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
     alias(libs.plugins.ksp)
 }
 
