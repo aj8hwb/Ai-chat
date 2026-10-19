@@ -258,7 +258,8 @@ class GgufMetadataReaderTest {
             .keyType("m.some_u32_array", TYPE_ARRAY).let {
                 it.u32(TYPE_U32)
                 it.u64(4L)
-                repeat(4) { it.u32(1) }
+                val arrayHead = it
+                repeat(4) { arrayHead.u32(1) }
                 it
             }
             .keyType("m.block_count", TYPE_U32).let {
