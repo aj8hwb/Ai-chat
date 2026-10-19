@@ -2,7 +2,7 @@ package com.aichathub.app.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.device.CompatibilityEngine
 import com.aichathub.app.device.DeviceInfoProvider
 import com.aichathub.app.device.MemoryBudgetCalculator
@@ -35,7 +35,8 @@ class HomeViewModel @Inject constructor(
     private val deviceInfoProvider: DeviceInfoProvider,
     private val compatibilityEngine: CompatibilityEngine,
     private val settingsRepository: SettingsRepository,
-    private val modelRepository: ModelRepository
+    private val modelRepository: ModelRepository,
+    private val catalogRepository: CatalogRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState())
@@ -83,7 +84,7 @@ class HomeViewModel @Inject constructor(
             val budget = MemoryBudgetCalculator.calculate(profile)
             val measured = settingsRepository.measuredMemoryOnce()
             val recommendations = compatibilityEngine.recommendAll(
-                LocalModelCatalog.models,
+                catalogRepository.getAllModels(),
                 profile,
                 budget,
                 measured

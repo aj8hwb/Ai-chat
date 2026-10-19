@@ -94,7 +94,43 @@ fun BenchmarkScreen(
                         MetricRow("Speed", String.format("%.1f tok/s", result.tokensPerSecond))
                         MetricRow("Total time", String.format("%.0f ms", result.generationMs))
                         MetricRow("Total tokens", result.tokens.toString())
-                        MetricRow("Memory used", com.aichathub.app.util.Formatters.bytes(result.memoryBytes))
+                        MetricRow("Model load", String.format("%.0f ms", result.loadTimeMs))
+                        MetricRow(
+                            "First token",
+                            result.ttftMs?.let { String.format("%.0f ms", it) } ?: "not measured"
+                        )
+                        MetricRow("Backend", result.backend)
+                        MetricRow("CPU threads", result.threads.toString())
+                        MetricRow("Quantization", result.quantization.ifBlank { "unknown" })
+                        MetricRow(
+                            "Trials (measured)",
+                            "${result.validTrials} of ${result.trials} timed runs"
+                        )
+                        if (result.validTrials > 1) {
+                            MetricRow(
+                                "Speed range",
+                                String.format(
+                                    "%.1f – %.1f tok/s (median shown above)",
+                                    result.minTokensPerSecond,
+                                    result.maxTokensPerSecond
+                                )
+                            )
+                        }
+                        MetricRow(
+                            "System RAM available",
+                            result.systemRamAvailableBytes?.let { com.aichathub.app.util.Formatters.bytes(it) } ?: "not measured"
+                        )
+                        MetricRow(
+                            "App heap used",
+                            result.appHeapUsedBytes?.let { com.aichathub.app.util.Formatters.bytes(it) } ?: "not measured"
+                        )
+                        MetricRow(
+                            "Memory used",
+                            com.aichathub.app.util.Formatters.bytes(result.memoryBytes) + " (PSS Δ around load, not peak)"
+                        )
+                        state.calibratedThreads?.let {
+                            MetricRow("Calibrated threads", it.toString() + " (applied on next load)")
+                        }
                     }
                 }
                 Spacer(Modifier.height(12.dp))

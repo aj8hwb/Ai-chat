@@ -219,14 +219,14 @@ object PrivacyCenter {
     }
 
     // ------------------------------------------------------------------
-    // Model file integrity
+    // Model file availability (not cryptographic integrity)
     // ------------------------------------------------------------------
 
     /**
-     * Verifies model file integrity by checking file existence and size.
+     * Checks model file availability by verifying file existence and size.
      * For full SHA-256 verification, use DownloadVerifier directly.
      */
-    suspend fun verifyModelIntegrity(context: Context): Boolean {
+    suspend fun verifyModelAvailability(context: Context): Boolean {
         return try {
             val modelsDir = java.io.File(context.filesDir, "models")
             if (!modelsDir.exists()) return true
@@ -234,10 +234,13 @@ object PrivacyCenter {
                 file.exists() && file.length() > 0
             } ?: true
         } catch (e: Exception) {
-            Log.w(TAG, "Model integrity check failed", e)
+            Log.w(TAG, "Model availability check failed", e)
             false
         }
     }
+
+    @Deprecated("Renamed to verifyModelAvailability", replaceWith = ReplaceWith("verifyModelAvailability(context)"))
+    suspend fun verifyModelIntegrity(context: Context): Boolean = verifyModelAvailability(context)
 
     // ------------------------------------------------------------------
     // Privacy dashboard data

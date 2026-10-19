@@ -21,7 +21,10 @@ import java.util.concurrent.ConcurrentLinkedQueue
  *  - Battery threshold checking
  *  - Parallel download limit (default: 1)
  *  - Auto-retry on failure
- *  - Queue persistence (survives app restarts)
+ *
+ * Note: The queue is in-memory only. Individual download state is persisted
+ * via DownloadManager's .part files on disk, so downloads can be resumed
+ * after process death. The queue ordering itself is not persisted.
  *
  * Usage:
  *  1. Enqueue models with priority

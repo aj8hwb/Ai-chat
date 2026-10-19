@@ -34,6 +34,8 @@ All models are **real** GGUF artifacts hosted on Hugging Face, verified to resol
 Each entry carries the exact file size and a SHA-256 checksum so downloads are verified before
 install. Model binaries are **never bundled** in the APK — they are downloaded on demand.
 
+### Recommended Models
+
 | Model | Parameters | Quantization | File Size | License | Source |
 |-------|-----------|--------------|-----------|---------|--------|
 | Qwen3 4B Uncensored | 4B | Q4_K_M | ~2.3 GB | Apache 2.0 | [mradermacher/Qwen3-4B-abliterated-GGUF](https://huggingface.co/mradermacher/Qwen3-4B-abliterated-GGUF) |
@@ -42,7 +44,22 @@ install. Model binaries are **never bundled** in the APK — they are downloaded
 | Dolphin 2.9.4 Llama 3.1 8B | 8B | Q4_K_M | ~4.6 GB | Llama 3.1 License | [bartowski/dolphin-2.9.4-llama3.1-8b-GGUF](https://huggingface.co/bartowski/dolphin-2.9.4-llama3.1-8b-GGUF) |
 | Dolphin 2.8 Mistral 7B | 7B | Q4_K_M | ~4.1 GB | Apache 2.0 | [lmstudio-community/dolphin-2.8-mistral-7b-v02-GGUF](https://huggingface.co/lmstudio-community/dolphin-2.8-mistral-7b-v02-GGUF) |
 
-Respect the license terms of each model. Gemma and Llama have usage requirements from their owners.
+### Lightweight Models
+
+| Model | Parameters | Quantization | File Size | License | Source |
+|-------|-----------|--------------|-----------|---------|--------|
+| SmolLM2 135M Instruct | 135M | Q4_K_M | ~100 MB | Apache 2.0 | [bartowski/SmolLM2-135M-Instruct-GGUF](https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF) |
+| SmolLM2 360M Instruct | 360M | Q8_0 | ~368 MB | Apache 2.0 | [HuggingFaceTB/SmolLM2-360M-Instruct-GGUF](https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct-GGUF) |
+| MobileLLM 125M | 125M | Q4_K_M | ~101 MB | CC-BY-NC 4.0 | [pjh64/MobileLLM-125M-GGUF](https://huggingface.co/pjh64/MobileLLM-125M-GGUF) |
+| MobileLLM 350M | 350M | Q4_K_M | ~260 MB | CC-BY-NC 4.0 | [pjh64/MobileLLM-350M-GGUF](https://huggingface.co/pjh64/MobileLLM-350M-GGUF) |
+| MobileLLM 600M | 600M | Q4_K_M | ~437 MB | CC-BY-NC 4.0 | [RichardErkhov/facebook_-_MobileLLM-600M-gguf](https://huggingface.co/RichardErkhov/facebook_-_MobileLLM-600M-gguf) |
+| Qwen2.5 0.5B Instruct | 0.5B | Q4_K_M | ~468 MB | Apache 2.0 | [Qwen/Qwen2.5-0.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF) |
+| Qwen2.5-Coder 0.5B Instruct | 0.5B | Q4_K_M | ~468 MB | Apache 2.0 | [Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF) |
+| OpenELM 270M | 270M | Q4_K_M | ~167 MB | Apple Sample Code | [RichardErkhov/apple_-_OpenELM-270M-gguf](https://huggingface.co/RichardErkhov/apple_-_OpenELM-270M-gguf) |
+| OpenELM 450M | 450M | Q4_K_M | ~276 MB | Apple Sample Code | [RichardErkhov/apple_-_OpenELM-450M-gguf](https://huggingface.co/RichardErkhov/apple_-_OpenELM-450M-gguf) |
+| TinyLlama 1.1B Chat | 1.1B | Q4_K_M | ~637 MB | Apache 2.0 | [TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF](https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF) |
+
+Respect the license terms of each model. Gemma, Llama, and MobileLLM have usage requirements from their owners.
 
 ## Tech Stack
 

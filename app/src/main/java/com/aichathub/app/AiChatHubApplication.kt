@@ -4,11 +4,13 @@ import android.app.Application
 import android.content.ComponentCallbacks2
 import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
-import com.aichathub.app.chat.RuntimeState
 import com.aichathub.app.data.CatalogSyncWorker
 import com.aichathub.app.data.SettingsRepository
-import com.aichathub.app.di.InferenceRuntimeEntryPoint
+import com.aichathub.app.di.ChatCoordinatorEntryPoint
 import com.aichathub.app.privacy.CrashLogRepository
 import com.aichathub.app.privacy.PrivacyCenter
 import dagger.hilt.android.HiltAndroidApp
@@ -30,11 +32,35 @@ class AiChatHubApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
-        // Initialize PrivacyCenter with the settings repository
         PrivacyCenter.init(settingsRepository)
         settingsRepository.startCaching()
         installCrashLogger()
         scheduleCatalogSync()
+        initializeLifecycleObserver()
+    }
+
+    private fun initializeLifecycleObserver() {
+        try {
+            val entryPoint = dagger.hilt.EntryPoints.get(
+                this,
+                ChatCoordinatorEntryPoint::class.java
+            )
+            val coordinator = entryPoint.chatCoordinator()
+
+            ProcessLifecycleOwner.get().lifecycle.addObserver(object : LifecycleEventObserver {
+                override fun onStateChanged(source: androidx.lifecycle.LifecycleOwner, event: Lifecycle.Event) {
+                    when (event) {
+                        Lifecycle.Event.ON_STOP -> coordinator.handleBackgroundTransition(inBackground = true)
+                        Lifecycle.Event.ON_START -> coordinator.handleBackgroundTransition(inBackground = false)
+                        else -> {}
+                    }
+                }
+            })
+
+            Log.d("AiChatHubApp", "Lifecycle observer initialized via ChatCoordinator")
+        } catch (e: Exception) {
+            Log.w("AiChatHubApp", "Failed to initialize lifecycle observer", e)
+        }
     }
 
     private fun scheduleCatalogSync() {
@@ -46,10 +72,6 @@ class AiChatHubApplication : Application(), Configuration.Provider {
         }
     }
 
-    /**
-     * Records any uncaught Java exception to logcat and to the centralized
-     * crash log file via [CrashLogRepository].
-     */
     private fun installCrashLogger() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
@@ -62,7 +84,6 @@ class AiChatHubApplication : Application(), Configuration.Provider {
                     "PSS=${info.totalPss / 1024}MB nativeHeap=${android.os.Debug.getNativeHeapAllocatedSize() / (1024 * 1024)}MB javaHeap=${(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024)}MB"
                 }.getOrElse { "memory stats unavailable" }
                 Log.e("AiChatHubApp", "CRASH memory: $mem")
-                // Write to centralized crash log
                 CrashLogRepository.write(
                     this@AiChatHubApplication,
                     throwable,
@@ -79,61 +100,22 @@ class AiChatHubApplication : Application(), Configuration.Provider {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        // Unload the native LLM model when the system is under memory pressure.
-        // A loaded GGUF model can consume hundreds of MB to several GB of native
-        // memory. If the app is backgrounded or the system is low on memory, the
-        // model should be released so the OS can reclaim it — preventing LMK
-        // kills, OOM crashes, and ANRs.
-        when {
-            level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> {
-                Log.i("AiChatHubApp", "onTrimMemory level=$level — attempting model unload")
-                attemptModelUnload()
-            }
-            level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
-                // UI is hidden (app backgrounded). If auto-unload is enabled,
-                // release the model proactively before memory pressure escalates.
-                if (settingsRepository.cachedAutoUnload) {
-                    Log.i("AiChatHubApp", "onTrimMemory UI_HIDDEN — auto-unload enabled, releasing model")
-                    attemptModelUnload()
-                }
-            }
-        }
-    }
-
-    /**
-     * Safely unloads the currently loaded model via the [InferenceRuntime].
-     * Only unloads if the runtime is in READY state (not actively generating).
-     * Uses a background thread to avoid blocking the main thread during
-     * onTrimMemory callbacks.
-     */
-    private fun attemptModelUnload() {
         try {
             val entryPoint = dagger.hilt.EntryPoints.get(
                 this,
-                InferenceRuntimeEntryPoint::class.java
+                ChatCoordinatorEntryPoint::class.java
             )
-            val runtime = entryPoint.inferenceRuntime()
-            if (!runtime.isLoaded) return
-
-            val state = runtime.runtimeState
-            if (state == RuntimeState.GENERATING || state == RuntimeState.LOADING) {
-                Log.i("AiChatHubApp", "Model is $state — skipping unload to avoid interrupting")
-                return
-            }
-
-            // Perform the unload on a background thread
-            Thread({
-                try {
-                    kotlinx.coroutines.runBlocking {
-                        runtime.unload()
-                    }
-                    Log.i("AiChatHubApp", "Model unloaded by onTrimMemory")
-                } catch (e: Exception) {
-                    Log.w("AiChatHubApp", "Failed to unload model on trim memory", e)
-                }
-            }, "model-unload-on-trim").start()
+            entryPoint.chatCoordinator().handleMemoryPressure(level)
         } catch (e: Exception) {
-            Log.w("AiChatHubApp", "Failed to access runtime for model unload", e)
+            Log.w("AiChatHubApp", "Failed to handle memory pressure", e)
         }
+    }
+
+    override fun onTerminate() {
+        super.onTerminate()
+        // ChatCoordinator no longer owns a CoroutineScope — it uses the
+        // application-scoped scope provided by Hilt. Process death is safe
+        // by design: the OS cancels all coroutines, model files on disk
+        // remain valid, and persistent state is recovered on next launch.
     }
 }

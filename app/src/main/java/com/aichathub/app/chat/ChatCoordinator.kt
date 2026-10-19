@@ -11,10 +11,13 @@ import com.aichathub.app.domain.model.ChatTemplate
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.privacy.PrivacyCenter
 import com.aichathub.app.util.TokenEstimator
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -38,12 +41,19 @@ data class ChatSessionState(
  *
  * UI talks only to this class. The concrete runtime is hidden behind
  * [InferenceRuntime].
+ *
+ * @param appScope Application-scoped coroutine scope. ChatCoordinator does NOT
+ *   own this scope — it is injected so that process death is safe by design.
+ *   When the process is killed by the OS, all coroutines are cancelled
+ *   automatically; model files on disk remain valid and can be reloaded on
+ *   next launch.
  */
 class ChatCoordinator(
     private val runtime: InferenceRuntime,
     private val conversationDao: ConversationDao,
     private val messageDao: MessageDao,
-    private val modelRepository: ModelRepository
+    private val modelRepository: ModelRepository,
+    private val appScope: CoroutineScope
 ) {
     private val _state = MutableStateFlow(ChatSessionState())
     val state: StateFlow<ChatSessionState> = _state.asStateFlow()
@@ -54,6 +64,12 @@ class ChatCoordinator(
     /** Serializes model load/unload so switching models never interleaves. */
     private val loadMutex = Mutex()
 
+    // Lifecycle management — uses injected appScope, NOT a private scope.
+    // The coordinator never owns the scope, so there is nothing to "destroy".
+    private var autoUnloadJob: Job? = null
+    private val autoUnloadDelayMs = 30_000L // 30 seconds
+    @Volatile private var isInBackground = false
+
     /**
      * Loads a model into the runtime, switching from any previously loaded
      * model. Loading is serialized so a quick model A → model B switch cannot
@@ -63,7 +79,10 @@ class ChatCoordinator(
         model: CatalogModel,
         file: File,
         config: GenerationConfig? = null,
-        threads: Int = 4
+        threads: Int = 4,
+        // Session context override (adaptive selection). When null, the
+        // model's native maximum is used — unchanged legacy behavior.
+        contextLength: Int? = null
     ) {
         _state.value = _state.value.copy(
             isLoadingModel = true,
@@ -85,7 +104,13 @@ class ChatCoordinator(
                 // cause us to skip a required reload.
                 if (runtime.activeModelId != model.id) {
                     runtime.unload()
-                    runtime.load(model.id, file, model.contextLength, config, threads)
+                    val sessionContext = contextLength ?: model.contextLength
+                    Log.i(
+                        "ChatCoordinator",
+                        "MODEL_LOAD_START ${model.id} threads=$threads context=$sessionContext " +
+                            "(modelLimit=${model.contextLength})"
+                    )
+                    runtime.load(model.id, file, sessionContext, config, threads)
                     Log.i("ChatCoordinator", "MODEL_LOAD_SUCCESS ${model.id}")
                 }
             }
@@ -190,6 +215,12 @@ class ChatCoordinator(
         val incognito = PrivacyCenter.isIncognitoMode()
         var conversationId = _activeConversationId.value
         val streamed = StringBuilder()
+        // Coalesced UI emission: instead of allocating a full-string copy per
+        // token (O(n²) over a response), the accumulated text is handed to the
+        // UI at most every [StreamCoalescer.INTERVAL_MS]. The canonical buffer
+        // ([streamed]) stays complete and correct including Unicode and the
+        // stop-sequence tail; the ViewModel throttling on top remains valid.
+        val coalescer = StreamCoalescer(onStream)
 
         return try {
             withContext(Dispatchers.IO) {
@@ -224,7 +255,7 @@ class ChatCoordinator(
                         config = effectiveConfig,
                         onToken = { token ->
                             streamed.append(token)
-                            onStream(streamed.toString())
+                            coalescer.onToken(streamed)
                         }
                     )
 
@@ -267,7 +298,7 @@ class ChatCoordinator(
                     config = effectiveConfig,
                     onToken = { token ->
                         streamed.append(token)
-                        onStream(streamed.toString())
+                        coalescer.onToken(streamed)
                     }
                 )
 
@@ -299,8 +330,12 @@ class ChatCoordinator(
         } catch (e: kotlinx.coroutines.CancellationException) {
             // User pressed Stop: keep whatever was already streamed so a long
             // interrupted reply is not silently lost, then unwind cleanly.
+            // In incognito mode, never persist partial results.
+            // Flush the coalesced buffer first so the UI shows the complete
+            // partial text and not a 150 ms stale snapshot.
+            runCatching { coalescer.flush(streamed) }
             val partial = streamed.toString().trim()
-            if (partial.isNotEmpty() && conversationId != null) {
+            if (partial.isNotEmpty() && conversationId != null && !incognito) {
                 runCatching {
                     messageDao.insert(
                         MessageEntity(
@@ -353,6 +388,84 @@ class ChatCoordinator(
         )
     }
 
+    // ------------------------------------------------------------------
+    // Lifecycle management (single authoritative owner)
+    // ------------------------------------------------------------------
+
+    /**
+     * Handles background/foreground transitions. When the app goes to background,
+     * schedules auto-unload after [autoUnloadDelayMs] if no generation is active.
+     * When the app returns to foreground, cancels the auto-unload timer.
+     */
+    fun handleBackgroundTransition(inBackground: Boolean) {
+        isInBackground = inBackground
+        Log.i(TAG, "handleBackgroundTransition: inBackground=$inBackground")
+        appScope.launch {
+            loadMutex.withLock {
+                if (inBackground && _state.value.generationState != ChatGenerationState.GENERATING) {
+                    scheduleAutoUnload()
+                } else {
+                    cancelAutoUnloadTimer()
+                }
+            }
+        }
+    }
+
+    /**
+     * Handles memory pressure from the system. On critical pressure, unloads
+     * the model immediately if no generation is active.
+     */
+    fun handleMemoryPressure(level: Int) {
+        appScope.launch {
+            loadMutex.withLock {
+                Log.i(TAG, "handleMemoryPressure: level=$level")
+                when {
+                    level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> {
+                        if (_state.value.generationState != ChatGenerationState.GENERATING && runtime.isLoaded) {
+                            Log.i(TAG, "Memory pressure critical - unloading model")
+                            runtime.unload()
+                            _state.value = _state.value.copy(
+                                activeModelId = null,
+                                activeModelName = null
+                            )
+                        }
+                    }
+                    level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
+                        if (_state.value.generationState != ChatGenerationState.GENERATING) {
+                            scheduleAutoUnload()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun scheduleAutoUnload() {
+        cancelAutoUnloadTimer()
+        autoUnloadJob = appScope.launch {
+            delay(autoUnloadDelayMs)
+            loadMutex.withLock {
+                if (_state.value.generationState != ChatGenerationState.GENERATING && runtime.isLoaded) {
+                    Log.i(TAG, "Auto-unloading model after inactivity")
+                    try {
+                        runtime.unload()
+                        _state.value = _state.value.copy(
+                            activeModelId = null,
+                            activeModelName = null
+                        )
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Auto-unload failed", e)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun cancelAutoUnloadTimer() {
+        autoUnloadJob?.cancel()
+        autoUnloadJob = null
+    }
+
     /**
      * Builds a context-aware prompt from the recent messages so the model
      * can continue the conversation. The system prompt is embedded as the
@@ -364,6 +477,8 @@ class ChatCoordinator(
      * context (token-dense languages included). Oversizing a llama.cpp context
      * crashes the whole native process, so older turns are dropped first while
      * the newest message and the system prompt are always preserved.
+     *
+     * Context pipeline: System prompt + Summary (if available) + Recent messages
      */
     private suspend fun buildPrompt(
         model: CatalogModel,
@@ -372,17 +487,41 @@ class ChatCoordinator(
         maxOutputTokens: Int,
         historyTurns: Int = DEFAULT_HISTORY_TURNS
     ): String {
-        val recent = messageDao.forConversation(conversationId)
+        // Use DAO-level LIMIT to avoid loading full conversation history
+        val recent = messageDao.recentForConversation(conversationId, historyTurns.coerceIn(2, 20))
             .filter { it.role == "user" || it.role == "assistant" }
-            .takeLast(historyTurns.coerceIn(2, 20))
+            .sortedBy { it.createdAt } // Restore chronological order after DESC query
 
         val systemBlock = renderSystemBlock(model.chatTemplate, systemPrompt)
+        // Use the context ACTUALLY loaded in the runtime (which may be
+        // adaptively smaller than the model's maximum on low-RAM devices);
+        // fall back to the model max only when nothing is loaded yet. The
+        // native context would otherwise assume the model max and overflow.
+        val contextLimit = runtime.performance.value.contextTokensMax
+            .takeIf { it > 0 }
+            ?: model.contextLength
         val turnsBudgetTokens =
-            (TokenEstimator.promptBudgetTokens(model.contextLength, maxOutputTokens) -
+            (TokenEstimator.promptBudgetTokens(contextLimit, maxOutputTokens) -
                 TokenEstimator.estimate(systemBlock)).coerceAtLeast(64)
 
-        // Drop the OLDEST turns until the whole prompt fits in the token budget.
+        // Check for conversation summary
+        val summary = conversationDao.getSummary(conversationId)
+
         var turns = recent.toMutableList()
+
+        // If summary exists, inject it as a system message at the beginning
+        if (!summary.isNullOrBlank()) {
+            val summaryMessage = MessageEntity(
+                conversationId = conversationId,
+                role = "system",
+                content = "[Previous conversation summary: $summary]",
+                createdAt = System.currentTimeMillis(),
+                modelId = model.id
+            )
+            turns = (listOf(summaryMessage) + turns).toMutableList()
+        }
+
+        // Drop the OLDEST turns until the whole prompt fits in the token budget.
         while (turns.size > 1 && TokenEstimator.estimate(renderPrompt(model.chatTemplate, turns)) > turnsBudgetTokens) {
             turns.removeAt(0)
         }
@@ -465,7 +604,47 @@ class ChatCoordinator(
     }
 
     private companion object {
+        private const val TAG = "ChatCoordinator"
         const val DEFAULT_HISTORY_TURNS = 8
     }
 
+    /**
+     * See [StreamCoalescer] — kept as a top-level internal class so a unit
+     * test can drive cancellation-flush behavior directly.
+     */
+}
+
+/**
+ * Time-based UI emission coalescer for streaming tokens (internal so
+ * a unit test can drive cancellation-flush behavior directly).
+ *
+ * The native engine emits one token per collect callback; forwarding a
+ * full `StringBuilder.toString()` on every callback is an O(n) copy per
+ * token. This coalescer hands the accumulated text to the UI callback at
+ * most once every [INTERVAL_MS] while keeping the canonical buffer
+ * authoritative. [flush] always emits (used on completion/cancellation)
+ * so no final content is lost to the interval.
+ */
+internal class StreamCoalescer(
+    private val onEmit: (String) -> Unit,
+    private val intervalMs: Long = INTERVAL_MS
+) {
+    private var lastEmitAt = 0L
+
+    fun onToken(builder: StringBuilder) {
+        val now = System.currentTimeMillis()
+        if (now - lastEmitAt >= intervalMs) {
+            lastEmitAt = now
+            onEmit(builder.toString())
+        }
+    }
+
+    fun flush(builder: StringBuilder) {
+        if (builder.isEmpty()) return
+        onEmit(builder.toString())
+    }
+
+    companion object {
+        const val INTERVAL_MS = 150L
+    }
 }

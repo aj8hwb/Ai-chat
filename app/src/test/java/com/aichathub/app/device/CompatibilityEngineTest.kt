@@ -211,4 +211,83 @@ class CompatibilityEngineTest {
             )
         )
     }
+
+    // ── hard load gate (loadEligibility) ────────────────────────────────
+
+    /** The gate computes its own budget; probe it to write exact tests. */
+    private fun probeUsableBytes(): Long =
+        engine.loadEligibility(
+            model(estimatedMemoryMb = 100, fileSizeMb = 100),
+            largeProfile
+        ).usableBytes
+
+    @Test
+    fun `unmeasured model whose weights alone exceed the budget is hard BLOCKED not warned`() {
+        // Spec §2.9/§2.10: a WARN may only carry a possibly-wrong estimate,
+        // never a configuration ALREADY KNOWN not to fit. Weights > usable
+        // cannot fit at any context size — the gate must BLOCK even with no
+        // measurement available.
+        val usable = probeUsableBytes()
+        val mb = 1024L * 1024
+        val m = model(
+            estimatedMemoryMb = ((usable * 1.5) / mb).toInt(),
+            fileSizeMb = ((usable * 2.0) / mb).toInt()
+        )
+        val result = engine.loadEligibility(m, largeProfile)
+        assertEquals(LoadEligibility.BLOCK, result.eligibility)
+        assertTrue(!result.measured)
+    }
+
+    @Test
+    fun `weights-block message does not claim a measurement happened`() {
+        val usable = probeUsableBytes()
+        val mb = 1024L * 1024
+        val m = model(
+            estimatedMemoryMb = ((usable * 1.5) / mb).toInt(),
+            fileSizeMb = ((usable * 2.0) / mb).toInt()
+        )
+        val message = engine.loadEligibility(m, largeProfile).message
+        assertTrue(message.contains("file alone"))
+        assertTrue(!message.contains("actually uses"))
+    }
+
+    @Test
+    fun `unmeasured estimate-only over-budget stays a WARN the user may try`() {
+        val usable = probeUsableBytes()
+        val mb = 1024L * 1024
+        val m = model(
+            estimatedMemoryMb = ((usable * 1.5) / mb).toInt(),
+            fileSizeMb = ((usable * 0.25) / mb).toInt()
+        )
+        val result = engine.loadEligibility(m, largeProfile)
+        assertEquals(LoadEligibility.WARN, result.eligibility)
+    }
+
+    @Test
+    fun `measured footprint far over the budget is hard BLOCKED`() {
+        val usable = probeUsableBytes()
+        val mb = 1024L * 1024
+        val m = model(
+            estimatedMemoryMb = 100,
+            fileSizeMb = ((usable * 0.25) / mb).toInt()
+        )
+        val result = engine.loadEligibility(
+            m,
+            largeProfile,
+            measuredMemory = mapOf("test-model" to (usable * 2))
+        )
+        assertEquals(LoadEligibility.BLOCK, result.eligibility)
+        assertTrue(result.measured)
+    }
+
+    @Test
+    fun `model fitting the budget is allowed without measurement`() {
+        val usable = probeUsableBytes()
+        val mb = 1024L * 1024
+        val m = model(
+            estimatedMemoryMb = ((usable * 0.5) / mb).toInt(),
+            fileSizeMb = ((usable * 0.25) / mb).toInt()
+        )
+        assertEquals(LoadEligibility.ALLOW, engine.loadEligibility(m, largeProfile).eligibility)
+    }
 }

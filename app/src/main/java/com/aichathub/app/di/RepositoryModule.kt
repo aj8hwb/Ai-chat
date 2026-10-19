@@ -1,6 +1,7 @@
 package com.aichathub.app.di
 
 import android.content.Context
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.RemoteCatalogRepository
 import com.aichathub.app.data.SettingsRepository
@@ -27,9 +28,10 @@ object RepositoryModule {
     @Singleton
     fun provideModelRepository(
         @ApplicationContext context: Context,
-        database: AiDatabase
+        database: AiDatabase,
+        catalogRepository: CatalogRepository
     ): ModelRepository {
-        return ModelRepository(context.applicationContext, database)
+        return ModelRepository(context.applicationContext, database, catalogRepository)
     }
 
     @Provides

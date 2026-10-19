@@ -11,6 +11,7 @@ import java.security.KeyFactory
 import java.security.Signature
 import java.security.spec.EdECPublicKeySpec
 import java.security.spec.NamedParameterSpec
+import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
 import java.math.BigInteger
 
@@ -34,34 +35,65 @@ private val Context.signatureDataStore by preferencesDataStore(name = "catalog_s
  *  }
  *
  * The signature is computed over the canonicalized payload JSON.
+ *
+ * Key formats accepted:
+ *  - X.509 SubjectPublicKeyInfo (Base64-encoded DER, preferred)
+ *  - Raw 32-byte key (Base64-encoded, legacy fallback)
  */
 object CatalogSignatureVerifier {
 
     private const val TAG = "CatalogSigVerifier"
 
     /**
-     * Known production Ed25519 public keys (Base64-encoded, 32 bytes raw).
+     * Known production Ed25519 public keys.
      * Key ID -> public key mapping for key rotation support.
      *
-     * SECURITY: Replace CHANGE_ME_ED25519_PUBLIC_KEY_BASE64 with the actual
-     * server public key before releasing to production. The build will FAIL
-     * if this placeholder is still present (see build.gradle.kts check).
+     * Keys can be in either format:
+     *  - X.509 SubjectPublicKeyInfo (preferred): standard DER-encoded public key
+     *  - Raw 32-byte key (legacy): raw compressed point
      *
+     * SECURITY: The production key must be configured before release.
      * To generate a new Ed25519 key pair:
      *   openssl genpkey -algorithm Ed25519 -outform PEM -out private.pem
      *   openssl pkey -in private.pem -pubout -outform PEM -out public.pem
-     *   openssl pkey -in private.pem -outform DER | base64  (raw 32-byte key)
+     *
+     * For new keys, export as X.509 DER:
+     *   openssl pkey -in public.pem -outform DER | base64
+     *
+     * The key should be stored securely and not committed to version control.
+     * For production, use environment variables or secure key management.
      */
-    private val PUBLIC_KEYS = mapOf(
-        "prod-v1" to "CHANGE_ME_ED25519_PUBLIC_KEY_BASE64"
-    )
+    private val PUBLIC_KEYS: Map<String, String> = run {
+        val keys = mutableMapOf<String, String>()
+
+        // Load production key from BuildConfig (embedded at build time)
+        // The public key is safe to embed in the application binary.
+        val prodKey = try {
+            val key = com.aichathub.app.BuildConfig.CATALOG_PUBLIC_KEY
+            if (key.isBlank()) {
+                Log.w(TAG, "Catalog public key not configured. Signature verification disabled.")
+                ""
+            } else {
+                key
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load catalog public key", e)
+            ""
+        }
+
+        if (prodKey.isNotBlank()) {
+            keys["prod-v1"] = prodKey
+        }
+
+        keys
+    }
 
     private const val ALGORITHM = "Ed25519"
 
     init {
         // Warn but do NOT crash — the app can still function with cached catalogs
         // when the production key is not yet configured.
-        if (PUBLIC_KEYS.values.none { it.startsWith("CHANGE_ME") }.not()) {
+        if (PUBLIC_KEYS.isEmpty()) {
             Log.w(TAG, "CatalogSignatureVerifier: production Ed25519 public key not configured. " +
                 "Remote catalog signature verification will be skipped until the key is set.")
         }
@@ -129,10 +161,6 @@ object CatalogSignatureVerifier {
             val rawKey = Base64.getDecoder().decode(publicKeyB64)
             val sigBytes = Base64.getDecoder().decode(envelope.signature)
 
-            if (rawKey.size != 32) {
-                Log.e(TAG, "Invalid public key size: ${rawKey.size} (expected 32)")
-                return false
-            }
             if (sigBytes.size != 64) {
                 Log.e(TAG, "Invalid signature size: ${sigBytes.size} (expected 64)")
                 return false
@@ -172,7 +200,7 @@ object CatalogSignatureVerifier {
             val version = payloadObj["version"]?.toString()?.toIntOrNull() ?: 0
 
             ManifestEnvelope(
-                payload = payloadObj.toString(),
+                payload = canonicalizeJson(payloadObj),
                 signature = signature,
                 keyId = keyId,
                 version = version
@@ -184,16 +212,111 @@ object CatalogSignatureVerifier {
     }
 
     /**
-     * Builds an Ed25519 PublicKey from raw 32-byte key material.
+     * Canonicalizes a JSON object to a deterministic string representation.
+     * This ensures consistent signature verification regardless of JSON serialization order.
+     */
+    private fun canonicalizeJson(obj: kotlinx.serialization.json.JsonObject): String {
+        return buildString {
+            append("{")
+            val sortedEntries = obj.entries.sortedBy { it.key }
+            sortedEntries.forEachIndexed { index, (key, value) ->
+                if (index > 0) append(",")
+                append("\"")
+                append(escapeJsonString(key))
+                append("\":")
+                append(canonicalizeJsonValue(value))
+            }
+            append("}")
+        }
+    }
+
+    /**
+     * Recursively canonicalizes a JSON value.
+     */
+    private fun canonicalizeJsonValue(value: kotlinx.serialization.json.JsonElement): String {
+        return when (value) {
+            is kotlinx.serialization.json.JsonObject -> canonicalizeJson(value)
+            is kotlinx.serialization.json.JsonArray -> buildString {
+                append("[")
+                value.forEachIndexed { index, element ->
+                    if (index > 0) append(",")
+                    append(canonicalizeJsonValue(element))
+                }
+                append("]")
+            }
+            is kotlinx.serialization.json.JsonPrimitive -> {
+                if (value.isString) {
+                    "\"${escapeJsonString(value.content)}\""
+                } else {
+                    // For numbers, ensure consistent formatting
+                    val numStr = value.content
+                    if (numStr.contains(".") || numStr.contains("e") || numStr.contains("E")) {
+                        // Float/double - keep as-is but ensure consistent format
+                        numStr
+                    } else {
+                        // Integer - keep as-is
+                        numStr
+                    }
+                }
+            }
+            is kotlinx.serialization.json.JsonNull -> "null"
+        }
+    }
+
+    /**
+     * Escapes special characters in a JSON string.
+     */
+    private fun escapeJsonString(s: String): String {
+        return buildString {
+            for (c in s) {
+                when (c) {
+                    '\\' -> append("\\\\")
+                    '"' -> append("\\\"")
+                    '\n' -> append("\\n")
+                    '\r' -> append("\\r")
+                    '\t' -> append("\\t")
+                    '\b' -> append("\\b")
+                    '\u000C' -> append("\\f")
+                    else -> {
+                        if (c.code < 0x20) {
+                            append("\\u")
+                            append("%04x".format(c.code))
+                        } else {
+                            append(c)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Builds an Ed25519 PublicKey from raw key material.
+     *
+     * Supports two formats:
+     *  - 32 bytes: raw Ed25519 public key (legacy format, uses custom decompression)
+     *  - Longer: X.509 SubjectPublicKeyInfo DER-encoded key (preferred, standard JCA)
      */
     private fun buildPublicKey(rawKey: ByteArray): java.security.PublicKey {
-        val point = ed25519PointDecompress(rawKey)
-        val spec = EdECPublicKeySpec(NamedParameterSpec.ED25519, point)
-        return KeyFactory.getInstance(ALGORITHM).generatePublic(spec)
+        return when {
+            rawKey.size == 32 -> {
+                // Legacy raw 32-byte key: use custom point decompression
+                val point = ed25519PointDecompress(rawKey)
+                val spec = EdECPublicKeySpec(NamedParameterSpec.ED25519, point)
+                KeyFactory.getInstance(ALGORITHM).generatePublic(spec)
+            }
+            else -> {
+                // X.509 SubjectPublicKeyInfo format (standard, preferred)
+                // This is the standard way JCA handles public keys — no custom math needed.
+                val spec = X509EncodedKeySpec(rawKey)
+                KeyFactory.getInstance(ALGORITHM).generatePublic(spec)
+            }
+        }
     }
 
     /**
      * Decompresses an Ed25519 public key (32 bytes) into an EdECPoint.
+     * Used only for legacy raw 32-byte keys.
      */
     private fun ed25519PointDecompress(compressedKey: ByteArray): java.security.spec.EdECPoint {
         val yBytes = compressedKey.copyOf()

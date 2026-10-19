@@ -1,13 +1,10 @@
 package com.aichathub.app
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.privacy.BiometricAuthManager
 import com.aichathub.app.ui.AiChatHubApp
@@ -46,9 +42,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // On Android 13+ the download foreground service shows a notification;
-        // ask up front so users understand where model progress lives.
-        requestNotificationPermission()
         // llama-android ships arm64-v8a native libraries only. On other ABIs the
         // native lib fails to load with UnsatisfiedLinkError; show a friendly
         // message instead of crashing.
@@ -116,20 +109,6 @@ class MainActivity : ComponentActivity() {
                 // Stay locked — user can try again
             }
         )
-    }
-
-    private val notificationPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
-
-    private fun requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val granted = ContextCompat.checkSelfPermission(
-                this, Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-            if (!granted) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
     }
 }
 

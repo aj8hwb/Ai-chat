@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -56,8 +57,8 @@ fun OnboardingScreen(
 ) {
     val pages = listOf(
         OnboardingPage(
-            title = "Welcome to AI Chat Hub",
-            description = "Your personal AI assistant that runs entirely on your device. No cloud, no accounts, no data leaving your phone.",
+            title = stringResource(R.string.onboarding_welcome_title),
+            description = stringResource(R.string.onboarding_welcome_desc),
             icon = Icons.Filled.SmartToy,
             gradient = listOf(
                 MaterialTheme.colorScheme.primary,
@@ -65,8 +66,8 @@ fun OnboardingScreen(
             )
         ),
         OnboardingPage(
-            title = "On-Device AI Models",
-            description = "Download and run AI models directly on your device. Choose from a curated catalog of models optimized for mobile hardware.",
+            title = stringResource(R.string.onboarding_models_title),
+            description = stringResource(R.string.onboarding_models_desc),
             icon = Icons.Filled.Storage,
             gradient = listOf(
                 MaterialTheme.colorScheme.secondary,
@@ -74,8 +75,8 @@ fun OnboardingScreen(
             )
         ),
         OnboardingPage(
-            title = "Blazing Fast Performance",
-            description = "Experience real AI inference with optimized models. Benchmark and compare models to find the perfect one for your needs.",
+            title = stringResource(R.string.onboarding_performance_title),
+            description = stringResource(R.string.onboarding_performance_desc),
             icon = Icons.Filled.Speed,
             gradient = listOf(
                 MaterialTheme.colorScheme.tertiary,
@@ -139,9 +140,9 @@ fun OnboardingScreen(
                 .padding(16.dp)
                 .semantics {
                     contentDescription = if (pagerState.currentPage < pages.size - 1) {
-                        "Next page"
+                        stringResource(R.string.onboarding_next)
                     } else {
-                        "Complete onboarding"
+                        stringResource(R.string.onboarding_get_started)
                     }
                 },
             shape = RoundedCornerShape(16.dp),
@@ -155,7 +156,7 @@ fun OnboardingScreen(
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = if (pagerState.currentPage < pages.size - 1) "Next" else "Get Started",
+                    text = if (pagerState.currentPage < pages.size - 1) stringResource(R.string.onboarding_next) else stringResource(R.string.onboarding_get_started),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -178,7 +179,7 @@ fun OnboardingScreen(
                     .align(Alignment.BottomStart)
                     .padding(16.dp)
                     .semantics {
-                        contentDescription = "Skip onboarding"
+                        contentDescription = stringResource(R.string.onboarding_skip)
                     },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -186,7 +187,7 @@ fun OnboardingScreen(
                 )
             ) {
                 Text(
-                    text = "Skip",
+                    text = stringResource(R.string.onboarding_skip),
                     style = MaterialTheme.typography.labelLarge
                 )
             }

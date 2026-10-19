@@ -39,6 +39,13 @@ interface InferenceRuntime {
     /** Model currently loaded into this runtime, if any. */
     val activeModelId: String?
 
+    /**
+     * Static label of the concrete engine + native version (e.g. for
+     * benchmark/calibration cache keys). Purely informational — never used for
+     * control flow. Interface default keeps custom implementations compiling.
+     */
+    val runtimeVersionLabel: String get() = "unknown"
+
     /** Live performance snapshot while generating. */
     val performance: StateFlow<Performance>
 

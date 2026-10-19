@@ -1,7 +1,7 @@
 package com.aichathub.app.device
 
+import android.app.ActivityManager
 import android.content.Context
-import android.os.Debug
 import android.os.StatFs
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
@@ -42,7 +42,7 @@ object DeviceBenchmark {
         Log.i(TAG, "Starting device benchmark...")
 
         val cpuScore = benchmarkCpu()
-        val ramResult = benchmarkRam()
+        val ramResult = benchmarkRam(context)
         val storageScore = benchmarkStorage(context)
         val storageSpeed = measureStorageSpeed(context)
 
@@ -107,21 +107,30 @@ object DeviceBenchmark {
     }
 
     /**
-     * RAM benchmark: measures available memory and allocation speed.
+     * RAM benchmark: scores SYSTEM RAM from [ActivityManager.MemoryInfo] (the
+     * correct source for device total/available RAM). The app's Java heap is a
+     * DIFFERENT measurement and is deliberately excluded from the system-RAM
+     * score so heap numbers are never presented as device RAM.
      */
-    private fun benchmarkRam(): RamResult {
+    private fun benchmarkRam(context: Context): RamResult {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val memInfo = ActivityManager.MemoryInfo()
+        am.getMemoryInfo(memInfo)
+        val totalMb = memInfo.totalMem / (1024 * 1024)      // Total SYSTEM RAM
+        val availableMb = memInfo.availMem / (1024 * 1024)  // Available SYSTEM RAM
+        // App-heap metrics are logged separately (informational only).
         val runtime = Runtime.getRuntime()
-        val totalMb = runtime.totalMemory() / (1024 * 1024)
-        val freeMb = runtime.freeMemory() / (1024 * 1024)
-        val maxMb = runtime.maxMemory() / (1024 * 1024)
+        val appHeapUsedMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+        val appHeapMaxMb = runtime.maxMemory() / (1024 * 1024)
+        Log.d(TAG, "App heap (informational): used=${appHeapUsedMb}MB max=${appHeapMaxMb}MB")
 
-        // Measure allocation speed
+        // Measure allocation speed (bounded, so low-RAM devices are not stressed)
         val start = System.nanoTime()
         val chunks = mutableListOf<ByteArray>()
         var allocated = 0L
         val chunkSize = 1024 * 1024 // 1 MB
         try {
-            while (allocated < 64 * 1024 * 1024) { // Try to allocate 64 MB
+            while (allocated < 32 * 1024 * 1024) { // Allocate up to 32 MB
                 chunks.add(ByteArray(chunkSize))
                 allocated += chunkSize
             }
@@ -131,12 +140,7 @@ object DeviceBenchmark {
         val elapsedMs = (System.nanoTime() - start) / 1_000_000.0
         chunks.clear() // Release
 
-        // Get system memory info
-        val memInfo = Debug.MemoryInfo()
-        Debug.getMemoryInfo(memInfo)
-        val availableMb = memInfo.availMem / 1024 // Already in KB
-
-        // Score based on total and available RAM
+        // Score based on total and available SYSTEM RAM (not app heap)
         val score = when {
             totalMb >= 8192 -> 100 // 8GB+
             totalMb >= 6144 -> 85  // 6GB
@@ -149,7 +153,7 @@ object DeviceBenchmark {
         return RamResult(
             score = score,
             totalMb = totalMb,
-            availableMb = availableMb / 1024 // Convert to MB
+            availableMb = availableMb
         )
     }
 

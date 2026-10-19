@@ -6,8 +6,8 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
-import com.aichathub.app.data.model.LocalModelCatalog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -26,7 +26,8 @@ import java.io.File
 class ModelScanner(
     private val context: Context,
     private val modelsDir: File,
-    private val modelRepository: ModelRepository
+    private val modelRepository: ModelRepository,
+    private val catalogRepository: CatalogRepository
 ) {
 
     private val tag = "ModelScanner"
@@ -119,7 +120,7 @@ class ModelScanner(
         makeSource: (String) -> Source
     ): DiscoveredFile? {
         if (!fileName.endsWith(".gguf", ignoreCase = true)) return null
-        val model = LocalModelCatalog.models.firstOrNull { it.fileName == fileName }
+        val model = catalogRepository.getAllModels().firstOrNull { it.fileName == fileName }
         return DiscoveredFile(
             fileName = fileName,
             source = makeSource(fileName),

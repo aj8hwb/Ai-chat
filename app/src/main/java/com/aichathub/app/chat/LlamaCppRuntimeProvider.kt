@@ -3,9 +3,12 @@ package com.aichathub.app.chat
 import android.content.Context
 import android.util.Log
 import com.aichathub.app.data.SettingsRepository
+import com.aichathub.app.device.ThermalManager
+import com.aichathub.app.util.ModelThreads
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -14,8 +17,13 @@ import javax.inject.Singleton
  * [RuntimeProvider] for the llama.cpp inference engine.
  *
  * This is the primary on-device engine, wrapping the `org.codeshipping:llama-kotlin-android`
- * library. It supports CPU inference on all ARM64/x86_64 devices and OpenCL
- * acceleration on Adreno GPUs when available.
+ * library. It supports CPU inference only: the current native build of the
+ * library does not expose a functional GPU backend, and LlamaCppRuntime
+ * pins gpuLayers = 0. CPU is always the honest, reliable fallback.
+ *
+ * NOTE: GPU backends must NEVER be listed here until the native runtime
+ * actually supports GPU layer offload AND the runtime verifies layers are
+ * offloaded. Adreno hardware being present is not evidence of any acceleration.
  *
  * The provider is injected via Hilt multibinding. Adding it to the app requires
  * a `@Binds @IntoSet` entry in the DI module.
@@ -23,7 +31,8 @@ import javax.inject.Singleton
 @Singleton
 class LlamaCppRuntimeProvider @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val thermalManager: ThermalManager
 ) : RuntimeProvider {
 
     companion object {
@@ -34,9 +43,15 @@ class LlamaCppRuntimeProvider @Inject constructor(
 
     override val displayName: String = "llama.cpp (CPU)"
 
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    /**
+     * CPU-only. OPENCL_ADRENO/VULKAN are deliberately NOT advertised: the
+     * packaged native library initializes no GPU backend, so reporting them
+     * would claim acceleration that is not actually active.
+     */
     override val supportedBackends: List<BackendType> = listOf(
-        BackendType.CPU,
-        BackendType.OPENCL_ADRENO
+        BackendType.CPU
     )
 
     /**
@@ -61,14 +76,27 @@ class LlamaCppRuntimeProvider @Inject constructor(
         return LlamaCppRuntime(
             context = context,
             onModelMemoryMeasured = { modelId, bytes ->
-                CoroutineScope(Dispatchers.IO).launch {
+                scope.launch {
                     runCatching {
                         settingsRepository.setMeasuredMemory(modelId, bytes)
                     }.onFailure { e ->
                         Log.w(TAG, "Failed to record measured memory for $modelId", e)
                     }
                 }
-            }
+            },
+            // Long-generation thermal watchdog: CRITICAL heat stops the native
+            // generation via cancelGeneration (a supported action). Reduced
+            // thread counts are NOT changed live — llama.cpp fixes threads at
+            // context creation; the thermal policy applies to the NEXT load.
+            thermalWatchdog = { thermalLevelOrNull(thermalManager) }
         )
     }
+
+    private fun thermalLevelOrNull(manager: ThermalManager): ModelThreads.ThermalLoadLevel? =
+        try {
+            manager.currentLoadLevel()
+        } catch (e: Exception) {
+            Log.d(TAG, "Thermal watchdog probe failed: ${e.message}")
+            null
+        }
 }

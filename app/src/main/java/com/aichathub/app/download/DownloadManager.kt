@@ -1,9 +1,11 @@
 package com.aichathub.app.download
 
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
-import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.device.DeviceInfoProvider
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
@@ -16,8 +18,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -81,6 +86,7 @@ class DownloadManager(
     private val modelRepository: ModelRepository,
     private val deviceInfoProvider: DeviceInfoProvider,
     private val settingsRepository: com.aichathub.app.data.SettingsRepository? = null,
+    private val catalogRepository: CatalogRepository,
     private val client: OkHttpClient = defaultClient()
 ) {
     private val tag = "DownloadManager"
@@ -96,9 +102,19 @@ class DownloadManager(
     private val _downloads = MutableStateFlow<List<DownloadInfo>>(emptyList())
     val downloads: StateFlow<List<DownloadInfo>> = _downloads.asStateFlow()
 
+    private val _notificationPermissionNeeded = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val notificationPermissionNeeded: kotlinx.coroutines.flow.SharedFlow<Unit> = _notificationPermissionNeeded.asSharedFlow()
+
     private val jobs = ConcurrentHashMap<String, Job>()
     private val cancelFlags = ConcurrentHashMap<String, Boolean>()
     private val pauseFlags = ConcurrentHashMap<String, Boolean>()
+
+    /**
+     * Per-model mutex that guarantees at most one active download job per model.
+     * This prevents the race condition where user tap + network callback + auto-resume
+     * all try to start the same download concurrently.
+     */
+    private val modelDownloadMutexes = ConcurrentHashMap<String, Mutex>()
 
     companion object {
         /**
@@ -135,7 +151,7 @@ class DownloadManager(
             delay(1500)
             val resumable = _downloads.value
                 .filter { it.status == DownloadStatus.PAUSED && it.downloadedBytes > 0 }
-                .mapNotNull { LocalModelCatalog.byId(it.modelId) }
+                .mapNotNull { catalogRepository.getModelById(it.modelId) }
             resumable.forEach { model ->
                 if (networkMonitor.isNetworkBlocked()) {
                     Log.i(tag, "Auto-resume deferred for ${model.id} (Wi-Fi-only + mobile data)")
@@ -154,7 +170,7 @@ class DownloadManager(
                 if (!networkMonitor.isNetworkBlocked()) {
                     val parked = _downloads.value
                         .filter { it.status == DownloadStatus.PAUSED && it.downloadedBytes > 0 }
-                        .mapNotNull { LocalModelCatalog.byId(it.modelId) }
+                        .mapNotNull { catalogRepository.getModelById(it.modelId) }
                     parked.forEach { model ->
                         Log.i(tag, "NETWORK_AVAILABLE auto-resume ${model.id}")
                         resume(model.id)
@@ -172,82 +188,104 @@ class DownloadManager(
         })
     }
 
+    private fun ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                _notificationPermissionNeeded.tryEmit(Unit)
+            }
+        }
+    }
+
     // ------------------------------------------------------------------
     // Public API
     // ------------------------------------------------------------------
 
+    /**
+     * Starts a download for the given model. Uses a per-model mutex to
+     * guarantee that only one download job can be active per model at any time.
+     */
     suspend fun startDownload(model: CatalogModel): DownloadStartResult {
-        val existing = _downloads.value.firstOrNull { it.modelId == model.id }
-        val activeState = existing?.status
-        if (jobs[model.id]?.isActive == true ||
-            activeState == DownloadStatus.DOWNLOADING ||
-            activeState == DownloadStatus.QUEUED ||
-            activeState == DownloadStatus.VERIFYING
-        ) {
-            return DownloadStartResult.AlreadyActive
-        }
-
-        if (!com.aichathub.app.data.SecurityValidator.isValidDownloadUrl(model.downloadUrl)) {
-            Log.w(tag, "MODEL_DOWNLOAD_REJECTED ${model.id} - invalid URL")
-            return DownloadStartResult.Failed("Download URL failed security validation.")
-        }
-
-        if (!com.aichathub.app.data.SecurityValidator.isValidFileName(model.fileName)) {
-            Log.w(tag, "MODEL_DOWNLOAD_REJECTED ${model.id} - invalid filename")
-            return DownloadStartResult.Failed("Model filename failed security validation.")
-        }
-
-        val already = persistence.existingDownloadedBytes(model)
-        val profile = deviceInfoProvider.getDeviceProfile()
-
-        if (networkMonitor.isNetworkBlocked()) {
-            return DownloadStartResult.Failed(
-                "Wi-Fi-only mode is on and the device is on mobile data. Enable Wi-Fi or turn off Wi-Fi-only in Settings."
-            )
-        }
-
-        val sharedEnabled = settingsRepository?.let { repo ->
-            runCatching { repo.settings.first().storeInSharedDownloads }.getOrDefault(true)
-        } ?: true
-        val sharedReserve = if (sharedEnabled) model.fileSizeBytes else 0L
-        val required = (model.fileSizeBytes - already) + sharedReserve
-        if (required > profile.storageAvailableBytes) {
-            return DownloadStartResult.NoStorage(required, profile.storageAvailableBytes)
-        }
-
-        cancelFlags[model.id] = false
-        pauseFlags[model.id] = false
-
-        upsert(
-            DownloadInfo(
-                modelId = model.id,
-                modelName = model.name,
-                fileName = model.fileName,
-                totalBytes = model.fileSizeBytes,
-                downloadedBytes = already,
-                status = DownloadStatus.DOWNLOADING,
-                segments = 1,
-                networkType = networkMonitor.currentNetworkType()
-            )
-        )
-        modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
-        DownloadForegroundService.start(context)
-        Log.i(tag, "MODEL_DOWNLOAD_STARTED ${model.id} ($required bytes remaining)")
-
-        val job = scope.launch {
-            try {
-                withContext(Dispatchers.IO) { downloadLoop(model) }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                Log.i(tag, "Download job cancelled for ${model.id} (resumable)")
-                throw e
-            } catch (e: Exception) {
-                Log.e(tag, "Download failed for ${model.id}", e)
-                markStatus(model.id, DownloadStatus.FAILED, error = e.message ?: "Download failed")
-                modelRepository.setState(model.id, ModelLifecycleState.NOT_INSTALLED)
+        val mutex = modelDownloadMutexes.getOrPut(model.id) { Mutex() }
+        return mutex.withLock {
+            val existing = _downloads.value.firstOrNull { it.modelId == model.id }
+            val activeState = existing?.status
+            if (jobs[model.id]?.isActive == true ||
+                activeState == DownloadStatus.DOWNLOADING ||
+                activeState == DownloadStatus.QUEUED ||
+                activeState == DownloadStatus.VERIFYING
+            ) {
+                return@withLock DownloadStartResult.AlreadyActive
             }
+
+            if (!com.aichathub.app.data.SecurityValidator.isValidDownloadUrl(model.downloadUrl)) {
+                Log.w(tag, "MODEL_DOWNLOAD_REJECTED ${model.id} - invalid URL")
+                return@withLock DownloadStartResult.Failed("Download URL failed security validation.")
+            }
+
+            if (!com.aichathub.app.data.SecurityValidator.isValidFileName(model.fileName)) {
+                Log.w(tag, "MODEL_DOWNLOAD_REJECTED ${model.id} - invalid filename")
+                return@withLock DownloadStartResult.Failed("Model filename failed security validation.")
+            }
+
+            val already = persistence.existingDownloadedBytes(model)
+            val profile = deviceInfoProvider.getDeviceProfile()
+
+            if (networkMonitor.isNetworkBlocked()) {
+                return@withLock DownloadStartResult.Failed(
+                    "Wi-Fi-only mode is on and the device is on mobile data. Enable Wi-Fi or turn off Wi-Fi-only in Settings."
+                )
+            }
+
+            // Account for merge overhead: segments + merged file can coexist temporarily
+            val segments = DownloadSegmentPolicy.resolveFresh(
+                supportsRange = true, // conservative estimate
+                fileSizeBytes = model.fileSizeBytes
+            )
+            val mergeOverhead = if (segments > 1) model.fileSizeBytes else 0L
+            val safetyReserve = 64L * 1024 * 1024 // 64 MB safety reserve
+            val required = model.fileSizeBytes - already + mergeOverhead + safetyReserve
+            if (required > profile.storageAvailableBytes) {
+                return@withLock DownloadStartResult.NoStorage(required, profile.storageAvailableBytes)
+            }
+
+            cancelFlags[model.id] = false
+            pauseFlags[model.id] = false
+
+            upsert(
+                DownloadInfo(
+                    modelId = model.id,
+                    modelName = model.name,
+                    fileName = model.fileName,
+                    totalBytes = model.fileSizeBytes,
+                    downloadedBytes = already,
+                    status = DownloadStatus.DOWNLOADING,
+                    segments = 1,
+                    networkType = networkMonitor.currentNetworkType()
+                )
+            )
+            modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
+            ensureNotificationPermission()
+            DownloadForegroundService.start(context)
+            Log.i(tag, "MODEL_DOWNLOAD_STARTED ${model.id} ($required bytes remaining)")
+
+            val job = scope.launch {
+                try {
+                    withContext(Dispatchers.IO) { downloadLoop(model) }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    Log.i(tag, "Download job cancelled for ${model.id} (resumable)")
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(tag, "Download failed for ${model.id}", e)
+                    markStatus(model.id, DownloadStatus.FAILED, error = e.message ?: "Download failed")
+                    modelRepository.setState(model.id, ModelLifecycleState.NOT_INSTALLED)
+                }
+            }
+            jobs[model.id] = job
+            DownloadStartResult.Started
         }
-        jobs[model.id] = job
-        return DownloadStartResult.Started
     }
 
     fun pause(modelId: String) {
@@ -259,32 +297,47 @@ class DownloadManager(
         pauseFlags[modelId] = false
     }
 
+    /**
+     * Resumes a paused or failed download. Uses per-model mutex to prevent
+     * concurrent resume attempts from creating duplicate jobs.
+     */
     fun resume(modelId: String) {
         val info = _downloads.value.firstOrNull { it.modelId == modelId } ?: return
         if (info.status != DownloadStatus.PAUSED && info.status != DownloadStatus.FAILED) return
-        val model = LocalModelCatalog.byId(modelId) ?: return
-        pauseFlags[modelId] = false
-        cancelFlags[modelId] = false
+        val model = catalogRepository.getModelById(modelId) ?: return
 
-        val job = jobs[modelId]
-        if (job == null || !job.isActive) {
-            upsert(info.copy(status = DownloadStatus.DOWNLOADING, error = null))
-            scope.launch { modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING) }
-            DownloadForegroundService.start(context)
-            jobs[modelId] = scope.launch {
-                try {
-                    withContext(Dispatchers.IO) { downloadLoop(model) }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    Log.i(tag, "Resume job cancelled for ${model.id} (resumable)")
-                    throw e
-                } catch (e: Exception) {
-                    Log.e(tag, "Download failed for ${model.id}", e)
-                    markStatus(modelId, DownloadStatus.FAILED, error = e.message ?: "Download failed")
-                    modelRepository.setState(model.id, ModelLifecycleState.NOT_INSTALLED)
+        scope.launch {
+            val mutex = modelDownloadMutexes.getOrPut(modelId) { Mutex() }
+            mutex.withLock {
+                // Re-check state after acquiring lock (may have changed)
+                val currentInfo = _downloads.value.firstOrNull { it.modelId == modelId } ?: return@withLock
+                if (currentInfo.status != DownloadStatus.PAUSED && currentInfo.status != DownloadStatus.FAILED) return@withLock
+
+                pauseFlags[modelId] = false
+                cancelFlags[modelId] = false
+
+                val job = jobs[modelId]
+                if (job == null || !job.isActive) {
+                    upsert(currentInfo.copy(status = DownloadStatus.DOWNLOADING, error = null))
+                    modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
+                    ensureNotificationPermission()
+                    DownloadForegroundService.start(context)
+                    jobs[modelId] = scope.launch {
+                        try {
+                            withContext(Dispatchers.IO) { downloadLoop(model) }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            Log.i(tag, "Resume job cancelled for ${model.id} (resumable)")
+                            throw e
+                        } catch (e: Exception) {
+                            Log.e(tag, "Download failed for ${model.id}", e)
+                            markStatus(modelId, DownloadStatus.FAILED, error = e.message ?: "Download failed")
+                            modelRepository.setState(model.id, ModelLifecycleState.NOT_INSTALLED)
+                        }
+                    }
+                } else {
+                    upsert(currentInfo.copy(status = DownloadStatus.DOWNLOADING, error = null))
                 }
             }
-        } else {
-            upsert(info.copy(status = DownloadStatus.DOWNLOADING, error = null))
         }
     }
 
@@ -292,11 +345,13 @@ class DownloadManager(
         _downloads.value.firstOrNull { it.modelId == modelId }?.status == DownloadStatus.DOWNLOADING
 
     fun clearCompleted(modelId: String) {
-        _downloads.value = _downloads.value.filterNot { it.modelId == modelId && it.status == DownloadStatus.COMPLETED }
+        _downloads.update { current ->
+            current.filterNot { it.modelId == modelId && it.status == DownloadStatus.COMPLETED }
+        }
     }
 
     fun clearForModel(modelId: String) {
-        val model = LocalModelCatalog.byId(modelId)
+        val model = catalogRepository.getModelById(modelId)
         if (model != null) persistence.cleanupPartFiles(model)
         removeRecord(modelId)
     }
@@ -334,13 +389,17 @@ class DownloadManager(
         val partFiles = persistence.segmentFiles(model, segments)
         val downloadedTotal = AtomicLong(persistence.existingDownloadedBytes(model))
 
-        upsert(
-            _downloads.value.first { it.modelId == model.id }.copy(
-                downloadedBytes = downloadedTotal.get(),
-                segments = segments,
-                status = DownloadStatus.DOWNLOADING
-            )
-        )
+        _downloads.update { current ->
+            current.map {
+                if (it.modelId == model.id) {
+                    it.copy(
+                        downloadedBytes = downloadedTotal.get(),
+                        segments = segments,
+                        status = DownloadStatus.DOWNLOADING
+                    )
+                } else it
+            }
+        }
 
         if (segments == 1) {
             val outcome = downloadSegmentWithRetry(
@@ -387,13 +446,17 @@ class DownloadManager(
                 segments = 1
                 persistence.writeMeta(model, 1)
                 val singlePart = persistence.mergedPartFile(model)
-                upsert(
-                    _downloads.value.first { it.modelId == model.id }.copy(
-                        downloadedBytes = 0,
-                        segments = 1,
-                        status = DownloadStatus.DOWNLOADING
-                    )
-                )
+                _downloads.update { current ->
+                    current.map {
+                        if (it.modelId == model.id) {
+                            it.copy(
+                                downloadedBytes = 0,
+                                segments = 1,
+                                status = DownloadStatus.DOWNLOADING
+                            )
+                        } else it
+                    }
+                }
                 val retryOutcome = downloadSegmentWithRetry(
                     model = model,
                     segFile = singlePart,
@@ -569,20 +632,30 @@ class DownloadManager(
 
             if (response.code == 206 && isRangeRequest) {
                 val contentRange = response.header("Content-Range")
-                if (contentRange != null) {
-                    val match = Regex("bytes\\s+(\\d+)-(\\d+)/(\\d+)").find(contentRange)
-                    if (match != null) {
-                        val respStart = match.groupValues[1].toLong()
-                        val respEnd = match.groupValues[2].toLong()
-                        if (respStart != start || respEnd != rangeEnd) {
-                            response.body?.close()
-                            Log.w(tag, "Content-Range mismatch on ${model.id}: " +
-                                "expected $start-$rangeEnd, got $respStart-$respEnd")
-                            throw IllegalStateException(
-                                "Server returned unexpected Content-Range: $contentRange"
-                            )
-                        }
-                    }
+                if (contentRange == null) {
+                    response.body?.close()
+                    Log.w(tag, "Server returned 206 without Content-Range header for ${model.id}")
+                    throw IllegalStateException(
+                        "Server returned HTTP 206 without Content-Range header"
+                    )
+                }
+                val match = Regex("bytes\\s+(\\d+)-(\\d+)/(\\d+)").find(contentRange)
+                if (match == null) {
+                    response.body?.close()
+                    Log.w(tag, "Invalid Content-Range format on ${model.id}: $contentRange")
+                    throw IllegalStateException(
+                        "Server returned invalid Content-Range: $contentRange"
+                    )
+                }
+                val respStart = match.groupValues[1].toLong()
+                val respEnd = match.groupValues[2].toLong()
+                if (respStart != start || respEnd != rangeEnd) {
+                    response.body?.close()
+                    Log.w(tag, "Content-Range mismatch on ${model.id}: " +
+                        "expected $start-$rangeEnd, got $respStart-$respEnd")
+                    throw IllegalStateException(
+                        "Server returned unexpected Content-Range: $contentRange"
+                    )
                 }
             }
 
@@ -666,6 +739,7 @@ class DownloadManager(
                 .header("Range", "bytes=0-0")
                 .build()
             client.newCall(request).execute().use { resp ->
+                // Strict: only accept HTTP 206 with a valid Content-Range header
                 if (resp.code != 206) return@use false
                 val contentRange = resp.header("Content-Range") ?: return@use false
                 val match = Regex("bytes\\s+\\d+-\\d+/(\\d+)").find(contentRange)
@@ -681,19 +755,27 @@ class DownloadManager(
     // ------------------------------------------------------------------
 
     private fun scanForResumable() {
-        val resumable = persistence.scanForResumable(LocalModelCatalog.models, networkMonitor.currentNetworkType())
+        val resumable = persistence.scanForResumable(catalogRepository.getAllModels(), networkMonitor.currentNetworkType())
         resumable.forEach { upsert(it) }
     }
 
+    /**
+     * Atomically updates the download info for a model. Uses [MutableStateFlow.update]
+     * to ensure thread-safe read-modify-write even with concurrent segment tasks.
+     */
     private fun upsert(info: DownloadInfo) {
-        val current = _downloads.value
-        _downloads.value = if (current.any { it.modelId == info.modelId }) {
-            current.map { if (it.modelId == info.modelId) info else it }
-        } else {
-            current + info
+        _downloads.update { current ->
+            if (current.any { it.modelId == info.modelId }) {
+                current.map { if (it.modelId == info.modelId) info else it }
+            } else {
+                current + info
+            }
         }
     }
 
+    /**
+     * Atomically updates the status for a model download.
+     */
     private fun markStatus(
         modelId: String,
         status: DownloadStatus,
@@ -701,21 +783,25 @@ class DownloadManager(
         downloadedBytes: Long? = null,
         totalBytes: Long? = null
     ) {
-        val info = _downloads.value.firstOrNull { it.modelId == modelId } ?: return
-        upsert(
-            info.copy(
-                status = status,
-                error = error,
-                downloadedBytes = downloadedBytes ?: info.downloadedBytes,
-                totalBytes = totalBytes ?: info.totalBytes
-            )
-        )
+        _downloads.update { current ->
+            val info = current.firstOrNull { it.modelId == modelId } ?: return@update current
+            current.map {
+                if (it.modelId == modelId) {
+                    it.copy(
+                        status = status,
+                        error = error,
+                        downloadedBytes = downloadedBytes ?: it.downloadedBytes,
+                        totalBytes = totalBytes ?: it.totalBytes
+                    )
+                } else it
+            }
+        }
     }
 
     private fun removeRecord(modelId: String) {
         jobs.remove(modelId)?.cancel()
         cancelFlags.remove(modelId)
         pauseFlags.remove(modelId)
-        _downloads.value = _downloads.value.filterNot { it.modelId == modelId }
+        _downloads.update { current -> current.filterNot { it.modelId == modelId } }
     }
 }

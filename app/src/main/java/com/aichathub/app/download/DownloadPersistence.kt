@@ -107,10 +107,11 @@ class DownloadPersistence(
     fun cleanupSegmentFiles(model: CatalogModel) {
         runCatching {
             var i = 0
-            while (true) {
+            while (i < 64) {
                 val seg = File(downloadsDir, DownloadSegmentPolicy.partFileName(model.fileName, i))
-                if (!seg.exists()) break
-                seg.delete()
+                if (seg.exists()) {
+                    seg.delete()
+                }
                 i++
             }
         }

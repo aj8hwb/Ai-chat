@@ -4,7 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.chat.ChatCoordinator
-import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.device.ModelScanner
@@ -34,7 +34,8 @@ class MyModelsViewModel @Inject constructor(
     private val container_modelRepository: ModelRepository,
     private val container_downloadManager: DownloadManager,
     private val container_modelScanner: ModelScanner,
-    private val container_settingsRepository: SettingsRepository
+    private val container_settingsRepository: SettingsRepository,
+    private val catalogRepository: CatalogRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(MyModelsUiState())
@@ -43,7 +44,7 @@ class MyModelsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             container_modelRepository.installedModels.collect { installed ->
-                val models = installed.mapNotNull { LocalModelCatalog.byId(it.modelId) }
+                val models = installed.mapNotNull { catalogRepository.getModelById(it.modelId) }
                 _state.value = _state.value.copy(
                     models = models,
                     states = installed.associate { it.modelId to it.state },

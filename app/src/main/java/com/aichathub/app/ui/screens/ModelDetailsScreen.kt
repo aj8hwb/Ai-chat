@@ -63,6 +63,10 @@ import com.aichathub.app.util.Formatters
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import android.os.Build
 
 @Composable
 fun ModelDetailsScreen(
@@ -76,6 +80,22 @@ fun ModelDetailsScreen(
     val model = state.model
     val uriHandler = LocalUriHandler.current
     var pendingDownload by remember { mutableStateOf(false) }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        // Permission result received; download proceeds regardless
+        // (foreground service works without notification, just not visible)
+    }
+
+    // Observe notification permission requests from DownloadManager
+    LaunchedEffect(Unit) {
+        viewModel.notificationPermissionNeeded.collect {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
 
     if (model == null && !state.loading) {
         ErrorState(title = "Model not found", message = "This model is not in the catalog.", actionLabel = "Back", onAction = onBack)

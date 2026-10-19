@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -112,6 +113,7 @@ fun AiChatHubApp() {
     ) { padding ->
         AppNavHost(
             navController = navController,
+            startDestination = startDestination,
             modifier = Modifier.padding(padding)
         )
     }
@@ -120,8 +122,10 @@ fun AiChatHubApp() {
 @Composable
 private fun AppNavHost(
     navController: NavHostController,
+    startDestination: String,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     NavHost(
         navController = navController,
         startDestination = startDestination,
@@ -132,10 +136,10 @@ private fun AppNavHost(
         popExitTransition = { NavigationAnimations.popExitTransition() }
     ) {
         composable(Screen.Onboarding.route) {
+            val scope = rememberCoroutineScope()
             OnboardingScreen(
                 onComplete = {
-                    // Persist onboarding completion so future launches skip it
-                    kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                    scope.launch {
                         val settingsRepo = dagger.hilt.EntryPoints.get(
                             context.applicationContext,
                             SettingsRepositoryEntryPoint::class.java

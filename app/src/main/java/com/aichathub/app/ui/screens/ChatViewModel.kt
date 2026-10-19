@@ -7,8 +7,8 @@ import com.aichathub.app.chat.ChatGenerationHelper
 import com.aichathub.app.chat.ChatGenerationState
 import com.aichathub.app.chat.GenerationConfig
 import com.aichathub.app.chat.InferenceRuntime
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ConversationExportManager
-import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.data.local.ConversationDao
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageDao
@@ -18,6 +18,7 @@ import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.device.CompatibilityEngine
 import com.aichathub.app.device.DeviceInfoProvider
 import com.aichathub.app.device.MemoryBudgetCalculator
+import com.aichathub.app.device.ThermalManager
 import com.aichathub.app.chat.CompactionSuggestion
 import com.aichathub.app.chat.TokenContextEngine
 import com.aichathub.app.domain.model.CatalogModel
@@ -82,7 +83,9 @@ class ChatViewModel @Inject constructor(
     private val container_compatibilityEngine: CompatibilityEngine,
     private val container_conversationDao: ConversationDao,
     private val container_messageDao: MessageDao,
-    private val container_exportManager: ConversationExportManager
+    private val container_exportManager: ConversationExportManager,
+    private val catalogRepository: CatalogRepository,
+    private val container_thermalManager: ThermalManager
 ) : ViewModel() {
 
     private val generationHelper = ChatGenerationHelper(
@@ -93,7 +96,8 @@ class ChatViewModel @Inject constructor(
         deviceInfoProvider = container_deviceInfoProvider,
         compatibilityEngine = container_compatibilityEngine,
         conversationDao = container_conversationDao,
-        messageDao = container_messageDao
+        messageDao = container_messageDao,
+        thermalManager = container_thermalManager
     )
 
     companion object {
@@ -174,7 +178,7 @@ class ChatViewModel @Inject constructor(
     private suspend fun readyModels(): List<CatalogModel> =
         container_modelRepository.installedModels.first()
             .filter { it.state == ModelLifecycleState.READY && it.filePath != null }
-            .mapNotNull { LocalModelCatalog.byId(it.modelId) }
+            .mapNotNull { catalogRepository.getModelById(it.modelId) }
 
     private suspend fun pickBestModel(ready: List<CatalogModel>): CatalogModel? {
         if (ready.isEmpty()) return null
@@ -223,7 +227,7 @@ class ChatViewModel @Inject constructor(
             container_modelRepository.installedModels.collect { installed ->
                 val ready = installed
                     .filter { it.state == ModelLifecycleState.READY && it.filePath != null }
-                    .mapNotNull { LocalModelCatalog.byId(it.modelId) }
+                    .mapNotNull { catalogRepository.getModelById(it.modelId) }
                 _state.value = _state.value.copy(installedModels = ready)
                 if (_state.value.activeModelId == null && ready.isNotEmpty()) {
                     val best = pickBestModel(ready)
@@ -255,7 +259,7 @@ class ChatViewModel @Inject constructor(
             observeMessages(id)
             val conv = container_conversationDao.byId(id)
             if (conv != null) {
-                val catalog = LocalModelCatalog.byId(conv.modelId)
+                val catalog = catalogRepository.getModelById(conv.modelId)
                 val st = container_modelRepository.stateFor(conv.modelId)
                 if (catalog != null && st?.state == ModelLifecycleState.READY && st.filePath != null
                     && _state.value.activeModelId != catalog.id
@@ -308,17 +312,17 @@ class ChatViewModel @Inject constructor(
             _state.value = _state.value.copy(isLoadingModel = true, error = null)
             try {
                 val settings = container_settingsRepository.settings.first()
-                val gate = loadGate(model)
-                if (gate.eligibility == LoadEligibility.BLOCK) {
-                    _state.value = _state.value.copy(
-                        isLoadingModel = false,
-                        error = gate.message
-                    )
-                    return@launch
-                }
-                if (gate.eligibility == LoadEligibility.WARN) {
-                    _state.value = _state.value.copy(error = gate.message)
-                }
+                // Same load plan as the generation path: gate, calibrated
+                // threads from real benchmarks, metadata-aware memory budget
+                // and adaptive session context (single source of truth).
+                val plan = generationHelper.prepareLoadPlan(
+                    model,
+                    file,
+                    onTrace = { message ->
+                        // Gate warnings surface as the (non-fatal) notice text.
+                        _state.value = _state.value.copy(error = message)
+                    }
+                )
                 coordinator.loadModel(
                     model,
                     file,
@@ -328,7 +332,8 @@ class ChatViewModel @Inject constructor(
                         topP = settings.topP,
                         maxTokens = settings.maxTokens
                     ),
-                    threads = nativeThreads(settings)
+                    threads = plan.threads,
+                    contextLength = plan.contextLength
                 )
                 if (session != loadSession) return@launch
                 _state.value = _state.value.copy(
@@ -343,6 +348,16 @@ class ChatViewModel @Inject constructor(
                 )
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: IllegalStateException) {
+                // Load-plan rejections carry actionable messages (load gate,
+                // insufficient safe context) — surface them verbatim.
+                // NOTE: CancellationException extends IllegalStateException, so
+                // this must stay AFTER the CancellationException catch above.
+                _state.value = _state.value.copy(
+                    isLoadingModel = false,
+                    error = e.message
+                        ?: "The model could not be loaded. Please select another installed model."
+                )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     isLoadingModel = false,
@@ -355,7 +370,7 @@ class ChatViewModel @Inject constructor(
     fun selectModelById(modelId: String) {
         if (modelId.isBlank()) return
         if (modelId == _state.value.activeModelId) return
-        val catalog = LocalModelCatalog.byId(modelId) ?: return
+        val catalog = catalogRepository.getModelById(modelId) ?: return
         viewModelScope.launch {
             val st = container_modelRepository.stateFor(modelId)
             if (st?.state != ModelLifecycleState.READY || st.filePath == null) {
@@ -381,7 +396,7 @@ class ChatViewModel @Inject constructor(
             )
             return
         }
-        val model = _state.value.activeModelId?.let { LocalModelCatalog.byId(it) }
+        val model = _state.value.activeModelId?.let { catalogRepository.getModelById(it) }
         if (model == null) {
             _state.value = _state.value.copy(error = "Select a model to start chatting.")
             return
@@ -485,6 +500,10 @@ class ChatViewModel @Inject constructor(
         coordinator.stopGeneration()
     }
 
+    // NOTE: direct-load thread policy and the hard load gate moved into
+    // ChatGenerationHelper.prepareLoadPlan() — the pre-warm load path now uses
+    // the exact same decisions as the generation path (single source of truth).
+
     fun regenerate() {
         val messages = _state.value.messages
         val lastUser = messages.lastOrNull { it.role == "user" } ?: return
@@ -542,7 +561,7 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun refreshContextStatus() {
-        val model = _state.value.activeModelId?.let { LocalModelCatalog.byId(it) } ?: return
+        val model = _state.value.activeModelId?.let { catalogRepository.getModelById(it) } ?: return
         val messages = _state.value.messages
         val history = messages.map { it.role to it.content }
         val status = tokenContextEngine.estimateContext(
@@ -572,10 +591,73 @@ class ChatViewModel @Inject constructor(
             }
             com.aichathub.app.chat.CompactionType.SUMMARIZE -> {
                 val messages = _state.value.messages
-                if (messages.size > 4) {
-                    val toDelete = messages.take(messages.size / 2)
+                val convId = _state.value.conversationId
+                if (messages.size > 4 && convId != null) {
                     viewModelScope.launch {
-                        toDelete.forEach { container_messageDao.delete(it.id) }
+                        // Generate a structured summary from older messages
+                        val half = messages.size / 2
+                        val toSummarize = messages.take(half)
+                        val toKeep = messages.drop(half)
+                        
+                        // Create a structured summary
+                        val summaryBuilder = StringBuilder()
+                        summaryBuilder.appendLine("Conversation Summary:")
+                        summaryBuilder.appendLine()
+                        
+                        // Group messages by role and create a coherent summary
+                        val userMessages = toSummarize.filter { it.role == "user" }
+                        val assistantMessages = toSummarize.filter { it.role == "assistant" }
+                        
+                        if (userMessages.isNotEmpty()) {
+                            summaryBuilder.appendLine("User asked about:")
+                            userMessages.forEach { msg ->
+                                val truncated = msg.content.take(150).trim()
+                                if (truncated.isNotEmpty()) {
+                                    summaryBuilder.appendLine("- $truncated")
+                                }
+                            }
+                            summaryBuilder.appendLine()
+                        }
+                        
+                        if (assistantMessages.isNotEmpty()) {
+                            summaryBuilder.appendLine("Assistant responded with:")
+                            assistantMessages.forEach { msg ->
+                                val truncated = msg.content.take(150).trim()
+                                if (truncated.isNotEmpty()) {
+                                    summaryBuilder.appendLine("- $truncated")
+                                }
+                            }
+                            summaryBuilder.appendLine()
+                        }
+                        
+                        // Add key topics and decisions
+                        val allContent = toSummarize.joinToString(" ") { it.content }
+                        val keyPhrases = extractKeyPhrases(allContent)
+                        if (keyPhrases.isNotEmpty()) {
+                            summaryBuilder.appendLine("Key topics discussed:")
+                            keyPhrases.take(5).forEach { phrase ->
+                                summaryBuilder.appendLine("- $phrase")
+                            }
+                        }
+                        
+                        val summary = summaryBuilder.toString().trim()
+                        
+                        // Store the summary in the conversation
+                        container_conversationDao.setSummary(convId, summary)
+                        
+                        // Delete the older messages
+                        toSummarize.forEach { container_messageDao.delete(it.id) }
+                        
+                        // Add a system message indicating the summary
+                        container_messageDao.insert(
+                            MessageEntity(
+                                conversationId = convId,
+                                role = "system",
+                                content = "[Previous conversation summary: $summary]",
+                                createdAt = System.currentTimeMillis(),
+                                modelId = _state.value.activeModelId
+                            )
+                        )
                     }
                 }
             }
@@ -584,6 +666,27 @@ class ChatViewModel @Inject constructor(
             }
         }
         _state.value = _state.value.copy(compactionSuggestion = null)
+    }
+
+    /**
+     * Extracts key phrases from text for summarization.
+     */
+    private fun extractKeyPhrases(text: String): List<String> {
+        val words = text.lowercase()
+            .replace(Regex("[^a-zA-Z0-9\\s]"), " ")
+            .split(Regex("\\s+"))
+            .filter { it.length > 3 }
+        
+        // Simple keyword extraction based on frequency
+        val wordFrequency = mutableMapOf<String, Int>()
+        words.forEach { word ->
+            wordFrequency[word] = (wordFrequency[word] ?: 0) + 1
+        }
+        
+        return wordFrequency.entries
+            .sortedByDescending { it.value }
+            .take(10)
+            .map { it.key }
     }
 
 }

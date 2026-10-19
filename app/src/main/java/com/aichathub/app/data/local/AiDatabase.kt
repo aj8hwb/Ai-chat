@@ -50,7 +50,10 @@ data class ConversationEntity(
 
 @Entity(
     tableName = "messages",
-    indices = [Index(value = ["conversationId"])],
+    indices = [
+        Index(value = ["conversationId"]),
+        Index(value = ["conversationId", "createdAt"])
+    ],
     foreignKeys = [
         ForeignKey(
             entity = ConversationEntity::class,
@@ -143,6 +146,14 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY createdAt ASC")
     suspend fun forConversation(conversationId: Long): List<MessageEntity>
 
+    /**
+     * Returns the most recent [limit] messages for a conversation, ordered
+     * chronologically. This avoids loading the full conversation history into
+     * memory when only recent context is needed for prompt building.
+     */
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun recentForConversation(conversationId: Long, limit: Int): List<MessageEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(message: MessageEntity): Long
 
@@ -169,7 +180,7 @@ interface MessageDao {
         ConversationEntity::class,
         MessageEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class AiDatabase : RoomDatabase() {
@@ -204,6 +215,16 @@ abstract class AiDatabase : RoomDatabase() {
         val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `conversations` ADD COLUMN `summary` TEXT DEFAULT NULL")
+            }
+        }
+
+        /**
+         * v4 → v5: add composite index on (conversationId, createdAt) for
+         * efficient message queries that filter by conversation and sort by time.
+         */
+        val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_messages_conversationId_createdAt` ON `messages` (`conversationId`, `createdAt`)")
             }
         }
     }

@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.aichathub.app.chat.ChatCoordinator
 import com.aichathub.app.chat.GenerationConfig
 import com.aichathub.app.chat.InferenceRuntime
-import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.domain.model.CatalogModel
@@ -39,7 +39,8 @@ class CompareViewModel @Inject constructor(
     private val container_inferenceRuntime: InferenceRuntime,
     private val container_chatCoordinator: ChatCoordinator,
     private val container_modelRepository: ModelRepository,
-    private val container_settingsRepository: SettingsRepository
+    private val container_settingsRepository: SettingsRepository,
+    private val catalogRepository: CatalogRepository
 ) : ViewModel() {
 
     companion object {
@@ -54,7 +55,7 @@ class CompareViewModel @Inject constructor(
             container_modelRepository.installedModels.collect { installed ->
                 val ids = installed.map { it.modelId }.toSet()
                 _state.value = _state.value.copy(
-                    models = LocalModelCatalog.models.filter { it.id in ids }
+                    models = catalogRepository.getAllModels().filter { it.id in ids }
                 )
             }
         }

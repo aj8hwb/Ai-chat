@@ -2,7 +2,7 @@ package com.aichathub.app.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.domain.model.CatalogModel
@@ -35,7 +35,8 @@ data class SettingsUiState(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val container_settingsRepository: SettingsRepository,
-    private val container_modelRepository: ModelRepository
+    private val container_modelRepository: ModelRepository,
+    private val catalogRepository: CatalogRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsUiState())
@@ -45,7 +46,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val s = container_settingsRepository.settings.first()
             val installed = container_modelRepository.installedModelsOnce()
-                .mapNotNull { LocalModelCatalog.byId(it.modelId) }
+                .mapNotNull { catalogRepository.getModelById(it.modelId) }
             _state.value = SettingsUiState(
                 defaultModelId = s.defaultModelId,
                 temperature = s.temperature,

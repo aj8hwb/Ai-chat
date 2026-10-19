@@ -3,11 +3,17 @@ package com.aichathub.app.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.chat.ChatCoordinator
+import com.aichathub.app.chat.ChatGenerationHelper
 import com.aichathub.app.chat.GenerationConfig
 import com.aichathub.app.chat.InferenceRuntime
-import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.SettingsRepository
+import com.aichathub.app.data.local.ConversationDao
+import com.aichathub.app.data.local.MessageDao
+import com.aichathub.app.device.CompatibilityEngine
+import com.aichathub.app.device.DeviceInfoProvider
+import com.aichathub.app.device.ThermalManager
 import com.aichathub.app.domain.model.ChatTemplate
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.util.TokenEstimator
@@ -21,7 +27,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class PlaygroundUiState(
-    val models: List<com.aichathub.app.domain.model.CatalogModel> = LocalModelCatalog.models,
+    val models: List<com.aichathub.app.domain.model.CatalogModel> = emptyList(),
     val states: Map<String, ModelLifecycleState> = emptyMap(),
     val selectedModelId: String? = null,
     val prompt: String = "Write a Python function to calculate Fibonacci numbers.",
@@ -41,8 +47,32 @@ class PlaygroundViewModel @Inject constructor(
     private val container_inferenceRuntime: InferenceRuntime,
     private val container_chatCoordinator: ChatCoordinator,
     private val container_modelRepository: ModelRepository,
-    private val container_settingsRepository: SettingsRepository
+    private val container_settingsRepository: SettingsRepository,
+    private val catalogRepository: CatalogRepository,
+    private val container_deviceInfoProvider: DeviceInfoProvider,
+    private val container_compatibilityEngine: CompatibilityEngine,
+    private val container_conversationDao: ConversationDao,
+    private val container_messageDao: MessageDao,
+    private val container_thermalManager: ThermalManager
 ) : ViewModel() {
+
+    /**
+     * The SAME load-plan factory the chat and benchmark paths use (gate →
+     * GGUF metadata budget → calibrated threads → adaptive context). The
+     * Playground is a production load path too — it must not bypass the
+     * memory-safety policy by loading the model maximum without a gate.
+     */
+    private val generationHelper = ChatGenerationHelper(
+        coordinator = container_chatCoordinator,
+        runtime = container_inferenceRuntime,
+        settingsRepository = container_settingsRepository,
+        modelRepository = container_modelRepository,
+        deviceInfoProvider = container_deviceInfoProvider,
+        compatibilityEngine = container_compatibilityEngine,
+        conversationDao = container_conversationDao,
+        messageDao = container_messageDao,
+        thermalManager = container_thermalManager
+    )
 
     companion object {
         const val MAX_PROMPT_CHARS = 3000
@@ -62,7 +92,7 @@ class PlaygroundViewModel @Inject constructor(
                 val states = installed.associate { it.modelId to it.state }
                 _state.value = _state.value.copy(
                     states = states,
-                    models = LocalModelCatalog.models.sortedByDescending { it.id in states.keys }
+                    models = catalogRepository.getAllModels().sortedByDescending { it.id in states.keys }
                 )
                 if (_state.value.selectedModelId == null) {
                     val newest = installed
@@ -121,7 +151,7 @@ class PlaygroundViewModel @Inject constructor(
             )
             return
         }
-        val model = _state.value.selectedModelId?.let { LocalModelCatalog.byId(it) } ?: return
+        val model = _state.value.selectedModelId?.let { catalogRepository.getModelById(it) } ?: return
         runInFlight = true
         container_inferenceRuntime.clearCancellation()
         viewModelScope.launch {
@@ -152,11 +182,24 @@ class PlaygroundViewModel @Inject constructor(
                     )
                 }
                 if (!container_inferenceRuntime.isLoaded || container_inferenceRuntime.activeModelId != model.id) {
+                    // Same validated load plan as chat/benchmark (spec §8.3):
+                    // one gate, one budget, one policy. BLOCK/Insufficient
+                    // throws with an actionable message (handled below).
+                    val plan = generationHelper.prepareLoadPlan(
+                        model,
+                        java.io.File(installed.filePath),
+                        onTrace = { message ->
+                            // Non-fatal gate warnings surface in the stats line.
+                            val previous = _state.value.stats
+                            _state.value = _state.value.copy(stats = listOfNotNull(previous, message).joinToString(" "))
+                        }
+                    )
                     container_chatCoordinator.loadModel(
                         model,
                         java.io.File(installed.filePath),
                         config,
-                        threads = com.aichathub.app.util.ModelThreads.recommended(settings.batteryConscious)
+                        threads = plan.threads,
+                        contextLength = plan.contextLength
                     )
                 }
                 val start = System.nanoTime()
@@ -183,6 +226,16 @@ class PlaygroundViewModel @Inject constructor(
                 _state.value = _state.value.copy(
                     running = false,
                     error = "Insufficient memory for this generation. Try a lighter model."
+                )
+            } catch (e: IllegalStateException) {
+                // Load-plan rejections carry actionable messages (load gate,
+                // insufficient safe context) — surface them verbatim.
+                // NOTE: CancellationException extends IllegalStateException, so
+                // this must stay AFTER the CancellationException catch above.
+                _state.value = _state.value.copy(
+                    running = false,
+                    error = e.message
+                        ?: "Generation failed. Please try again."
                 )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(

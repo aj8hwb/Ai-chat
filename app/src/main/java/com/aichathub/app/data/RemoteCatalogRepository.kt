@@ -361,7 +361,15 @@ class RemoteCatalogRepository(private val context: Context) {
         if (cachedJson.isNullOrBlank()) {
             throw CatalogFetchException("No cached catalog available")
         }
-        return parseManifest(cachedJson)
+        val manifest = parseManifest(cachedJson)
+        // Re-verify cached manifest signature for defense-in-depth
+        // (especially important on compromised/rooted devices)
+        val sigValid = verifyManifestSignature(cachedJson, manifest)
+        if (!sigValid && CatalogSignatureVerifier.isSignatureRequired(manifest.version)) {
+            Log.w(TAG, "Cached manifest signature verification failed")
+            throw CatalogFetchException("Cached catalog signature invalid")
+        }
+        return manifest
     }
 
     private fun parseManifest(jsonString: String): RemoteCatalogManifest {

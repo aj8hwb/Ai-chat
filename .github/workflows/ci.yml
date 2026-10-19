@@ -77,11 +77,37 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug
 
+      - name: Build release APK
+        # Signed when the KEYSTORE secrets exist (same recipe as release.yml);
+        # otherwise an UNSIGNED release APK is produced so CI stays green.
+        # Signing env vars are only exported when actually configured, because
+        # app/build.gradle.kts treats an env var that exists but is EMPTY as a
+        # configured (but broken) keystore.
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+            export KEYSTORE_FILE_PATH=app/release.keystore
+            export KEYSTORE_PASSWORD="${{ secrets.KEYSTORE_PASSWORD }}"
+            export KEY_ALIAS="${{ secrets.KEY_ALIAS }}"
+            export KEY_PASSWORD="${{ secrets.KEY_PASSWORD }}"
+            echo "RELEASE_SIGNED=1" >> "$GITHUB_ENV"
+          else
+            echo "KEYSTORE_BASE64 secret not configured — building UNSIGNED release APK."
+          fi
+          ./gradlew assembleRelease
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: app/build/outputs/apk/release/*.apk
           retention-days: 14
 
   security:

@@ -3,6 +3,7 @@ package com.aichathub.app.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.chat.InferenceRuntime
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.SettingsRepository
@@ -28,7 +29,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class ModelsUiState(
-    val models: List<CatalogModel> = LocalModelCatalog.models,
+    val models: List<CatalogModel> = emptyList(),
     val states: Map<String, ModelLifecycleState> = emptyMap(),
     val compatibility: Map<String, CompatibilityLevel> = emptyMap(),
     val downloads: Map<String, DownloadInfo> = emptyMap(),
@@ -36,7 +37,8 @@ data class ModelsUiState(
     val selectedCategory: String = "All",
     val profile: DeviceProfile? = null,
     val loading: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val catalogSource: CatalogRepository.CatalogSource = CatalogRepository.CatalogSource.LOCAL
 ) {
     val filtered: List<CatalogModel>
         get() = models.filter { model ->
@@ -58,17 +60,53 @@ class ModelsViewModel @Inject constructor(
     private val container_modelRepository: ModelRepository,
     private val container_deviceInfoProvider: DeviceInfoProvider,
     private val container_compatibilityEngine: CompatibilityEngine,
-    private val container_settingsRepository: SettingsRepository
+    private val container_settingsRepository: SettingsRepository,
+    private val container_catalogRepository: CatalogRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ModelsUiState())
     val state: StateFlow<ModelsUiState> = _state.asStateFlow()
+
+    val notificationPermissionNeeded = container_downloadManager.notificationPermissionNeeded
 
     init {
         refresh()
         observeInstalled()
         observeDownloads()
         observeMeasuredMemory()
+        observeCatalog()
+    }
+
+    private fun observeCatalog() {
+        viewModelScope.launch {
+            container_catalogRepository.allModels.collect { models ->
+                _state.value = _state.value.copy(models = models)
+                // Re-run compatibility check when catalog changes
+                refresh()
+            }
+        }
+        
+        viewModelScope.launch {
+            container_catalogRepository.catalogState.collect { state ->
+                when (state) {
+                    is CatalogRepository.CatalogState.Ready -> {
+                        _state.value = _state.value.copy(
+                            catalogSource = state.source,
+                            loading = false
+                        )
+                    }
+                    is CatalogRepository.CatalogState.Loading -> {
+                        _state.value = _state.value.copy(loading = true)
+                    }
+                    is CatalogRepository.CatalogState.Error -> {
+                        _state.value = _state.value.copy(
+                            error = state.message,
+                            loading = false
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun observeMeasuredMemory() {
@@ -107,13 +145,15 @@ class ModelsViewModel @Inject constructor(
             val profile = container_deviceInfoProvider.getDeviceProfile()
             val budget = MemoryBudgetCalculator.calculate(profile)
             val measured = container_settingsRepository.measuredMemoryOnce()
+            val models = container_catalogRepository.getAllModels()
             val recommendations = container_compatibilityEngine.recommendAll(
-                LocalModelCatalog.models,
+                models,
                 profile,
                 budget,
                 measured
             )
             _state.value = _state.value.copy(
+                models = models,
                 compatibility = recommendations.associate { it.model.id to it.level },
                 profile = profile,
                 loading = false
@@ -157,6 +197,13 @@ class ModelsViewModel @Inject constructor(
         _state.value = _state.value.copy(error = null)
     }
 
-    val categories: List<String> =
-        listOf("All", "Recommended") + LocalModelCatalog.models.map { it.category }.distinct()
+    fun refreshCatalog() {
+        viewModelScope.launch {
+            container_catalogRepository.refreshCatalog()
+        }
+    }
+
+    val categories: List<String>
+        get() = listOf("All", "Recommended") + 
+            _state.value.models.map { it.category }.distinct()
 }

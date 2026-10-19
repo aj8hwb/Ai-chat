@@ -24,7 +24,12 @@ object DatabaseModule {
             AiDatabase::class.java,
             "aichathub.db"
         )
-            .addMigrations(AiDatabase.MIGRATION_1_2, AiDatabase.MIGRATION_2_3, AiDatabase.MIGRATION_3_4)
+            .addMigrations(
+                AiDatabase.MIGRATION_1_2,
+                AiDatabase.MIGRATION_2_3,
+                AiDatabase.MIGRATION_3_4,
+                AiDatabase.MIGRATION_4_5
+            )
             .build()
     }
 

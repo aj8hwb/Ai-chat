@@ -3,7 +3,7 @@ package com.aichathub.app.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.chat.ChatCoordinator
-import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.device.CompatibilityEngine
@@ -47,17 +47,20 @@ class ModelDetailsViewModel @Inject constructor(
     private val container_downloadManager: DownloadManager,
     private val container_deviceInfoProvider: DeviceInfoProvider,
     private val container_compatibilityEngine: CompatibilityEngine,
-    private val container_settingsRepository: SettingsRepository
+    private val container_settingsRepository: SettingsRepository,
+    private val catalogRepository: CatalogRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ModelDetailsUiState())
     val state: StateFlow<ModelDetailsUiState> = _state.asStateFlow()
 
+    val notificationPermissionNeeded = container_downloadManager.notificationPermissionNeeded
+
     private var modelId: String? = null
 
     fun load(modelId: String) {
         this.modelId = modelId
-        val model = LocalModelCatalog.byId(modelId)
+        val model = catalogRepository.getModelById(modelId)
         if (model == null) {
             _state.value = ModelDetailsUiState(model = null, loading = false)
             return
@@ -83,7 +86,7 @@ class ModelDetailsViewModel @Inject constructor(
                 _state.value = current.copy(
                     isDefaultModel = s.defaultModelId == current.model?.id,
                     defaultModelMissing = s.defaultModelId != null &&
-                        LocalModelCatalog.byId(s.defaultModelId!!) == null
+                        catalogRepository.getModelById(s.defaultModelId!!) == null
                 )
             }
         }

@@ -91,7 +91,7 @@ class ChatCoordinatorTest {
         coEvery { conversationDao.insert(any()) } returns 1L
         coEvery { messageDao.forConversation(any()) } returns emptyList()
 
-        coordinator = ChatCoordinator(runtime, conversationDao, messageDao, modelRepository)
+        coordinator = ChatCoordinator(runtime, conversationDao, messageDao, modelRepository, kotlinx.coroutines.CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob()))
     }
 
     @After
@@ -186,6 +186,26 @@ class ChatCoordinatorTest {
         assertEquals("model-1", state.activeModelId)
         assertEquals("Test Model", state.activeModelName)
         assertEquals(false, state.isLoadingModel)
+    }
+
+    // ── validated context passthrough (spec §2.11) ──────────────────────
+
+    @Test
+    fun `the validated context reaches the native runtime unchanged`() = runTest {
+        // No context override → the model's catalog context is what loads.
+        val file = testFile()
+        coordinator.loadModel(testModel, file, testConfig, threads = 4)
+        coVerify { runtime.load(testModel.id, file, testModel.contextLength, any(), 4) }
+    }
+
+    @Test
+    fun `the adaptive plan context overrides the model maximum unchanged`() = runTest {
+        // A validated load plan that selected a SMALLER adaptive context must
+        // be the exact value passed to the native initialization — never the
+        // model maximum behind the safety policy's back.
+        val file = testFile()
+        coordinator.loadModel(testModel, file, testConfig, threads = 3, contextLength = 2048)
+        coVerify { runtime.load(testModel.id, file, 2048, any(), 3) }
     }
 
     @Test

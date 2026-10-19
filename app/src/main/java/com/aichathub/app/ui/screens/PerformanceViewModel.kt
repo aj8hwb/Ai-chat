@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.chat.ChatCoordinator
 import com.aichathub.app.chat.InferenceRuntime
-import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +28,8 @@ data class PerformanceUiState(
 class PerformanceViewModel @Inject constructor(
     private val container_inferenceRuntime: InferenceRuntime,
     private val container_chatCoordinator: ChatCoordinator,
-    private val container_settingsRepository: SettingsRepository
+    private val container_settingsRepository: SettingsRepository,
+    private val catalogRepository: CatalogRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PerformanceUiState())
@@ -50,7 +51,7 @@ class PerformanceViewModel @Inject constructor(
                 container_chatCoordinator.state,
                 container_settingsRepository.measuredMemory
             ) { s, measured ->
-                val model = s.activeModelId?.let { LocalModelCatalog.byId(it) }
+                val model = s.activeModelId?.let { catalogRepository.getModelById(it) }
                 _state.value = _state.value.copy(
                     activeModelName = s.activeModelName,
                     modelMemoryBytes = model?.let { measured[it.id] ?: it.estimatedMemoryBytes } ?: 0,

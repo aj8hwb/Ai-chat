@@ -127,6 +127,7 @@ class SettingsRepository(private val context: Context) {
         val clipboardAutoClear = booleanPreferencesKey("clipboard_auto_clear")
         val crashLogPurge = booleanPreferencesKey("crash_log_purge")
         val onboardingCompleted = booleanPreferencesKey("onboarding_completed")
+        val threadCalibration = stringPreferencesKey("thread_calibration")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -172,6 +173,29 @@ class SettingsRepository(private val context: Context) {
             val updated = com.aichathub.app.util.MeasuredMemory.decode(p[Keys.measuredMemory]) +
                 (modelId to bytes)
             p[Keys.measuredMemory] = com.aichathub.app.util.MeasuredMemory.encode(updated)
+        }
+    }
+
+    /**
+     * Benchmark-based CPU thread calibration results, keyed by a
+     * configuration fingerprint ([ThreadCalibration.cacheKey]). A record only
+     * wins over the static baseline if it is complete, valid and current —
+     * enforced in [ThreadCalibration.resolveThreadCount], not by the callers.
+     */
+    val threadCalibration: Flow<Map<String, com.aichathub.app.util.ThreadCalibration.CalibrationRecord>> =
+        context.dataStore.data.map { p ->
+            com.aichathub.app.util.ThreadCalibration.decode(p[Keys.threadCalibration])
+        }
+
+    suspend fun threadCalibrationOnce(): Map<String, com.aichathub.app.util.ThreadCalibration.CalibrationRecord> =
+        threadCalibration.first()
+
+    suspend fun setThreadCalibration(key: String, record: com.aichathub.app.util.ThreadCalibration.CalibrationRecord) {
+        if (key.isBlank() || record.threads <= 0) return
+        context.dataStore.edit { p ->
+            val updated = com.aichathub.app.util.ThreadCalibration.decode(p[Keys.threadCalibration]) +
+                (key to record)
+            p[Keys.threadCalibration] = com.aichathub.app.util.ThreadCalibration.encode(updated)
         }
     }
 

@@ -50,7 +50,7 @@ class PrivacySettingsViewModel @Inject constructor(
                 incognitoMode = s.incognitoMode,
                 clipboardAutoClear = s.clipboardAutoClear,
                 crashLogPurge = s.crashLogPurge,
-                modelIntegrityOk = PrivacyCenter.verifyModelIntegrity(container_application),
+                modelIntegrityOk = PrivacyCenter.verifyModelAvailability(container_application),
                 dashboard = PrivacyCenter.getPrivacyDashboard(),
                 crashLogCount = CrashLogRepository.entryCount(container_application)
             )

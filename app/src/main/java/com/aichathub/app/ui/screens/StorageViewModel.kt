@@ -2,7 +2,7 @@ package com.aichathub.app.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aichathub.app.data.model.LocalModelCatalog
+import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.device.DeviceInfoProvider
 import com.aichathub.app.download.DownloadManager
@@ -30,7 +30,8 @@ data class StorageUiState(
 class StorageViewModel @Inject constructor(
     private val container_deviceInfoProvider: DeviceInfoProvider,
     private val container_modelRepository: ModelRepository,
-    private val container_downloadManager: DownloadManager
+    private val container_downloadManager: DownloadManager,
+    private val catalogRepository: CatalogRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(StorageUiState())
@@ -44,7 +45,7 @@ class StorageViewModel @Inject constructor(
             container_modelRepository.installedModels.collect { installed ->
                 val sizes = installed.associate { it.modelId to it.fileSizeBytes }
                 _state.value = _state.value.copy(
-                    models = installed.mapNotNull { LocalModelCatalog.byId(it.modelId) },
+                    models = installed.mapNotNull { catalogRepository.getModelById(it.modelId) },
                     sizes = sizes,
                     modelsTotalBytes = sizes.values.sum()
                 )
@@ -97,7 +98,7 @@ class StorageViewModel @Inject constructor(
     }
 
     private fun knownArtifactNames(): Set<String> = buildSet {
-        LocalModelCatalog.models.forEach { model ->
+        catalogRepository.getAllModels().forEach { model ->
             add(DownloadSegmentPolicy.mergedPartFileName(model.fileName))
             add(DownloadSegmentPolicy.metaFileName(model.fileName))
             for (i in 0 until 64) {

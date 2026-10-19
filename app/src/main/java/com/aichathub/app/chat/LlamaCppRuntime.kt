@@ -3,6 +3,7 @@ package com.aichathub.app.chat
 import android.content.Context
 import android.os.Debug
 import android.util.Log
+import com.aichathub.app.util.ModelThreads
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +36,19 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class LlamaCppRuntime(
     private val context: Context,
-    private val onModelMemoryMeasured: ((modelId: String, pssBytes: Long) -> Unit)? = null
+    private val onModelMemoryMeasured: ((modelId: String, pssBytes: Long) -> Unit)? = null,
+    /**
+     * Optional long-generation thermal watchdog (spec §6.5). Called ~2×/s
+     * while tokens stream; the level is a CHEAP synchronous probe. When it
+     * reports CRITICAL the native generation is cancelled via the REAL
+     * cancellation API and the callback receives a clean
+     * [CancellationException] — partial output is preserved by
+     * [com.aichathub.app.chat.ChatCoordinator]'s stop path. NO live thread /
+     * GPU reconfiguration is attempted (llama.cpp fixes these at context
+     * creation — spec §6.7); the reduced-thread policy applies to the NEXT
+     * model load.
+     */
+    private val thermalWatchdog: (() -> ModelThreads.ThermalLoadLevel?)? = null
 ) : InferenceRuntime {
 
     private val tag = "LlamaCppRuntime"
@@ -81,6 +94,11 @@ class LlamaCppRuntime(
 
     override var activeModelId: String? = null
         private set
+
+    override val runtimeVersionLabel: String by lazy {
+        runCatching { "llama-kotlin-android/${LlamaModel.getVersion()}" }
+            .getOrDefault("llama-kotlin-android")
+    }
 
     private val cancelled = AtomicBoolean(false)
     private val generating = AtomicBoolean(false)
@@ -268,13 +286,13 @@ class LlamaCppRuntime(
         val sb = StringBuilder()
         var tokens = 0
         var lastLiveUpdateMs = 0L
+        var lastThermalCheckMs = 0L
         val collectBlock: suspend (String) -> Unit = { token ->
             sb.append(token)
             tokens++
             onToken(token)
-            // Refresh live telemetry ~4x per second so the streaming UI shows
-            // real tok/s and token counts instead of zeros until the end.
             val now = System.currentTimeMillis()
+            // Live telemetry ~4x per second.
             if (now - lastLiveUpdateMs >= 250) {
                 lastLiveUpdateMs = now
                 val elapsed = (System.nanoTime() - startNanos) / 1_000_000_000f
@@ -283,6 +301,21 @@ class LlamaCppRuntime(
                     tokensGenerated = tokens,
                     generationActive = true
                 )
+            }
+            // Thermal watchdog ~2x per second (cheap synchronous probe):
+            // CRITICAL heat stops the native generation through the REAL
+            // cancellation API — a supported action (spec §6.6). A partial
+            // reply is preserved by the coordinator's stop path.
+            if (thermalWatchdog != null && now - lastThermalCheckMs >= 500) {
+                lastThermalCheckMs = now
+                if (thermalWatchdog() == ModelThreads.ThermalLoadLevel.CRITICAL) {
+                    Log.w(tag, "THERMAL_STOP generation cancelled: device reached CRITICAL thermal state")
+                    runCatching { m.cancelGeneration() }
+                        .onFailure { Log.w(tag, "Native thermal-stop cancel failed", it) }
+                    throw CancellationException(
+                        "Generation stopped: device reached its critical thermal state."
+                    )
+                }
             }
         }
         if (stopSequences.isEmpty()) {

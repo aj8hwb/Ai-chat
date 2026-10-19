@@ -5,7 +5,6 @@ import android.os.Build
 import android.provider.MediaStore
 import com.aichathub.app.data.local.AiDatabase
 import com.aichathub.app.data.local.InstalledModelEntity
-import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +19,8 @@ import java.io.File
  */
 class ModelRepository(
     context: Context,
-    private val database: AiDatabase
+    private val database: AiDatabase,
+    private val catalogRepository: CatalogRepository
 ) {
     private val context = context.applicationContext
     private val modelsDir = File(context.filesDir, "models")
@@ -113,7 +113,8 @@ class ModelRepository(
     /**
      * Startup reconciliation: the persisted registry must agree with the real
      * filesystem. Installed rows whose file vanished are removed; legacy
-     * INSTALLED rows are promoted to READY; download-in-progress rows are kept.
+     * INSTALLED rows are promoted to READY; stale DOWNLOADING/VERIFYING rows
+     * from process death are reset to NOT_INSTALLED.
      */
     suspend fun reconcile() = withContext(Dispatchers.IO) {
         val rows = database.installedModelDao().getAll()
@@ -121,25 +122,39 @@ class ModelRepository(
             val st = runCatching { ModelLifecycleState.valueOf(row.state) }
                 .getOrDefault(ModelLifecycleState.NOT_INSTALLED)
             val hasPath = row.filePath.isNotBlank()
+            val fileExists = hasPath && File(row.filePath).isFile
             when (st) {
                 ModelLifecycleState.INSTALLED, ModelLifecycleState.LOADING,
                 ModelLifecycleState.RUNNING, ModelLifecycleState.UNLOADING -> {
-                    if (!hasPath || !File(row.filePath).isFile) {
-                        // File is gone → the model is no longer usable.
+                    if (!fileExists) {
                         database.installedModelDao().delete(row.modelId)
                     } else {
-                        // Legitimately installed → READY.
                         database.installedModelDao().upsert(row.copy(state = ModelLifecycleState.READY.name))
                     }
                 }
                 ModelLifecycleState.READY -> {
-                    if (!hasPath || !File(row.filePath).isFile) {
+                    if (!fileExists) {
                         database.installedModelDao().delete(row.modelId)
                     }
                 }
+                ModelLifecycleState.DOWNLOADING, ModelLifecycleState.VERIFYING -> {
+                    // After process death, these states are stale — the download
+                    // may or may not have completed. Check if the file exists and
+                    // the model is actually ready.
+                    if (fileExists) {
+                        database.installedModelDao().upsert(row.copy(state = ModelLifecycleState.READY.name))
+                    } else {
+                        // File not found — reset to NOT_INSTALLED so the user
+                        // can re-download. The download .part files are still on
+                        // disk and will be detected by DownloadManager.scanForResumable().
+                        database.installedModelDao().upsert(row.copy(
+                            state = ModelLifecycleState.NOT_INSTALLED,
+                            filePath = ""
+                        ))
+                    }
+                }
                 else -> {
-                    // DOWNLOADING / VERIFYING / NOT_INSTALLED rows are left alone:
-                    // download state is reconciled from the .part files on disk.
+                    // NOT_INSTALLED — leave alone
                 }
             }
         }
@@ -155,7 +170,7 @@ class ModelRepository(
         // MediaStore.Downloads class only exists on API 29+, hence the guard.
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val model = LocalModelCatalog.byId(modelId)
+                val model = catalogRepository.getModelById(modelId)
                 if (model != null) {
                     val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ? AND " +
                         "${MediaStore.Downloads.RELATIVE_PATH} LIKE ?"

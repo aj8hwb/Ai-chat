@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aichathub.app.domain.model.Recommendation
@@ -77,18 +78,18 @@ fun HomeScreen(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "AI Chat Hub",
+                        stringResource(R.string.home_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Your Local AI",
+                        stringResource(R.string.home_subtitle),
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 IconButton(onClick = { onNavigate(Screen.SystemStatus.route) }) {
-                    Icon(Icons.Filled.Speed, contentDescription = "System Status", tint = MaterialTheme.colorScheme.secondary)
+                    Icon(Icons.Filled.Speed, contentDescription = stringResource(R.string.home_system_status), tint = MaterialTheme.colorScheme.secondary)
                 }
             }
         }
@@ -102,7 +103,7 @@ fun HomeScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(16.dp))
-                        Text("Analyzing your device…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.home_analyzing), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -138,19 +139,19 @@ fun HomeScreen(
                 ) {
                     QuickAction(
                         icon = Icons.Filled.Add,
-                        label = "New Chat",
+                        label = stringResource(R.string.home_new_chat),
                         onClick = { onNavigate(Screen.Chat.BASE_ROUTE) },
                         modifier = Modifier.weight(1f)
                     )
                     QuickAction(
                         icon = Icons.Filled.Widgets,
-                        label = "Model Store",
+                        label = stringResource(R.string.home_model_store),
                         onClick = { onNavigate(Screen.Models.route) },
                         modifier = Modifier.weight(1f)
                     )
                     QuickAction(
                         icon = Icons.Filled.PlayArrow,
-                        label = "Playground",
+                        label = stringResource(R.string.home_playground),
                         onClick = { onNavigate(Screen.Playground.route) },
                         modifier = Modifier.weight(1f)
                     )
@@ -169,7 +170,7 @@ fun HomeScreen(
             // Recommended for you
             item {
                 SectionHeader(
-                    title = "Recommended for You",
+                    title = stringResource(R.string.home_recommended_for_you),
                     modifier = Modifier.padding(horizontal = 20.dp)
                 )
             }
@@ -199,23 +200,23 @@ private fun HelpCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "How it works",
+                    stringResource(R.string.home_how_it_works),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.dismiss), tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 }
             }
             Spacer(Modifier.height(4.dp))
-            Text("1. Pick a model that fits your device from the Model Store.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("2. It downloads, verifies, and installs automatically.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("3. Chat with it — fully on-device, offline, private.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.home_help_step_1), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.home_help_step_2), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.home_help_step_3), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(10.dp))
             GradientButton(
-                text = "Explore Models",
+                text = stringResource(R.string.explore_models),
                 onClick = onExplore,
                 icon = Icons.Filled.Widgets,
                 modifier = Modifier.fillMaxWidth()
@@ -238,9 +239,9 @@ private fun HeroCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     val title = when {
-                        readyCount > 0 -> "Local AI Ready"
-                        installedCount > 0 -> "Models Installed"
-                        else -> "Get Started with Local AI"
+                        readyCount > 0 -> stringResource(R.string.home_hero_ready)
+                        installedCount > 0 -> stringResource(R.string.home_hero_models_installed)
+                        else -> stringResource(R.string.home_hero_get_started)
                     }
                     Text(
                         title,
@@ -249,9 +250,9 @@ private fun HeroCard(
                         fontWeight = FontWeight.Bold
                     )
                     val subtitle = when {
-                        readyCount > 0 -> "$readyCount model ready · $installedCount installed"
-                        installedCount > 0 -> "$installedCount models installed · none ready to chat yet"
-                        else -> "Install a model to start chatting"
+                        readyCount > 0 -> stringResource(R.string.home_hero_ready_count, readyCount, installedCount)
+                        installedCount > 0 -> stringResource(R.string.home_hero_installed_count, installedCount)
+                        else -> stringResource(R.string.home_hero_no_models)
                     }
                     Text(
                         subtitle,
@@ -271,9 +272,9 @@ private fun HeroCard(
                     Spacer(Modifier.width(6.dp))
                     Text(
                         when {
-                            readyCount > 0 -> "Ready"
-                            installedCount > 0 -> "Not ready"
-                            else -> "No models yet"
+                            readyCount > 0 -> stringResource(R.string.ready)
+                            installedCount > 0 -> stringResource(R.string.not_ready)
+                            else -> stringResource(R.string.no_models_yet)
                         },
                         color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.labelMedium
@@ -283,7 +284,7 @@ private fun HeroCard(
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 GradientButton(
-                    text = if (installedCount > 0) "Open Chat" else "Explore Models",
+                    text = if (installedCount > 0) stringResource(R.string.open_chat) else stringResource(R.string.explore_models),
                     onClick = if (installedCount > 0) onOpenChat else onExplore,
                     icon = if (installedCount > 0) Icons.Filled.ChatBubbleOutline else Icons.Filled.Widgets,
                     modifier = Modifier.weight(1f)
@@ -325,7 +326,7 @@ private fun SystemOverview(
 ) {
     if (profile == null) return
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        SectionHeader(title = "System Overview", actionText = "View System Status", onAction = onViewSystem)
+        SectionHeader(title = stringResource(R.string.home_system_overview), actionText = stringResource(R.string.home_view_system_status), onAction = onViewSystem)
         AppCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
@@ -335,20 +336,20 @@ private fun SystemOverview(
                     MetricBox(
                         icon = Icons.Filled.Memory,
                         value = "${profile.availableRamGb.toString().take(3)} / ${profile.totalRamGb.toString().take(3)} GB",
-                        label = "RAM",
+                        label = stringResource(R.string.home_ram),
                         modifier = Modifier.weight(1f)
                     )
                     MetricBox(
                         icon = Icons.Filled.Storage,
                         value = Formatters.bytes(profile.storageAvailableBytes),
-                        label = "Storage Free",
+                        label = stringResource(R.string.home_storage_free),
                         modifier = Modifier.weight(1f)
                     )
                 }
                 if (budget != null) {
                     Spacer(Modifier.height(14.dp))
                     ProgressBlock(
-                        label = "Safe AI Budget",
+                        label = stringResource(R.string.home_safe_ai_budget),
                         progress = budget.modelMemoryBytes.toFloat() / profile.availableRamBytes.toFloat(),
                         valueText = "${budget.modelMemoryGb.toString().take(3)} GB"
                     )

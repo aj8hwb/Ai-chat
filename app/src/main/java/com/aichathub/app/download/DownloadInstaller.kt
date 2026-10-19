@@ -52,13 +52,24 @@ class DownloadInstaller(
         verifiedFile: File
     ): Boolean {
         val finalFile = File(modelsDir, model.fileName)
+        val installingFile = File(modelsDir, "${model.fileName}.installing")
 
         withContext(Dispatchers.IO) {
-            if (finalFile.exists()) finalFile.delete()
-            val moved = verifiedFile.renameTo(finalFile)
-            if (!moved) {
-                verifiedFile.copyTo(finalFile, overwrite = true)
+            // Step 1: Move verified file to a temporary .installing location
+            if (installingFile.exists()) installingFile.delete()
+            val movedToTemp = verifiedFile.renameTo(installingFile)
+            if (!movedToTemp) {
+                verifiedFile.copyTo(installingFile, overwrite = true)
                 verifiedFile.delete()
+            }
+
+            // Step 2: Atomic rename from .installing to final location
+            // The old model remains usable until this point
+            val renamed = installingFile.renameTo(finalFile)
+            if (!renamed) {
+                // Fallback: copy then delete temp
+                installingFile.copyTo(finalFile, overwrite = true)
+                installingFile.delete()
             }
         }
 
@@ -66,10 +77,14 @@ class DownloadInstaller(
             modelRepository.markInstalled(model.id, finalFile, finalFile.length())
             modelRepository.setState(model.id, ModelLifecycleState.READY)
             Log.i(TAG, "MODEL_REGISTERED ${model.id} -> READY (${finalFile.absolutePath})")
+            // Mirror to shared Downloads folder so the file survives app reinstall.
+            // Best-effort: failures are logged and never break the install.
             copyToSharedDownloads(model, finalFile)
             true
         } else {
             Log.e(TAG, "MODEL_INSTALL_FAILED ${model.id} - file not created")
+            // Clean up any leftover .installing file
+            runCatching { installingFile.delete() }
             false
         }
     }

@@ -58,7 +58,12 @@ object EncryptedBackupManager {
     private const val GCM_IV_LENGTH = 12
     private const val GCM_TAG_LENGTH = 128
     private const val SALT_LENGTH = 32
-    private const val PBKDF2_ITERATIONS = 100_000
+    /**
+     * PBKDF2 iteration count. 600,000 is the OWASP 2023 recommendation for
+     * PBKDF2-HMAC-SHA256 at 256-bit key length. This provides meaningful
+     * resistance against offline brute-force attacks on leaked backup files.
+     */
+    private const val PBKDF2_ITERATIONS = 600_000
     private const val KEY_LENGTH = 256
     private val MAGIC = "AICH".toByteArray()
 

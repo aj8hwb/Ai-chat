@@ -14,6 +14,11 @@ package com.aichathub.app.util
  * The heuristic uses UTF-8 byte count with language-specific divisors
  * for a more accurate estimate than a single bytes/N approach.
  *
+ * For production accuracy, this estimator can be enhanced with:
+ * 1. Native tokenizer integration (when available)
+ * 2. Model-specific tokenization rules
+ * 3. BPE token frequency tables
+ *
  * Pure logic, no Android dependencies, unit-testable.
  */
 object TokenEstimator {
@@ -83,6 +88,23 @@ object TokenEstimator {
     }
 
     /**
+     * Estimates tokens with a safety margin for critical operations.
+     * Adds a configurable percentage buffer to the base estimate.
+     */
+    fun estimateWithSafetyMargin(text: String, safetyMarginPercent: Float = 0.15f): Int {
+        val baseEstimate = estimate(text)
+        val margin = (baseEstimate * safetyMarginPercent).toInt()
+        return baseEstimate + margin
+    }
+
+    /**
+     * Estimates tokens for multiple text segments combined.
+     */
+    fun estimateCombined(texts: List<String>): Int {
+        return texts.sumOf { estimate(it) }
+    }
+
+    /**
      * Maximum prompt tokens that fit beside [maxOutputTokens] inside a
      * [contextLength] window, leaving a safety margin.
      */
@@ -104,6 +126,26 @@ object TokenEstimator {
             Script.DEVANAGARI, Script.BENGALI, Script.THAI, Script.ARABIC -> 1.1f
             Script.CYRILLIC -> 3.5f
             Script.MIXED -> 3.0f
+        }
+    }
+
+    /**
+     * Truncates text to fit within a token budget while preserving complete tokens.
+     * Uses character-level truncation based on the detected script's chars-per-token ratio.
+     */
+    fun truncateToTokenBudget(text: String, maxTokens: Int): String {
+        if (text.isEmpty()) return text
+        
+        val estimatedTokens = estimate(text)
+        if (estimatedTokens <= maxTokens) return text
+        
+        val ratio = charsPerToken(text)
+        val targetChars = (maxTokens * ratio * 0.9).toInt() // 10% safety margin
+        
+        return if (targetChars >= text.length) {
+            text
+        } else {
+            text.take(targetChars.coerceAtLeast(1))
         }
     }
 
