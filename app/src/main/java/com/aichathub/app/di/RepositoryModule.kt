@@ -43,10 +43,7 @@ object RepositoryModule {
 
     @Provides
     @Singleton
-    fun provideChatBackupManager(
-        @ApplicationContext context: Context,
-        database: AiDatabase
-    ): ChatBackupManager {
+    fun provideChatBackupManager(@ApplicationContext context: Context, database: AiDatabase): ChatBackupManager {
         return ChatBackupManager(context.applicationContext, database)
     }
 
