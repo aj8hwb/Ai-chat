@@ -147,13 +147,13 @@ interface HasId {
 }
 
 @Composable
-fun <T> rememberListDetailState(initialItemId: Any? = null): ListDetailState<T> {
-    return rememberSaveable(saver = ListDetailState.Saver()) {
+fun rememberListDetailState(initialItemId: Any? = null): ListDetailState {
+    return rememberSaveable(saver = ListDetailState.Saver) {
         ListDetailState(selectedItemId = initialItemId)
     }
 }
 
-class ListDetailState<T>(
+class ListDetailState(
     selectedItemId: Any? = null
 ) {
     var selectedItemId by mutableStateOf(selectedItemId)
@@ -176,11 +176,16 @@ class ListDetailState<T>(
     }
 
     companion object {
-        fun <T> Saver() = androidx.compose.runtime.saveable.Saver<ListDetailState<T>, Any?>(
-            save = { state -> state.selectedItemId },
+        private object NullSentinel
+
+        val Saver = androidx.compose.runtime.saveable.Saver<ListDetailState, Any>(
+            save = { state -> state.selectedItemId ?: NullSentinel },
             restore = { saved ->
-                @Suppress("UNCHECKED_CAST")
-                ListDetailState<T>(saved as Any?)
+                if (saved == NullSentinel) {
+                    ListDetailState()
+                } else {
+                    ListDetailState(selectedItemId = saved)
+                }
             },
         )
     }

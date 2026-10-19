@@ -1,7 +1,6 @@
 package com.aichathub.app.chat
 
 import android.content.Context
-import android.content.pm.PackageManager
 import android.opengl.GLES20
 import android.os.Build
 import android.util.Log
@@ -190,7 +189,7 @@ class BackendSelector @Inject constructor(
 
         // Method 1: PackageManager feature check (most reliable)
         val pm = context.packageManager
-        if (pm.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE)) {
+        if (pm.hasSystemFeature("android.hardware.vulkan.hardware")) {
             Log.d(TAG, "Vulkan detected via PackageManager")
             return true
         }

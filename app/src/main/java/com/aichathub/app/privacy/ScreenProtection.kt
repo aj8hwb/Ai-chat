@@ -49,14 +49,15 @@ object ScreenProtection {
     fun maskRecentApps(activity: Activity) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                activity.taskDescription?.let { desc ->
+                val desc = activity.getTaskDescription()
+                if (desc != null) {
                     // Set a blank task description to mask the preview
                     activity.setTaskDescription(
                         android.app.ActivityManager.TaskDescription(
-                            desc.label,
+                            desc.getLabel(),
                             // No icon = blank preview
                             null,
-                            desc.primaryColor,
+                            desc.getPrimaryColor(),
                         ),
                     )
                 }

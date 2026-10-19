@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aichathub.app.R
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.domain.model.Recommendation
 import com.aichathub.app.ui.components.AppCard

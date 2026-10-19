@@ -5,6 +5,8 @@ import android.util.Log
 import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.data.model.RemoteCatalogManifest
 import com.aichathub.app.domain.model.CatalogModel
+import com.aichathub.app.domain.model.ChatTemplate
+import com.aichathub.app.domain.model.ModelFormat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -112,35 +114,59 @@ class CatalogRepository(
                 id = remoteModel.id,
                 name = remoteModel.name,
                 provider = remoteModel.provider,
-                description = remoteModel.description,
-                parameters = remoteModel.parameters,
+                description = remoteModel.description ?: "",
+                parameters = remoteModel.parameters ?: "",
                 category = remoteModel.category,
-                format = remoteModel.format,
-                quantization = remoteModel.quantization,
+                format = formatOf(remoteModel.format, remoteModel.fileName),
+                quantization = remoteModel.quantization ?: "Unknown",
                 fileSizeBytes = remoteModel.fileSizeBytes,
                 estimatedMemoryBytes = remoteModel.estimatedMemoryBytes,
                 contextLength = remoteModel.contextLength,
-                license = remoteModel.license,
-                licenseType = remoteModel.licenseType,
-                officialRepositoryUrl = remoteModel.officialRepositoryUrl,
+                license = remoteModel.licenseName ?: "",
+                licenseType = remoteModel.licenseType ?: "",
+                officialRepositoryUrl = remoteModel.officialRepositoryUrl
+                    ?: remoteModel.modelCardUrl
+                    ?: remoteModel.licenseUrl
+                    ?: "",
                 downloadUrl = remoteModel.downloadUrl,
                 fileName = remoteModel.fileName,
-                runtime = remoteModel.runtime,
+                runtime = remoteModel.runtime ?: "llama_cpp",
                 sourceNote = remoteModel.sourceNote,
                 capabilities = remoteModel.capabilities,
                 modelRank = remoteModel.modelRank,
-                checksumSha256 = remoteModel.checksumSha256,
-                purposeEmoji = remoteModel.purposeEmoji,
-                purposeTitle = remoteModel.purposeTitle,
-                bestFor = remoteModel.bestFor,
-                primaryPurpose = remoteModel.primaryPurpose,
+                checksumSha256 = remoteModel.sha256,
+                purposeEmoji = remoteModel.purposeEmoji ?: "",
+                purposeTitle = remoteModel.purposeTitle ?: "",
+                bestFor = remoteModel.bestFor ?: "",
+                primaryPurpose = remoteModel.primaryPurpose ?: "",
                 strengths = remoteModel.strengths,
                 limitations = remoteModel.limitations,
                 parameterCount = remoteModel.parameterCount,
-                chatTemplate = remoteModel.chatTemplate,
+                chatTemplate = chatTemplateOf(remoteModel.chatTemplate, remoteModel.architecture),
             )
         }
     }
+
+    /** Resolves [ModelFormat] from the manifest field, falling back to the file extension. */
+    private fun formatOf(format: String?, fileName: String): ModelFormat = if (format != null) {
+        val normalized = format.trim().uppercase().replace("-", "_").replace(" ", "_")
+        ModelFormat.entries.firstOrNull { it.name == normalized }
+            ?: ModelFormat.entries.firstOrNull { fileName.endsWith(it.extension, ignoreCase = true) }
+            ?: ModelFormat.GGUF
+    } else {
+        ModelFormat.entries.firstOrNull { fileName.endsWith(it.extension, ignoreCase = true) }
+            ?: ModelFormat.GGUF
+    }
+
+    /** Maps a manifest chat-template/architecture hint onto the [ChatTemplate] enum. */
+    private fun chatTemplateOf(template: String?, architecture: String?): ChatTemplate =
+        when ((template ?: architecture)?.trim()?.uppercase()) {
+            "CHATML", "MISTRAL", "QWEN", "QWEN2", "QWEN3" -> ChatTemplate.CHATML
+            "GEMMA", "GEMMA2", "GEMMA3" -> ChatTemplate.GEMMA
+            "LLAMA2", "LLAMA_2", "LLAMA2_CHAT" -> ChatTemplate.LLAMA2
+            "LLAMA3", "LLAMA_3", "LLAMA_31", "LLAMA_32" -> ChatTemplate.LLAMA3
+            else -> ChatTemplate.GENERIC
+        }
 
     /**
      * Refreshes the catalog from remote sources.

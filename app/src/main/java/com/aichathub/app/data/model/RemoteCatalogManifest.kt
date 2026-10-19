@@ -92,5 +92,44 @@ data class RemoteModelEntry(
     val minAppVersion: Int = 1,
     /** ISO 8601 timestamp of when this model version was published. */
     @SerialName("published_at")
-    val publishedAt: String? = null
+    val publishedAt: String? = null,
+    /** Rich catalog metadata — all optional; older manifests omit these. */
+    @SerialName("description")
+    val description: String? = null,
+    @SerialName("parameters")
+    val parameters: String? = null,
+    /** File format, e.g. "GGUF", "LITERTLM", "TFLITE", "TASK". */
+    @SerialName("format")
+    val format: String? = null,
+    @SerialName("estimated_memory_bytes")
+    val estimatedMemoryBytes: Long = 0L,
+    @SerialName("license_type")
+    val licenseType: String? = null,
+    @SerialName("official_repository_url")
+    val officialRepositoryUrl: String? = null,
+    @SerialName("runtime")
+    val runtime: String? = null,
+    @SerialName("source_note")
+    val sourceNote: String? = null,
+    @SerialName("capabilities")
+    val capabilities: List<String> = emptyList(),
+    @SerialName("model_rank")
+    val modelRank: Int = 0,
+    @SerialName("purpose_emoji")
+    val purposeEmoji: String? = null,
+    @SerialName("purpose_title")
+    val purposeTitle: String? = null,
+    @SerialName("best_for")
+    val bestFor: String? = null,
+    @SerialName("primary_purpose")
+    val primaryPurpose: String? = null,
+    @SerialName("strengths")
+    val strengths: List<String> = emptyList(),
+    @SerialName("limitations")
+    val limitations: List<String> = emptyList(),
+    @SerialName("parameter_count")
+    val parameterCount: Long = 0L,
+    /** Chat template the model was trained with (e.g., "chatml", "gemma"). */
+    @SerialName("chat_template")
+    val chatTemplate: String? = null
 )

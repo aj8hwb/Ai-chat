@@ -129,28 +129,30 @@ object GgufMetadataReader {
      * GGUF, uses an unsupported version, is unreadable, or produced no usable
      * metadata — in ALL cases the caller must fall back rather than fabricate.
      */
-    fun readMetadata(file: File): GgufKvMetadata? = try {
-        if (!file.isFile) return null
-        val windowBytes = minOf(file.length(), HEADER_WINDOW_BYTES)
-        if (windowBytes < 24) return null
-        val buffer = ByteBuffer.allocate(windowBytes.toInt()).order(ByteOrder.LITTLE_ENDIAN)
-        java.io.RandomAccessFile(file, "r").use { raf ->
-            var total = 0
-            val chunk = ByteArray(64 * 1024)
-            while (total < windowBytes) {
-                val n = raf.read(chunk, 0, minOf(chunk.size, windowBytes.toInt() - total))
-                if (n <= 0) break
-                buffer.put(chunk, 0, n)
-                total += n
+    fun readMetadata(file: File): GgufKvMetadata? {
+        return try {
+            if (!file.isFile) return null
+            val windowBytes = minOf(file.length(), HEADER_WINDOW_BYTES)
+            if (windowBytes < 24) return null
+            val buffer = ByteBuffer.allocate(windowBytes.toInt()).order(ByteOrder.LITTLE_ENDIAN)
+            java.io.RandomAccessFile(file, "r").use { raf ->
+                var total = 0
+                val chunk = ByteArray(64 * 1024)
+                while (total < windowBytes) {
+                    val n = raf.read(chunk, 0, minOf(chunk.size, windowBytes.toInt() - total))
+                    if (n <= 0) break
+                    buffer.put(chunk, 0, n)
+                    total += n
+                }
+                if (total < 24) return null
             }
-            if (total < 24) return null
+            buffer.flip()
+            parseHeader(buffer)
+        } catch (_: Exception) {
+            null
+        } catch (_: OutOfMemoryError) {
+            null
         }
-        buffer.flip()
-        parseHeader(buffer)
-    } catch (_: Exception) {
-        null
-    } catch (_: OutOfMemoryError) {
-        null
     }
 
     // ── header parsing ──────────────────────────────────────────────────

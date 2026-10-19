@@ -13,6 +13,7 @@ import com.aichathub.app.privacy.PrivacyCenter
 import com.aichathub.app.util.TokenEstimator
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow

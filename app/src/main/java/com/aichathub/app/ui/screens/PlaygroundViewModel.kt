@@ -249,15 +249,17 @@ class PlaygroundViewModel @Inject constructor(
         }
     }
 
+    fun stop() {
+        // Cancels the active streaming generation; generateStreaming throws
+        // CancellationException, which run() maps to the "Stopped by user" state.
+        container_inferenceRuntime.cancelGeneration()
+        _state.value = _state.value.copy(running = false)
+    }
+
     private fun templateStopSequences(template: ChatTemplate): List<String> = when (template) {
+        ChatTemplate.GENERIC -> emptyList()
         ChatTemplate.CHATML -> listOf("\n\n")
         ChatTemplate.LLAMA2, ChatTemplate.LLAMA3 -> listOf("\n[INST]", "\n[/INST]")
-        ChatTemplate.MISTRAL -> listOf("\n[/INST]")
-        ChatTemplate.CHATGLM -> listOf("\n\n")
-        ChatTemplate.VICUNA -> listOf("USER:")
-        ChatTemplate.ALPACA -> listOf("### Human:")
-        ChatTemplate.ZEPHYR -> listOf("\n</s>")
         ChatTemplate.GEMMA -> listOf("<end_of_turn>")
-        ChatTemplate.UNKNOWN -> emptyList()
     }
 }

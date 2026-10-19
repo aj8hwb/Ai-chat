@@ -78,6 +78,7 @@ import com.aichathub.app.ui.screens.chat.LiveThinkingTracePanel
 import com.aichathub.app.ui.screens.chat.StreamingBubble
 import com.aichathub.app.ui.screens.chat.SystemPromptDialog
 import com.aichathub.app.ui.screens.chat.ThinkingBubble
+import com.aichathub.app.ui.screens.chat.ThinkingModeRow
 import com.aichathub.app.ui.screens.chat.ThinkingTracePanel
 import com.aichathub.app.ui.screens.chat.highlightSearchText
 import com.aichathub.app.ui.theme.Success

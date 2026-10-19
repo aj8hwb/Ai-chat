@@ -55,7 +55,7 @@ object ImageLoader {
                 .data(url)
                 .crossfade(true)
                 .apply {
-                    size?.let { size(it.dp, it.dp) }
+                    size?.let { size(it.value.toInt(), it.value.toInt()) }
                 }
                 .build()
         }
@@ -99,7 +99,6 @@ object ImageLoader {
                         contentDescription = contentDescription,
                         modifier = modifier.fillMaxSize(),
                         contentScale = contentScale,
-                        painter = painter,
                     )
                 }
                 else -> {

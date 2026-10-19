@@ -198,28 +198,28 @@ object ErrorHandler {
 /**
  * Extension function for Result to handle success and error cases
  */
-inline fun <T> Result<T>.onSuccess(action: (T) -> Unit): Result<T> {
-    if (this is ErrorHandler.Result.Success) action(data)
+inline fun <T> ErrorHandler.Result<T>.onSuccess(action: (T) -> Unit): ErrorHandler.Result<T> {
+    if (this is ErrorHandler.Result.Success<T>) action(this.data)
     return this
 }
 
-inline fun <T> Result<T>.onError(action: (ErrorHandler.AppError) -> Unit): Result<T> {
-    if (this is ErrorHandler.Result.Error) action(error)
+inline fun <T> ErrorHandler.Result<T>.onError(action: (ErrorHandler.AppError) -> Unit): ErrorHandler.Result<T> {
+    if (this is ErrorHandler.Result.Error) action(this.error)
     return this
 }
 
 /**
  * Extension function to convert Result to nullable value
  */
-fun <T> Result<T>.getOrNull(): T? = when (this) {
-    is ErrorHandler.Result.Success -> data
+fun <T> ErrorHandler.Result<T>.getOrNull(): T? = when (this) {
+    is ErrorHandler.Result.Success<T> -> this.data
     else -> null
 }
 
 /**
  * Extension function to get value or default
  */
-fun <T> Result<T>.getOrDefault(default: T): T = when (this) {
-    is ErrorHandler.Result.Success -> data
+fun <T> ErrorHandler.Result<T>.getOrDefault(default: T): T = when (this) {
+    is ErrorHandler.Result.Success<T> -> this.data
     else -> default
 }

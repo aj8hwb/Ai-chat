@@ -38,6 +38,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.aichathub.app.R
 import kotlinx.coroutines.launch
 
 data class OnboardingPage(
@@ -119,6 +120,12 @@ fun OnboardingScreen(onComplete: () -> Unit) {
         }
 
         // Next/Complete button
+        val primaryActionLabel = if (pagerState.currentPage < pages.size - 1) {
+            stringResource(R.string.onboarding_next)
+        } else {
+            stringResource(R.string.onboarding_get_started)
+        }
+        val skipLabel = stringResource(R.string.onboarding_skip)
         Button(
             onClick = {
                 if (pagerState.currentPage < pages.size - 1) {
@@ -133,11 +140,7 @@ fun OnboardingScreen(onComplete: () -> Unit) {
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
                 .semantics {
-                    contentDescription = if (pagerState.currentPage < pages.size - 1) {
-                        stringResource(R.string.onboarding_next)
-                    } else {
-                        stringResource(R.string.onboarding_get_started)
-                    }
+                    contentDescription = primaryActionLabel
                 },
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
@@ -179,7 +182,7 @@ fun OnboardingScreen(onComplete: () -> Unit) {
                     .align(Alignment.BottomStart)
                     .padding(16.dp)
                     .semantics {
-                        contentDescription = stringResource(R.string.onboarding_skip)
+                        contentDescription = skipLabel
                     },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.surface,

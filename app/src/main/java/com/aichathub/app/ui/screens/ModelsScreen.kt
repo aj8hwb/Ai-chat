@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -48,6 +49,7 @@ import com.aichathub.app.ui.components.ModelCard
 import com.aichathub.app.ui.navigation.Screen
 import com.aichathub.app.util.Formatters
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelsScreen(onNavigate: (String) -> Unit, viewModel: ModelsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()

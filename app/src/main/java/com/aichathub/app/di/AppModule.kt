@@ -197,19 +197,17 @@ object RuntimeProviderModule {
     @ElementsIntoSet
     fun provideLlamaCppProvider(
         @ApplicationContext context: Context,
-        settingsRepository: SettingsRepository
+        settingsRepository: SettingsRepository,
+        thermalManager: ThermalManager
     ): Set<RuntimeProvider> {
         return setOf(
             LlamaCppRuntimeProvider(
                 context = context.applicationContext,
                 settingsRepository = settingsRepository,
+                thermalManager = thermalManager,
             ),
         )
     }
-}
-
-private fun CoroutineScope.launch(block: suspend CoroutineScope.() -> Unit) {
-    kotlinx.coroutines.launch(block = block)
 }
 
 /**

@@ -202,7 +202,7 @@ object DeviceBenchmark {
                     raf.write(buffer, 0, toWrite)
                     written += toWrite
                 }
-                raf.sync()
+                raf.fd.sync()
             }
             val writeMs = (System.nanoTime() - writeStart) / 1_000_000.0
 
