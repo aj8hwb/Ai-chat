@@ -733,6 +733,10 @@ class DownloadManager(
             }
             return@withContext SegmentOutcome.COMPLETE
         }
+        // Unreachable in practice — every loop iteration returns, follows a
+        // redirect or throws. The explicit throw keeps the lambda's inferred
+        // type compatible with SegmentOutcome instead of Unit.
+        throw IllegalStateException("downloadSegment loop must not fall through")
     }
 
     private suspend fun downloadSegmentWithRetry(

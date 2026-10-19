@@ -338,11 +338,15 @@ object CatalogSignatureVerifier {
         val xSq = oneMinusDSq.multiply(invOnePlusY).mod(p)
         val x = tonelliShanks(xSq, p)
 
-        val xIsOdd = x.mod(BigInteger.TWO) == BigInteger.ONE
-        val signIsOdd = signBit != 0
-        val finalX = if (xIsOdd != signIsOdd) p.subtract(x) else x
+        // Verification consumes (y, x parity) only. If the compressed sign
+        // flag disagrees with the computed parity, the canonical x is p - x,
+        // which flips parity — the x value itself is not carried in the
+        // current java.security.spec.EdECPoint API.
+        val xIsOdd = x.testBit(0)
+        val paritiesMatch = xIsOdd == (signBit != 0)
+        val xOdd = if (paritiesMatch) xIsOdd else !xIsOdd
 
-        return java.security.spec.EdECPoint(finalX, y)
+        return java.security.spec.EdECPoint(xOdd, y)
     }
 
     /**

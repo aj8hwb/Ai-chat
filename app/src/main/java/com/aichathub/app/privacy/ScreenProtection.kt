@@ -49,18 +49,11 @@ object ScreenProtection {
     fun maskRecentApps(activity: Activity) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                val desc = activity.getTaskDescription()
-                if (desc != null) {
-                    // Set a blank task description to mask the preview
-                    activity.setTaskDescription(
-                        android.app.ActivityManager.TaskDescription(
-                            desc.getLabel(),
-                            // No icon = blank preview
-                            null,
-                            desc.getPrimaryColor(),
-                        ),
-                    )
-                }
+                // Set a blank task description (no icon, no color override)
+                // to mask the recents preview.
+                @Suppress("DEPRECATION")
+                val masked = android.app.ActivityManager.TaskDescription("")
+                activity.setTaskDescription(masked)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to mask recent apps", e)
