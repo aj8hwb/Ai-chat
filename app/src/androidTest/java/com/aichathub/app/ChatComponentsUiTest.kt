@@ -27,7 +27,7 @@ class ChatComponentsUiTest {
                     onSend = {},
                     onStop = {},
                     generating = false,
-                    isModelLoaded = true
+                    isModelLoaded = true,
                 )
             }
         }
@@ -44,7 +44,7 @@ class ChatComponentsUiTest {
                     onSend = {},
                     onStop = {},
                     generating = false,
-                    isModelLoaded = true
+                    isModelLoaded = true,
                 )
             }
         }
@@ -61,7 +61,7 @@ class ChatComponentsUiTest {
                     onSend = {},
                     onStop = {},
                     generating = true,
-                    isModelLoaded = true
+                    isModelLoaded = true,
                 )
             }
         }

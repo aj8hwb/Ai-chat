@@ -57,14 +57,14 @@ fun ChatSearchBar(
     AnimatedVisibility(
         visible = visible,
         enter = slideInVertically(initialOffsetY = { -it }),
-        exit = slideOutVertically(targetOffsetY = { -it })
+        exit = slideOutVertically(targetOffsetY = { -it }),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             BasicTextField(
                 value = query,
@@ -78,16 +78,27 @@ fun ChatSearchBar(
                     .onKeyEvent { event ->
                         if (event.type == KeyEventType.KeyUp) {
                             when (event.key) {
-                                Key.DirectionDown -> { onNext(); true }
-                                Key.DirectionUp -> { onPrevious(); true }
-                                Key.Escape -> { onClose(); true }
+                                Key.DirectionDown -> {
+                                    onNext()
+                                    true
+                                }
+                                Key.DirectionUp -> {
+                                    onPrevious()
+                                    true
+                                }
+                                Key.Escape -> {
+                                    onClose()
+                                    true
+                                }
                                 else -> false
                             }
-                        } else false
+                        } else {
+                            false
+                        }
                     },
                 textStyle = TextStyle(
                     color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
                 ),
                 singleLine = true,
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -97,12 +108,12 @@ fun ChatSearchBar(
                             "Search in conversation…",
                             style = TextStyle(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 14.sp
-                            )
+                                fontSize = 14.sp,
+                            ),
                         )
                     }
                     innerTextField()
-                }
+                },
             )
 
             Spacer(Modifier.width(8.dp))
@@ -111,13 +122,13 @@ fun ChatSearchBar(
                 Text(
                     "$currentResult of $totalResults",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else if (query.isNotBlank() && totalResults == 0) {
                 Text(
                     "No results",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -126,26 +137,34 @@ fun ChatSearchBar(
             IconButton(
                 onClick = onPrevious,
                 enabled = totalResults > 1,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(32.dp),
             ) {
                 Icon(
                     Icons.Filled.ArrowDropUp,
                     contentDescription = "Previous result",
-                    tint = if (totalResults > 1) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
+                    tint = if (totalResults > 1) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(20.dp),
                 )
             }
 
             IconButton(
                 onClick = onNext,
                 enabled = totalResults > 1,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(32.dp),
             ) {
                 Icon(
                     Icons.Filled.ArrowDropDown,
                     contentDescription = "Next result",
-                    tint = if (totalResults > 1) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
+                    tint = if (totalResults > 1) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(20.dp),
                 )
             }
 
@@ -154,7 +173,7 @@ fun ChatSearchBar(
                     Icons.Filled.Close,
                     contentDescription = "Close search",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }

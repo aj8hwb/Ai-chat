@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Storage
@@ -24,35 +23,35 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aichathub.app.ui.components.AppCard
-import com.aichathub.app.ui.components.GradientButton
 import com.aichathub.app.ui.components.SectionHeader
 import com.aichathub.app.ui.navigation.Screen
 
 @Composable
-fun SettingsScreen(
-    onNavigate: (String) -> Unit,
-    viewModel: SettingsViewModel = hiltViewModel()
-) {
+fun SettingsScreen(onNavigate: (String) -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var saved by remember { mutableStateOf(false) }
     var showDefaultModelPicker by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
     ) {
         item {
-            Text("Settings", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                "Settings",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             Spacer(Modifier.height(16.dp))
         }
 
@@ -65,31 +64,31 @@ fun SettingsScreen(
                         title = "Default Model",
                         value = state.installedModels.firstOrNull { it.id == state.defaultModelId }?.name
                             ?: (state.defaultModelId ?: "Not set"),
-                        onClick = { showDefaultModelPicker = true }
+                        onClick = { showDefaultModelPicker = true },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                     SettingRow(
                         title = "System Status",
                         value = "Device analysis",
-                        onClick = { onNavigate(Screen.SystemStatus.route) }
+                        onClick = { onNavigate(Screen.SystemStatus.route) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                     SettingRow(
                         title = "Storage",
                         value = "Manage models & cache",
-                        onClick = { onNavigate(Screen.Storage.route) }
+                        onClick = { onNavigate(Screen.Storage.route) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                     SettingRow(
                         title = "Conversations",
                         value = "History",
-                        onClick = { onNavigate(Screen.History.route) }
+                        onClick = { onNavigate(Screen.History.route) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                     SettingRow(
                         title = "Chat Settings",
                         value = "Generation parameters",
-                        onClick = { onNavigate(Screen.ChatSettings.route) }
+                        onClick = { onNavigate(Screen.ChatSettings.route) },
                     )
                 }
             }
@@ -105,14 +104,14 @@ fun SettingsScreen(
                         title = "Battery-Conscious Mode",
                         subtitle = "Reduce power use when generating",
                         checked = state.batteryConscious,
-                        onCheckedChange = viewModel::onBatteryConsciousChange
+                        onCheckedChange = viewModel::onBatteryConsciousChange,
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                     SwitchRow(
                         title = "Auto Unload Model",
                         subtitle = "Release memory when inactive",
                         checked = state.autoUnload,
-                        onCheckedChange = viewModel::onAutoUnloadChange
+                        onCheckedChange = viewModel::onAutoUnloadChange,
                     )
                 }
             }
@@ -126,7 +125,11 @@ fun SettingsScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Theme", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                            Text(
+                                "Theme",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
                             Text(
                                 when (state.themeMode) {
                                     "light" -> "Light"
@@ -134,12 +137,12 @@ fun SettingsScreen(
                                     else -> "Follow system"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         ThemeModePicker(
                             current = state.themeMode,
-                            onSelect = viewModel::onThemeModeChange
+                            onSelect = viewModel::onThemeModeChange,
                         )
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
@@ -147,7 +150,7 @@ fun SettingsScreen(
                         title = "Dynamic Color",
                         subtitle = "Use Android Material You wallpaper colors",
                         checked = state.dynamicColor,
-                        onCheckedChange = viewModel::onDynamicColorChange
+                        onCheckedChange = viewModel::onDynamicColorChange,
                     )
                 }
             }
@@ -163,7 +166,7 @@ fun SettingsScreen(
                         title = "Wi-Fi Only",
                         subtitle = "Pause model downloads on mobile data",
                         checked = state.wifiOnlyDownloads,
-                        onCheckedChange = viewModel::onWifiOnlyChange
+                        onCheckedChange = viewModel::onWifiOnlyChange,
                     )
                 }
             }
@@ -175,12 +178,34 @@ fun SettingsScreen(
             SectionHeader(title = "Generation Defaults")
             AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Temperature: ${state.temperature}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Slider(value = state.temperature, onValueChange = viewModel::onTemperatureChange, valueRange = 0f..1f)
-                    Text("Top K: ${state.topK}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Slider(value = state.topK.toFloat(), onValueChange = { viewModel.onTopKChange(it.toInt()) }, valueRange = 1f..100f)
-                    Text("Max Tokens: ${state.maxTokens}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Slider(value = state.maxTokens.toFloat(), onValueChange = { viewModel.onMaxTokensChange(it.toInt()) }, valueRange = 128f..2048f)
+                    Text(
+                        "Temperature: ${state.temperature}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Slider(
+                        value = state.temperature,
+                        onValueChange = viewModel::onTemperatureChange,
+                        valueRange = 0f..1f,
+                    )
+                    Text(
+                        "Top K: ${state.topK}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Slider(
+                        value = state.topK.toFloat(),
+                        onValueChange = { viewModel.onTopKChange(it.toInt()) },
+                        valueRange = 1f..100f,
+                    )
+                    Text(
+                        "Max Tokens: ${state.maxTokens}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Slider(value = state.maxTokens.toFloat(), onValueChange = {
+                        viewModel.onMaxTokensChange(it.toInt())
+                    }, valueRange = 128f..2048f)
                 }
             }
         }
@@ -195,15 +220,24 @@ fun SettingsScreen(
                         Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(10.dp))
                         Column {
-                            Text("Local-First", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
-                            Text("Your AI. Your Data. Your Device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "Local-First",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "Your AI. Your Data. Your Device.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                     SettingRow(
                         title = "Privacy Center",
                         value = "App lock, incognito, data hygiene",
-                        onClick = { onNavigate(Screen.PrivacyCenter.route) }
+                        onClick = { onNavigate(Screen.PrivacyCenter.route) },
                     )
                 }
             }
@@ -218,31 +252,31 @@ fun SettingsScreen(
                     SettingRow(
                         title = "Performance Monitor",
                         value = "Live metrics",
-                        onClick = { onNavigate(Screen.Performance.route) }
+                        onClick = { onNavigate(Screen.Performance.route) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                     SettingRow(
                         title = "Device Benchmark",
                         value = "Measure performance",
-                        onClick = { onNavigate(Screen.Benchmark.route) }
+                        onClick = { onNavigate(Screen.Benchmark.route) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                     SettingRow(
                         title = "Compare Models",
                         value = "A/B testing",
-                        onClick = { onNavigate(Screen.Compare.route) }
+                        onClick = { onNavigate(Screen.Compare.route) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                     SettingRow(
                         title = "Downloads",
                         value = "Download queue",
-                        onClick = { onNavigate(Screen.Downloads.route) }
+                        onClick = { onNavigate(Screen.Downloads.route) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                     SettingRow(
                         title = "About",
                         value = "Version & info",
-                        onClick = { onNavigate(Screen.About.route) }
+                        onClick = { onNavigate(Screen.About.route) },
                     )
                 }
             }
@@ -262,7 +296,7 @@ fun SettingsScreen(
                     Text(
                         "The model the chat opens with when you start a new conversation.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -271,7 +305,7 @@ fun SettingsScreen(
                             onClick = {
                                 viewModel.setDefaultModel(null)
                                 showDefaultModelPicker = false
-                            }
+                            },
                         )
                         Spacer(Modifier.width(4.dp))
                         Text("Not set (auto-pick best)", color = MaterialTheme.colorScheme.onSurface)
@@ -283,7 +317,7 @@ fun SettingsScreen(
                                 onClick = {
                                     viewModel.setDefaultModel(model.id)
                                     showDefaultModelPicker = false
-                                }
+                                },
                             )
                             Spacer(Modifier.width(4.dp))
                             Text(model.name, color = MaterialTheme.colorScheme.onSurface)
@@ -293,7 +327,7 @@ fun SettingsScreen(
                         Text(
                             "No models installed yet. Install a model first.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -302,20 +336,17 @@ fun SettingsScreen(
                 androidx.compose.material3.TextButton(onClick = { showDefaultModelPicker = false }) {
                     Text("Done", color = MaterialTheme.colorScheme.primary)
                 }
-            }
+            },
         )
     }
 }
 
 @Composable
-private fun ThemeModePicker(
-    current: String,
-    onSelect: (String) -> Unit
-) {
+private fun ThemeModePicker(current: String, onSelect: (String) -> Unit) {
     val modes = listOf(
         "system" to "System",
         "dark" to "Dark",
-        "light" to "Light"
+        "light" to "Light",
     )
     Row {
         modes.forEach { (id, label) ->
@@ -326,16 +357,17 @@ private fun ThemeModePicker(
                     Text(
                         label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (current == id)
+                        color = if (current == id) {
                             MaterialTheme.colorScheme.onSurface
-                        else
+                        } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                     )
                 },
                 colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ),
             )
             Spacer(Modifier.width(6.dp))
         }
@@ -343,14 +375,10 @@ private fun ThemeModePicker(
 }
 
 @Composable
-private fun SettingRow(
-    title: String,
-    value: String,
-    onClick: () -> Unit
-) {
+private fun SettingRow(title: String, value: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
@@ -361,23 +389,22 @@ private fun SettingRow(
 }
 
 @Composable
-private fun SwitchRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
+private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange
+            onCheckedChange = onCheckedChange,
         )
     }
 }

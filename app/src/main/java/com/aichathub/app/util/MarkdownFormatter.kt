@@ -24,11 +24,7 @@ object MarkdownFormatter {
      * Renders [text] as an [AnnotatedString] with simple inline styling.
      * [baseColor]/[accentColor] let the caller theme it without hardcoding.
      */
-    fun render(
-        text: String,
-        baseColor: Color,
-        accentColor: Color
-    ): AnnotatedString {
+    fun render(text: String, baseColor: Color, accentColor: Color): AnnotatedString {
         val builder = buildAnnotatedString {
             val lines = text.split("\n")
             var inFence = false

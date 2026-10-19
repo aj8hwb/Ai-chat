@@ -75,7 +75,7 @@ object PerformanceMonitor {
             freeHeap = freeHeap,
             usedHeap = usedHeap,
             nativeHeap = nativeHeap,
-            totalPss = debugMemoryInfo.totalPss
+            totalPss = debugMemoryInfo.totalPss,
         )
 
         _memoryUsage.value = usage
@@ -135,10 +135,7 @@ object PerformanceMonitor {
 /**
  * Extension function to time suspend operations
  */
-suspend fun <T> PerformanceMonitor.measureTime(
-    name: String,
-    block: suspend () -> T
-): Pair<T, Long> {
+suspend fun <T> PerformanceMonitor.measureTime(name: String, block: suspend () -> T): Pair<T, Long> {
     val session = startTiming(name)
     val result = block()
     val duration = session.stop()

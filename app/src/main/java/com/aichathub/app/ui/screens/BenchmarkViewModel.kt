@@ -24,6 +24,8 @@ import com.aichathub.app.util.ModelThreads
 import com.aichathub.app.util.ThreadCalibration
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
+import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,8 +34,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import javax.inject.Inject
 
 /**
  * A REAL model-inference benchmark record. Every field is a measured value
@@ -135,7 +135,7 @@ class BenchmarkViewModel @Inject constructor(
         compatibilityEngine = container_compatibilityEngine,
         conversationDao = container_conversationDao,
         messageDao = container_messageDao,
-        thermalManager = container_thermalManager
+        thermalManager = container_thermalManager,
     )
 
     companion object {
@@ -168,7 +168,12 @@ class BenchmarkViewModel @Inject constructor(
         if (_state.value.running) return
         viewModelScope.launch {
             val installed = container_modelRepository.stateFor(model.id) ?: return@launch
-            _state.value = _state.value.copy(running = true, statusText = "Loading model...", result = null, error = null)
+            _state.value = _state.value.copy(
+                running = true,
+                statusText = "Loading model...",
+                result = null,
+                error = null,
+            )
             try {
                 container_inferenceRuntime.clearCancellation()
 
@@ -184,7 +189,7 @@ class BenchmarkViewModel @Inject constructor(
                         // Gate warnings surface in the status line; BLOCK is
                         // thrown and reported as a failed benchmark below.
                         if (planError == null) planError = message
-                    }
+                    },
                 )
                 planError?.let { warning ->
                     _state.value = _state.value.copy(statusText = _state.value.statusText + " " + warning)
@@ -204,7 +209,7 @@ class BenchmarkViewModel @Inject constructor(
                     threads = plan.threads,
                     // The benchmark loads the VALIDATED adaptive context —
                     // never the model maximum behind the safety policy's back.
-                    contextLength = plan.contextLength
+                    contextLength = plan.contextLength,
                 )
                 val loadTimeMs = (System.nanoTime() - loadStart) / 1_000_000
                 val memoryBytes = (pssBytes() - pssBefore).coerceAtLeast(0)
@@ -216,7 +221,7 @@ class BenchmarkViewModel @Inject constructor(
                 container_inferenceRuntime.generateStreaming(
                     prompt = prompt,
                     config = GenerationConfig(maxTokens = WARMUP_TOKENS),
-                    onToken = {}
+                    onToken = {},
                 )
 
                 // ── Timed trials (identical prompt/config for comparability) ──
@@ -231,7 +236,7 @@ class BenchmarkViewModel @Inject constructor(
                         break
                     }
                     _state.value = _state.value.copy(
-                        statusText = "Measuring (trial ${trialIndex + 1}/$DEFAULT_TRIALS)..."
+                        statusText = "Measuring (trial ${trialIndex + 1}/$DEFAULT_TRIALS)...",
                     )
                     val start = System.nanoTime()
                     var ttftMs: Long? = null
@@ -242,14 +247,14 @@ class BenchmarkViewModel @Inject constructor(
                             if (ttftMs == null) {
                                 ttftMs = (System.nanoTime() - start) / 1_000_000
                             }
-                        }
+                        },
                     )
                     val generationMs = (System.nanoTime() - start) / 1_000_000
                     val tokens = container_inferenceRuntime.performance.value.tokensGenerated
                     // Zero-token / runs without a first token are recorded as
                     // INVALID measurements (dropped by the aggregator), not silence.
                     trials.add(
-                        BenchmarkAggregator.Trial(tokens, ttftMs ?: 0L, generationMs)
+                        BenchmarkAggregator.Trial(tokens, ttftMs ?: 0L, generationMs),
                     )
                 }
 
@@ -259,7 +264,7 @@ class BenchmarkViewModel @Inject constructor(
                     _state.value = _state.value.copy(
                         running = false,
                         statusText = "No usable measurement was produced (all timed runs were empty).",
-                        error = "The model produced no tokens during the timed runs. Check the model file."
+                        error = "The model produced no tokens during the timed runs. Check the model file.",
                     )
                     return@launch
                 }
@@ -289,12 +294,13 @@ class BenchmarkViewModel @Inject constructor(
                     maxTokensPerSecond = summary.maxTps,
                     systemRamAvailableBytes = systemRam,
                     appHeapUsedBytes = appHeap,
-                    timestampMs = System.currentTimeMillis()
+                    timestampMs = System.currentTimeMillis(),
                 )
                 _state.value = _state.value.copy(
                     running = false,
-                    statusText = "Done — measured ${summary.validTrials}/${trials.size} trials (median decode tok/s, prefill excluded).",
-                    result = result
+                    statusText = "Done — measured ${summary.validTrials}/${trials.size} trials " +
+                        "(median decode tok/s, prefill excluded).",
+                    result = result,
                 )
                 recordHistory(BenchmarkRecordKind.SUCCESS, model, threads, systemRam, appHeap, result)
 
@@ -306,20 +312,24 @@ class BenchmarkViewModel @Inject constructor(
                     running = false,
                     statusText = "Benchmark cancelled.",
                     result = null,
-                    error = null
+                    error = null,
                 )
                 throw e
             } catch (e: Exception) {
                 recordHistory(
                     BenchmarkRecordKind.FAILED,
-                    null, 0, null, null
+                    null,
+                    0,
+                    null,
+                    null,
                 )
                 _state.value = _state.value.copy(
                     running = false,
                     statusText = "Benchmark failed",
                     result = null,
                     error = e.message?.takeIf { it.isNotBlank() }
-                        ?: "The benchmark could not run on this device. Check your storage and model file, then try again."
+                        ?: "The benchmark could not run on this device. " +
+                        "Check your storage and model file, then try again.",
                 )
             }
         }
@@ -353,11 +363,11 @@ class BenchmarkViewModel @Inject constructor(
         val config = GenerationConfig(
             temperature = settings.temperature,
             topK = settings.topK,
-            topP = settings.topP
+            topP = settings.topP,
         )
         _state.value = _state.value.copy(
             running = true,
-            statusText = "Calibrating CPU threads..."
+            statusText = "Calibrating CPU threads...",
         )
         val record = calibrationEngine.calibrate(
             model = model,
@@ -376,9 +386,10 @@ class BenchmarkViewModel @Inject constructor(
             config = config,
             onProgress = { p ->
                 _state.value = _state.value.copy(
-                    statusText = "Calibrating threads (${p.finishedCandidates + 1}/${p.totalCandidates}, ${p.currentThreads}t)..."
+                    statusText = "Calibrating threads " +
+                        "(${p.finishedCandidates + 1}/${p.totalCandidates}, ${p.currentThreads}t)...",
                 )
-            }
+            },
         )
         // The shared validated resolver is the ONLY consumer of the record.
         // An incomplete/invalid calibration resolves to the safe baseline —
@@ -388,7 +399,7 @@ class BenchmarkViewModel @Inject constructor(
                 record = it,
                 nowMs = System.currentTimeMillis(),
                 batteryConscious = settings.batteryConscious,
-                cpuCores = cpuCores
+                cpuCores = cpuCores,
             )
         }
         _state.value = _state.value.copy(
@@ -401,7 +412,7 @@ class BenchmarkViewModel @Inject constructor(
                 else ->
                     "Calibration incomplete — result not saved, baseline kept."
             },
-            calibratedThreads = resolvedThreads
+            calibratedThreads = resolvedThreads,
         )
 
         // The engine unloads the runtime after calibration (resource
@@ -414,13 +425,13 @@ class BenchmarkViewModel @Inject constructor(
                 file,
                 GenerationConfig(maxTokens = WARMUP_TOKENS),
                 threads = resolvedThreads ?: plan.threads,
-                contextLength = plan.contextLength
+                contextLength = plan.contextLength,
             )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             _state.value = _state.value.copy(
-                statusText = (_state.value.statusText + " Note: model not reloaded (${e.message ?: "load failed"}).")
+                statusText = (_state.value.statusText + " Note: model not reloaded (${e.message ?: "load failed"})."),
             )
         }
     }
@@ -428,14 +439,14 @@ class BenchmarkViewModel @Inject constructor(
     private fun batteryNote() {
         _state.value = _state.value.copy(
             running = false,
-            statusText = _state.value.statusText + " Thread calibration skipped (battery-minimal baseline)."
+            statusText = _state.value.statusText + " Thread calibration skipped (battery-minimal baseline).",
         )
     }
 
     private fun thermalNote() {
         _state.value = _state.value.copy(
             running = false,
-            statusText = _state.value.statusText + " Thread calibration skipped (device too hot)."
+            statusText = _state.value.statusText + " Thread calibration skipped (device too hot).",
         )
     }
 
@@ -471,7 +482,7 @@ class BenchmarkViewModel @Inject constructor(
                         if (appHeap != null) append("\"appHeapUsedBytes\":$appHeap,")
                         append("\"timestampMs\":${System.currentTimeMillis()}")
                         append("}\n")
-                    }
+                    },
                 )
             }
             applyRetention(f)
@@ -484,7 +495,7 @@ class BenchmarkViewModel @Inject constructor(
         runCatching {
             val f = File(appContext.filesDir, HISTORY_FILE)
             f.appendText(
-                "{\"kind\":\"cancelled\",\"timestampMs\":${System.currentTimeMillis()}}\n"
+                "{\"kind\":\"cancelled\",\"timestampMs\":${System.currentTimeMillis()}}\n",
             )
             applyRetention(f)
         }
@@ -532,8 +543,7 @@ class BenchmarkViewModel @Inject constructor(
         }
     }
 
-    private fun escape(raw: String): String =
-        raw.replace("\\", "\\\\").replace("\"", "\\\"")
+    private fun escape(raw: String): String = raw.replace("\\", "\\\\").replace("\"", "\\\"")
 
     private fun pssBytes(): Long = runCatching {
         val info = Debug.MemoryInfo()

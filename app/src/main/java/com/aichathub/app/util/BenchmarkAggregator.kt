@@ -65,7 +65,7 @@ object BenchmarkAggregator {
             minTps = tps.min(),
             maxTps = tps.max(),
             medianTtftMs = if (ttfts.isEmpty()) 0L else medianL(ttfts),
-            validTrials = tps.size
+            validTrials = tps.size,
         )
     }
 

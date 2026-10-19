@@ -1,15 +1,14 @@
 package com.aichathub.app.data
 
 import com.aichathub.app.data.local.ConversationDao
-import com.aichathub.app.data.local.MessageEntity
 import com.aichathub.app.data.local.MessageDao
-import org.json.JSONArray
-import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
+import org.json.JSONArray
+import org.json.JSONObject
 
 @Singleton
 class ConversationExportManager @Inject constructor(
@@ -69,11 +68,13 @@ class ConversationExportManager @Inject constructor(
 
             val messagesArray = JSONArray()
             messages.forEach { msg ->
-                messagesArray.put(JSONObject().apply {
-                    put("role", msg.role)
-                    put("content", msg.content)
-                    put("timestamp", formatTimestamp(msg.createdAt))
-                })
+                messagesArray.put(
+                    JSONObject().apply {
+                        put("role", msg.role)
+                        put("content", msg.content)
+                        put("timestamp", formatTimestamp(msg.createdAt))
+                    },
+                )
             }
             put("messages", messagesArray)
         }
@@ -115,6 +116,5 @@ class ConversationExportManager @Inject constructor(
         }
     }
 
-    private fun formatTimestamp(millis: Long): String =
-        timestampFormat.format(Date(millis))
+    private fun formatTimestamp(millis: Long): String = timestampFormat.format(Date(millis))
 }

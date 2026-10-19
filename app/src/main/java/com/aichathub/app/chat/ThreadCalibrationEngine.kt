@@ -5,10 +5,10 @@ import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.device.ThermalManager
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.util.ThreadCalibration
-import kotlinx.coroutines.CancellationException
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 
 /**
  * Runs a REAL, bounded thread-count calibration on the loaded device:
@@ -143,7 +143,7 @@ class ThreadCalibrationEngine @Inject constructor(
                 runtime.generateStreaming(
                     prompt = CALIBRATION_PROMPT,
                     config = config.copy(maxTokens = warmupTokens),
-                    onToken = {}
+                    onToken = {},
                 )
 
                 val candidateSamples = samples.getOrPut(candidate) { mutableListOf() }
@@ -191,14 +191,14 @@ class ThreadCalibrationEngine @Inject constructor(
             tokensPerSecond = winnerTps,
             timestampMs = System.currentTimeMillis(),
             trialsPerCandidate = trialsPerCandidate,
-            complete = complete
+            complete = complete,
         )
         val key = ThreadCalibration.cacheKey(
             deviceHardware = deviceHardware,
             runtimeVersion = runtimeVersion,
             modelId = model.id,
             contextLength = contextLength,
-            quantization = quantization
+            quantization = quantization,
         )
         if (!complete) {
             // Spec §5.8: a failed/interrupted calibration must not overwrite a
@@ -208,7 +208,7 @@ class ThreadCalibrationEngine @Inject constructor(
             Log.w(
                 TAG,
                 "Thread calibration INCOMPLETE (winner=$winner threads would have been chosen) — " +
-                    "record NOT saved; the previous valid record (if any) is kept. key=$key"
+                    "record NOT saved; the previous valid record (if any) is kept. key=$key",
             )
             return record
         }
@@ -216,7 +216,7 @@ class ThreadCalibrationEngine @Inject constructor(
         Log.i(
             TAG,
             "Thread calibration saved: $winner threads ($winnerTps tok/s decode) " +
-                "key=$key complete=$complete"
+                "key=$key complete=$complete",
         )
         return record
     }
@@ -225,17 +225,14 @@ class ThreadCalibrationEngine @Inject constructor(
      * One controlled, timed generation. Returns (totalMs, ttftMs, tokens) or
      * null for failed/cancelled/zero-token runs.
      */
-    private suspend fun measureGeneration(
-        maxTokens: Int,
-        config: GenerationConfig
-    ): Triple<Long, Long, Int>? {
+    private suspend fun measureGeneration(maxTokens: Int, config: GenerationConfig): Triple<Long, Long, Int>? {
         return try {
             val start = System.nanoTime()
             var ttftMs: Long? = null
             runtime.generateStreaming(
                 prompt = CALIBRATION_PROMPT,
                 config = config.copy(maxTokens = maxTokens),
-                onToken = { if (ttftMs == null) ttftMs = (System.nanoTime() - start) / 1_000_000 }
+                onToken = { if (ttftMs == null) ttftMs = (System.nanoTime() - start) / 1_000_000 },
             )
             val totalMs = (System.nanoTime() - start) / 1_000_000
             val tokens = runtime.performance.value.tokensGenerated
@@ -255,7 +252,7 @@ class ThreadCalibrationEngine @Inject constructor(
         return ThreadCalibration.CalibrationSample(
             threads = threads,
             tokensPerSecond = (tokens - 1) / (decodeMs / 1000f),
-            ttftMs = ttftMs
+            ttftMs = ttftMs,
         )
     }
 }

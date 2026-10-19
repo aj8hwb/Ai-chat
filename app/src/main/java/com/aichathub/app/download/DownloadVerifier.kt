@@ -31,11 +31,7 @@ class DownloadVerifier {
      * @param shouldAbort callback to check if verification should be cancelled
      * @return true if checksum matches, false otherwise
      */
-    fun verifyChecksum(
-        file: File,
-        expected: String?,
-        shouldAbort: () -> Boolean = { false }
-    ): Boolean {
+    fun verifyChecksum(file: File, expected: String?, shouldAbort: () -> Boolean = { false }): Boolean {
         if (expected == null) return true
         if (!file.exists()) return false
 
@@ -83,11 +79,7 @@ class DownloadVerifier {
      *
      * @return VerificationResult with details
      */
-    fun verifyDownload(
-        file: File,
-        model: CatalogModel,
-        shouldAbort: () -> Boolean = { false }
-    ): VerificationResult {
+    fun verifyDownload(file: File, model: CatalogModel, shouldAbort: () -> Boolean = { false }): VerificationResult {
         if (!file.exists() || file.length() == 0L) {
             return VerificationResult.FAILED("File does not exist or is empty")
         }

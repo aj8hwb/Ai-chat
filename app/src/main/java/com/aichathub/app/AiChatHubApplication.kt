@@ -1,7 +1,6 @@
 package com.aichathub.app
 
 import android.app.Application
-import android.content.ComponentCallbacks2
 import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.lifecycle.Lifecycle
@@ -43,7 +42,7 @@ class AiChatHubApplication : Application(), Configuration.Provider {
         try {
             val entryPoint = dagger.hilt.EntryPoints.get(
                 this,
-                ChatCoordinatorEntryPoint::class.java
+                ChatCoordinatorEntryPoint::class.java,
             )
             val coordinator = entryPoint.chatCoordinator()
 
@@ -81,14 +80,20 @@ class AiChatHubApplication : Application(), Configuration.Provider {
                 val mem = runCatching {
                     val info = android.os.Debug.MemoryInfo()
                     android.os.Debug.getMemoryInfo(info)
-                    "PSS=${info.totalPss / 1024}MB nativeHeap=${android.os.Debug.getNativeHeapAllocatedSize() / (1024 * 1024)}MB javaHeap=${(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024)}MB"
+                    val nativeHeapMb =
+                        android.os.Debug.getNativeHeapAllocatedSize() / (1024 * 1024)
+                    val javaHeapMb = (
+                        Runtime.getRuntime().totalMemory() -
+                            Runtime.getRuntime().freeMemory()
+                        ) / (1024 * 1024)
+                    "PSS=${info.totalPss / 1024}MB nativeHeap={$nativeHeapMb}MB javaHeap={$javaHeapMb}MB"
                 }.getOrElse { "memory stats unavailable" }
                 Log.e("AiChatHubApp", "CRASH memory: $mem")
                 CrashLogRepository.write(
                     this@AiChatHubApplication,
                     throwable,
                     mem,
-                    threadName = thread.name
+                    threadName = thread.name,
                 )
             } catch (ignored: Throwable) {
             } finally {
@@ -103,7 +108,7 @@ class AiChatHubApplication : Application(), Configuration.Provider {
         try {
             val entryPoint = dagger.hilt.EntryPoints.get(
                 this,
-                ChatCoordinatorEntryPoint::class.java
+                ChatCoordinatorEntryPoint::class.java,
             )
             entryPoint.chatCoordinator().handleMemoryPressure(level)
         } catch (e: Exception) {

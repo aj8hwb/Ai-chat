@@ -9,8 +9,7 @@ package com.aichathub.app.util
  */
 object MeasuredMemory {
 
-    fun encode(map: Map<String, Long>): String =
-        map.entries.joinToString(";") { "${it.key}:${it.value}" }
+    fun encode(map: Map<String, Long>): String = map.entries.joinToString(";") { "${it.key}:${it.value}" }
 
     fun decode(raw: String?): Map<String, Long> {
         if (raw.isNullOrBlank()) return emptyMap()

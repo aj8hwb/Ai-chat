@@ -1,7 +1,5 @@
 package com.aichathub.app.util
 
-import android.content.Context
-import android.graphics.drawable.ColorDrawable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -9,18 +7,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -31,8 +28,6 @@ import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
-import coil.transform.CircleCropTransformation
-import coil.transform.RoundedCornersTransformation
 
 /**
  * Image loading utility using Coil.
@@ -67,14 +62,14 @@ object ImageLoader {
 
         val painter = rememberAsyncImagePainter(
             model = request,
-            contentScale = contentScale
+            contentScale = contentScale,
         )
 
         Box(
             modifier = modifier
                 .then(if (size != null) Modifier.size(size) else Modifier)
                 .clip(shape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             when (painter.state) {
                 is AsyncImagePainter.State.Loading -> {
@@ -83,7 +78,7 @@ object ImageLoader {
                             .size(24.dp)
                             .align(Alignment.Center),
                         color = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 2.dp
+                        strokeWidth = 2.dp,
                     )
                 }
                 is AsyncImagePainter.State.Error -> {
@@ -94,7 +89,7 @@ object ImageLoader {
                             modifier = Modifier
                                 .size(24.dp)
                                 .align(Alignment.Center),
-                            tint = MaterialTheme.colorScheme.error
+                            tint = MaterialTheme.colorScheme.error,
                         )
                     }
                 }
@@ -104,7 +99,7 @@ object ImageLoader {
                         contentDescription = contentDescription,
                         modifier = modifier.fillMaxSize(),
                         contentScale = contentScale,
-                        painter = painter
+                        painter = painter,
                     )
                 }
                 else -> {
@@ -115,7 +110,7 @@ object ImageLoader {
                             modifier = Modifier
                                 .size(24.dp)
                                 .align(Alignment.Center),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -127,12 +122,7 @@ object ImageLoader {
      * Load a circular image (avatar) from a URL.
      */
     @Composable
-    fun AvatarImage(
-        url: String?,
-        contentDescription: String?,
-        modifier: Modifier = Modifier,
-        size: Dp = 48.dp
-    ) {
+    fun AvatarImage(url: String?, contentDescription: String?, modifier: Modifier = Modifier, size: Dp = 48.dp) {
         NetworkImage(
             url = url,
             contentDescription = contentDescription,
@@ -140,7 +130,7 @@ object ImageLoader {
             shape = CircleShape,
             size = size,
             placeholder = Icons.Filled.Image,
-            error = Icons.Filled.BrokenImage
+            error = Icons.Filled.BrokenImage,
         )
     }
 
@@ -162,7 +152,7 @@ object ImageLoader {
             shape = RoundedCornerShape(cornerRadius),
             size = size,
             placeholder = Icons.Filled.Image,
-            error = Icons.Filled.BrokenImage
+            error = Icons.Filled.BrokenImage,
         )
     }
 }

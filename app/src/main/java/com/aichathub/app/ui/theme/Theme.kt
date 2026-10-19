@@ -36,7 +36,7 @@ private val DarkColorScheme = darkColorScheme(
     onError = Color(0xFF0B0B12),
     errorContainer = ErrorContainer,
     onErrorContainer = TextPrimary,
-    scrim = NearBlack
+    scrim = NearBlack,
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -64,7 +64,7 @@ private val LightColorScheme = lightColorScheme(
     onError = Color(0xFFFFFFFF),
     errorContainer = Color(0xFFFEE2E2),
     onErrorContainer = Color(0xFF7F1D1D),
-    scrim = Color(0xFF000000)
+    scrim = Color(0xFF000000),
 )
 
 /**
@@ -79,11 +79,7 @@ fun resolveDarkTheme(themeMode: String, systemDark: Boolean): Boolean = when (th
 }
 
 @Composable
-fun AiChatHubTheme(
-    themeMode: String = "dark",
-    dynamicColor: Boolean = false,
-    content: @Composable () -> Unit
-) {
+fun AiChatHubTheme(themeMode: String = "dark", dynamicColor: Boolean = false, content: @Composable () -> Unit) {
     val dark = resolveDarkTheme(themeMode, isSystemInDarkTheme())
 
     // Material You dynamic color: on Android 12+ the system palette drives the
@@ -100,6 +96,6 @@ fun AiChatHubTheme(
     MaterialTheme(
         colorScheme = scheme,
         typography = AiTypography,
-        content = content
+        content = content,
     )
 }

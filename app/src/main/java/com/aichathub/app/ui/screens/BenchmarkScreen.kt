@@ -1,6 +1,5 @@
 package com.aichathub.app.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -22,47 +20,61 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aichathub.app.ui.components.AppCard
 import com.aichathub.app.ui.components.GradientButton
 import com.aichathub.app.ui.components.MetricRow
 import com.aichathub.app.ui.components.SectionHeader
 
 @Composable
-fun BenchmarkScreen(
-    viewModel: BenchmarkViewModel = hiltViewModel()
-) {
+fun BenchmarkScreen(viewModel: BenchmarkViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
     ) {
         item {
-            Text("Device Benchmark", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                "Device Benchmark",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             Spacer(Modifier.height(4.dp))
-            Text("Measure how your device performs with local AI.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "Measure how your device performs with local AI.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(12.dp))
         }
 
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Model to benchmark", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Model to benchmark",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Text(
                         state.selectedModel?.name ?: "No installed model available",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
                     )
                     if (state.selectedModel == null) {
                         Spacer(Modifier.height(6.dp))
-                        Text("Install a model first to run a real benchmark.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "Install a model first to run a real benchmark.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
@@ -74,11 +86,15 @@ fun BenchmarkScreen(
                 AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(12.dp))
-                        Text(state.statusText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            state.statusText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -97,14 +113,14 @@ fun BenchmarkScreen(
                         MetricRow("Model load", String.format("%.0f ms", result.loadTimeMs))
                         MetricRow(
                             "First token",
-                            result.ttftMs?.let { String.format("%.0f ms", it) } ?: "not measured"
+                            result.ttftMs?.let { String.format("%.0f ms", it) } ?: "not measured",
                         )
                         MetricRow("Backend", result.backend)
                         MetricRow("CPU threads", result.threads.toString())
                         MetricRow("Quantization", result.quantization.ifBlank { "unknown" })
                         MetricRow(
                             "Trials (measured)",
-                            "${result.validTrials} of ${result.trials} timed runs"
+                            "${result.validTrials} of ${result.trials} timed runs",
                         )
                         if (result.validTrials > 1) {
                             MetricRow(
@@ -112,21 +128,26 @@ fun BenchmarkScreen(
                                 String.format(
                                     "%.1f – %.1f tok/s (median shown above)",
                                     result.minTokensPerSecond,
-                                    result.maxTokensPerSecond
-                                )
+                                    result.maxTokensPerSecond,
+                                ),
                             )
                         }
                         MetricRow(
                             "System RAM available",
-                            result.systemRamAvailableBytes?.let { com.aichathub.app.util.Formatters.bytes(it) } ?: "not measured"
+                            result.systemRamAvailableBytes?.let {
+                                com.aichathub.app.util.Formatters.bytes(it)
+                            } ?: "not measured",
                         )
                         MetricRow(
                             "App heap used",
-                            result.appHeapUsedBytes?.let { com.aichathub.app.util.Formatters.bytes(it) } ?: "not measured"
+                            result.appHeapUsedBytes?.let {
+                                com.aichathub.app.util.Formatters.bytes(it)
+                            } ?: "not measured",
                         )
                         MetricRow(
                             "Memory used",
-                            com.aichathub.app.util.Formatters.bytes(result.memoryBytes) + " (PSS Δ around load, not peak)"
+                            com.aichathub.app.util.Formatters.bytes(result.memoryBytes) +
+                                " (PSS Δ around load, not peak)",
                         )
                         state.calibratedThreads?.let {
                             MetricRow("Calibrated threads", it.toString() + " (applied on next load)")
@@ -142,14 +163,19 @@ fun BenchmarkScreen(
                 AppCard(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.Top
+                        verticalAlignment = Alignment.Top,
                     ) {
-                        Icon(Icons.Filled.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Filled.WarningAmber,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp),
+                        )
                         Spacer(Modifier.width(10.dp))
                         Text(
                             error,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -163,7 +189,7 @@ fun BenchmarkScreen(
                 onClick = viewModel::runBenchmark,
                 icon = Icons.Filled.PlayArrow,
                 enabled = state.selectedModel != null && !state.running,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }

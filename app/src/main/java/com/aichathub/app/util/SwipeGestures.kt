@@ -1,12 +1,9 @@
 package com.aichathub.app.util
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -14,7 +11,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxState
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
@@ -65,16 +61,16 @@ fun SwipeToDeleteContainer(
                     .fillMaxSize()
                     .background(Color(0xFFE53935))
                     .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
+                contentAlignment = Alignment.CenterEnd,
             ) {
                 Icon(
                     Icons.Filled.Delete,
                     contentDescription = "Delete",
-                    tint = Color.White
+                    tint = Color.White,
                 )
             }
         },
-        content = content
+        content = content,
     )
 }
 
@@ -92,12 +88,12 @@ fun SwipeToActionContainer(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.error)
                 .padding(horizontal = 20.dp),
-            contentAlignment = Alignment.CenterEnd
+            contentAlignment = Alignment.CenterEnd,
         ) {
             Icon(
                 Icons.Filled.Delete,
                 contentDescription = "Delete",
-                tint = Color.White
+                tint = Color.White,
             )
         }
     },
@@ -116,6 +112,6 @@ fun SwipeToActionContainer(
         state = dismissState,
         modifier = modifier,
         backgroundContent = { background() },
-        content = content
+        content = content,
     )
 }

@@ -18,13 +18,13 @@ import com.aichathub.app.domain.model.ChatTemplate
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.util.TokenEstimator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class PlaygroundUiState(
     val models: List<com.aichathub.app.domain.model.CatalogModel> = emptyList(),
@@ -71,7 +71,7 @@ class PlaygroundViewModel @Inject constructor(
         compatibilityEngine = container_compatibilityEngine,
         conversationDao = container_conversationDao,
         messageDao = container_messageDao,
-        thermalManager = container_thermalManager
+        thermalManager = container_thermalManager,
     )
 
     companion object {
@@ -92,7 +92,7 @@ class PlaygroundViewModel @Inject constructor(
                 val states = installed.associate { it.modelId to it.state }
                 _state.value = _state.value.copy(
                     states = states,
-                    models = catalogRepository.getAllModels().sortedByDescending { it.id in states.keys }
+                    models = catalogRepository.getAllModels().sortedByDescending { it.id in states.keys },
                 )
                 if (_state.value.selectedModelId == null) {
                     val newest = installed
@@ -118,7 +118,7 @@ class PlaygroundViewModel @Inject constructor(
                 _state.value = _state.value.copy(
                     tokensPerSecond = p.tokensPerSecond,
                     generatedTokens = p.tokensGenerated,
-                    contextTokensMax = p.contextTokensMax
+                    contextTokensMax = p.contextTokensMax,
                 )
             }
         }
@@ -147,7 +147,7 @@ class PlaygroundViewModel @Inject constructor(
         if (runInFlight || _state.value.running) return
         if (_state.value.prompt.length > MAX_PROMPT_CHARS) {
             _state.value = _state.value.copy(
-                error = "That prompt is too long (max $MAX_PROMPT_CHARS characters). Please shorten it."
+                error = "That prompt is too long (max $MAX_PROMPT_CHARS characters). Please shorten it.",
             )
             return
         }
@@ -174,11 +174,11 @@ class PlaygroundViewModel @Inject constructor(
                     topK = settings.topK,
                     topP = settings.topP,
                     maxTokens = maxTokens,
-                    stopSequences = templateStopSequences(model.chatTemplate)
+                    stopSequences = templateStopSequences(model.chatTemplate),
                 )
                 if (maxTokens != _state.value.maxTokens) {
                     _state.value = _state.value.copy(
-                        stats = "Max tokens clamped to $maxTokens for this model's context."
+                        stats = "Max tokens clamped to $maxTokens for this model's context.",
                     )
                 }
                 if (!container_inferenceRuntime.isLoaded || container_inferenceRuntime.activeModelId != model.id) {
@@ -192,14 +192,14 @@ class PlaygroundViewModel @Inject constructor(
                             // Non-fatal gate warnings surface in the stats line.
                             val previous = _state.value.stats
                             _state.value = _state.value.copy(stats = listOfNotNull(previous, message).joinToString(" "))
-                        }
+                        },
                     )
                     container_chatCoordinator.loadModel(
                         model,
                         java.io.File(installed.filePath),
                         config,
                         threads = plan.threads,
-                        contextLength = plan.contextLength
+                        contextLength = plan.contextLength,
                     )
                 }
                 val start = System.nanoTime()
@@ -208,24 +208,25 @@ class PlaygroundViewModel @Inject constructor(
                     config = config,
                     onToken = { partial ->
                         _state.value = _state.value.copy(output = partial)
-                    }
+                    },
                 )
                 val elapsedMs = (System.nanoTime() - start) / 1_000_000
                 _state.value = _state.value.copy(
                     output = result,
                     running = false,
-                    stats = "Completed in ${elapsedMs / 1000f}s ~${_state.value.tokensPerSecond} tok/s ${_state.value.generatedTokens} tokens"
+                    stats = "Completed in ${elapsedMs / 1000f}s ~${_state.value.tokensPerSecond} tok/s " +
+                        "${_state.value.generatedTokens} tokens",
                 )
             } catch (e: CancellationException) {
                 _state.value = _state.value.copy(
                     running = false,
                     output = "",
-                    stats = "Stopped by user"
+                    stats = "Stopped by user",
                 )
             } catch (e: OutOfMemoryError) {
                 _state.value = _state.value.copy(
                     running = false,
-                    error = "Insufficient memory for this generation. Try a lighter model."
+                    error = "Insufficient memory for this generation. Try a lighter model.",
                 )
             } catch (e: IllegalStateException) {
                 // Load-plan rejections carry actionable messages (load gate,
@@ -235,12 +236,12 @@ class PlaygroundViewModel @Inject constructor(
                 _state.value = _state.value.copy(
                     running = false,
                     error = e.message
-                        ?: "Generation failed. Please try again."
+                        ?: "Generation failed. Please try again.",
                 )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     running = false,
-                    error = "Generation failed. Please try again."
+                    error = "Generation failed. Please try again.",
                 )
             } finally {
                 runInFlight = false

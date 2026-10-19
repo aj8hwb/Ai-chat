@@ -22,13 +22,13 @@ object DatabaseModule {
         return Room.databaseBuilder(
             context.applicationContext,
             AiDatabase::class.java,
-            "aichathub.db"
+            "aichathub.db",
         )
             .addMigrations(
                 AiDatabase.MIGRATION_1_2,
                 AiDatabase.MIGRATION_2_3,
                 AiDatabase.MIGRATION_3_4,
-                AiDatabase.MIGRATION_4_5
+                AiDatabase.MIGRATION_4_5,
             )
             .build()
     }

@@ -1,18 +1,11 @@
 package com.aichathub.app.download
 
-import android.util.Log
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicLong
-import kotlin.math.roundToInt
 
 /**
  * Aggregates and reports download progress for active downloads.
@@ -52,12 +45,7 @@ class DownloadProgressAggregator(
      * @param initialBytes bytes already downloaded
      * @param progressCallback called with updated progress info
      */
-    fun startTracking(
-        modelId: String,
-        fileSize: Long,
-        initialBytes: Long,
-        progressCallback: (ProgressState) -> Unit
-    ) {
+    fun startTracking(modelId: String, fileSize: Long, initialBytes: Long, progressCallback: (ProgressState) -> Unit) {
         stopTracking(modelId)
         startedAt[modelId] = System.currentTimeMillis()
         phaseStartBytes[modelId] = initialBytes
@@ -89,8 +77,8 @@ class DownloadProgressAggregator(
                     ProgressState(
                         speedBytesPerSec = lastSpeed,
                         averageSpeedBytesPerSec = avgSpeed,
-                        etaSeconds = eta
-                    )
+                        etaSeconds = eta,
+                    ),
                 )
             }
         }

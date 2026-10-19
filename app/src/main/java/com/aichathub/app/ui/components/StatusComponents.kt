@@ -35,23 +35,28 @@ fun MetricRow(
 ) {
     Row(
         modifier = modifier.fillMaxWidth().padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
             Spacer(Modifier.width(10.dp))
         }
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             color = valueColor,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
@@ -66,8 +71,18 @@ fun ProgressBlock(
 ) {
     androidx.compose.foundation.layout.Column(modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-            Text(valueText, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                valueText,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
         Spacer(Modifier.height(6.dp))
         LinearProgressIndicator(
@@ -75,26 +90,24 @@ fun ProgressBlock(
             modifier = Modifier.fillMaxWidth().height(6.dp),
             color = progressColor,
             trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
         )
     }
 }
 
 @Composable
-fun StateDot(
-    state: ModelLifecycleState,
-    modifier: Modifier = Modifier
-) {
+fun StateDot(state: ModelLifecycleState, modifier: Modifier = Modifier) {
     val color = when (state) {
         ModelLifecycleState.READY, ModelLifecycleState.RUNNING -> Success
         ModelLifecycleState.INSTALLED, ModelLifecycleState.DOWNLOADED -> MaterialTheme.colorScheme.secondary
-        ModelLifecycleState.LOADING, ModelLifecycleState.UNLOADING, ModelLifecycleState.DOWNLOADING, ModelLifecycleState.VERIFYING -> Warning
+        ModelLifecycleState.LOADING, ModelLifecycleState.UNLOADING,
+        ModelLifecycleState.DOWNLOADING, ModelLifecycleState.VERIFYING -> Warning
         ModelLifecycleState.ERROR -> MaterialTheme.colorScheme.error
         ModelLifecycleState.NOT_INSTALLED -> MaterialTheme.colorScheme.outline
     }
     Box(
         modifier = modifier
             .size(8.dp)
-            .background(color, CircleShape)
+            .background(color, CircleShape),
     )
 }

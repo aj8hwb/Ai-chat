@@ -10,8 +10,10 @@ import com.aichathub.app.domain.model.Recommendation
 enum class LoadDecision {
     /** Fits the safe memory budget (≤ 1.0× usable). */
     SAFE,
+
     /** Uses more than the safe budget but ≤ 1.35× usable. */
     HEAVY,
+
     /** Exceeds 1.35× usable — labelled NOT_RECOMMENDED, still loadable. */
     BLOCKED
 }
@@ -34,9 +36,11 @@ data class LoadEligibilityResult(
             val usableMb = (usableBytes / (1024.0 * 1024.0)).round1()
             return when (eligibility) {
                 LoadEligibility.BLOCK ->
-                    "This model actually uses ~$reqMb MB on your device, which is more than the ~$usableMb MB it can safely use. Loading it would likely freeze or crash the phone. Try a lighter model."
+                    "This model actually uses ~$reqMb MB on your device, which is more than the ~$usableMb MB " +
+                        "it can safely use. Loading it would likely freeze or crash the phone. Try a lighter model."
                 LoadEligibility.WARN ->
-                    "This model needs ~$reqMb MB but only ~$usableMb MB is safely available. It may be slow or unstable. Download and try at your own risk."
+                    "This model needs ~$reqMb MB but only ~$usableMb MB is safely available. " +
+                        "It may be slow or unstable. Download and try at your own risk."
                 LoadEligibility.ALLOW -> "Fits your device's safe memory budget (~$usableMb MB)."
             }
         }
@@ -118,7 +122,7 @@ class CompatibilityEngine {
             profile,
             modelWeightsBytes = model.fileSizeBytes,
             contextLength = model.contextLength,
-            parameterCount = model.parameterCount
+            parameterCount = model.parameterCount,
         )
         val usable = budget.modelMemoryBytes
         val measured = measuredMemory[model.id]
@@ -130,18 +134,21 @@ class CompatibilityEngine {
             weightsAloneOverBudget -> LoadEligibility.BLOCK
             else -> LoadEligibility.WARN
         }
-        val weightsBlockMessage = if (eligibility == LoadEligibility.BLOCK && weightsAloneOverBudget && measured == null) {
-            val modelGb = (model.fileSizeBytes / (1024.0 * 1024.0 * 1024.0)).round1()
-            val usableMb = (usable / (1024.0 * 1024.0)).round1()
-            "This model's file alone is ~${modelGb} GB, more than the ~$usableMb MB that can safely be used " +
-                "for AI on this device. Even the smallest context cannot make it fit. Try a lighter model."
-        } else null
+        val weightsBlockMessage =
+            if (eligibility == LoadEligibility.BLOCK && weightsAloneOverBudget && measured == null) {
+                val modelGb = (model.fileSizeBytes / (1024.0 * 1024.0 * 1024.0)).round1()
+                val usableMb = (usable / (1024.0 * 1024.0)).round1()
+                "This model's file alone is ~$modelGb GB, more than the ~$usableMb MB that can safely be used " +
+                    "for AI on this device. Even the smallest context cannot make it fit. Try a lighter model."
+            } else {
+                null
+            }
         return LoadEligibilityResult(
             eligibility = eligibility,
             requiredBytes = required,
             usableBytes = usable,
             measured = measured != null,
-            reasonOverride = weightsBlockMessage
+            reasonOverride = weightsBlockMessage,
         )
     }
 
@@ -157,22 +164,21 @@ class CompatibilityEngine {
         profile: DeviceProfile,
         budget: AiMemoryBudget,
         measuredMemory: Map<String, Long> = emptyMap()
-    ): List<Recommendation> =
-        models
-            .map { model ->
-                val level = evaluate(model, profile, budget, measuredMemory)
-                Recommendation(
-                    model = model,
-                    level = level,
-                    score = level.rank,
-                    reason = reasonFor(model, level, budget, measuredMemory),
-                    quantizationNote = quantizationNote(model, budget, measuredMemory)
-                )
-            }
-            .sortedWith(
-                compareByDescending<Recommendation> { it.level.rank }
-                    .thenBy { it.model.fileSizeBytes }
+    ): List<Recommendation> = models
+        .map { model ->
+            val level = evaluate(model, profile, budget, measuredMemory)
+            Recommendation(
+                model = model,
+                level = level,
+                score = level.rank,
+                reason = reasonFor(model, level, budget, measuredMemory),
+                quantizationNote = quantizationNote(model, budget, measuredMemory),
             )
+        }
+        .sortedWith(
+            compareByDescending<Recommendation> { it.level.rank }
+                .thenBy { it.model.fileSizeBytes },
+        )
 
     /**
      * Enhanced recommendation using [SmartRecommendationEngine].
@@ -195,17 +201,16 @@ class CompatibilityEngine {
         batteryLevel: Int = -1,
         measuredPss: Map<String, Long> = emptyMap(),
         pastBenchmarks: Map<String, Float> = emptyMap()
-    ): List<SmartRecommendation> =
-        smartEngine.recommendAll(
-            models = models,
-            profile = profile,
-            budget = budget,
-            mode = mode,
-            thermalStatus = thermalStatus,
-            batteryLevel = batteryLevel,
-            measuredPss = measuredPss,
-            pastBenchmarks = pastBenchmarks
-        )
+    ): List<SmartRecommendation> = smartEngine.recommendAll(
+        models = models,
+        profile = profile,
+        budget = budget,
+        mode = mode,
+        thermalStatus = thermalStatus,
+        batteryLevel = batteryLevel,
+        measuredPss = measuredPss,
+        pastBenchmarks = pastBenchmarks,
+    )
 
     /**
      * Memory headroom against the SAME budget the load preflight uses
@@ -270,17 +275,24 @@ class CompatibilityEngine {
             CompatibilityLevel.USABLE ->
                 "Will run, but performance may be limited. (~$requiredMb MB $source vs ${usableMb}MB safe budget.)"
             CompatibilityLevel.HEAVY ->
-                "Uses more memory than is safely available right now. (~$requiredMb MB $source vs ${usableMb}MB safe budget.)"
+                "Uses more memory than is safely available right now. " +
+                    "(~$requiredMb MB $source vs ${usableMb}MB safe budget.)"
             CompatibilityLevel.NOT_RECOMMENDED ->
                 "Too heavy for your current device memory. (~$requiredMb MB $source vs ${usableMb}MB safe budget.)"
         }
     }
 
-    private fun quantizationNote(model: CatalogModel, budget: AiMemoryBudget, measuredMemory: Map<String, Long>): String? {
+    private fun quantizationNote(
+        model: CatalogModel,
+        budget: AiMemoryBudget,
+        measuredMemory: Map<String, Long>
+    ): String? {
         val ratio = effectiveMemory(model, measuredMemory).toDouble() / budget.modelMemoryBytes.toDouble()
         return if (ratio > 1.0) {
             "A smaller quantization or a lighter model is recommended."
-        } else null
+        } else {
+            null
+        }
     }
 }
 

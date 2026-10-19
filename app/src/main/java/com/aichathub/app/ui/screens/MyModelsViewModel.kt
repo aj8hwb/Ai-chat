@@ -12,12 +12,12 @@ import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.download.DownloadManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class MyModelsUiState(
     val models: List<CatalogModel> = emptyList(),
@@ -48,7 +48,7 @@ class MyModelsViewModel @Inject constructor(
                 _state.value = _state.value.copy(
                     models = models,
                     states = installed.associate { it.modelId to it.state },
-                    totalStorageBytes = installed.sumOf { it.fileSizeBytes }
+                    totalStorageBytes = installed.sumOf { it.fileSizeBytes },
                 )
             }
         }
@@ -83,7 +83,7 @@ class MyModelsViewModel @Inject constructor(
             }.onFailure {
                 _state.value = _state.value.copy(
                     scanning = false,
-                    scanMessage = "Scan failed: ${it.message}"
+                    scanMessage = "Scan failed: ${it.message}",
                 )
                 return@launch
             }
@@ -93,7 +93,7 @@ class MyModelsViewModel @Inject constructor(
             _state.value = _state.value.copy(
                 scanning = false,
                 discovered = dedup,
-                scanMessage = if (dedup.isEmpty()) "No model files found on this device." else null
+                scanMessage = if (dedup.isEmpty()) "No model files found on this device." else null,
             )
         }
     }
@@ -105,7 +105,7 @@ class MyModelsViewModel @Inject constructor(
                 val folderResults = container_modelScanner.scanTree(uri)
                 _state.value = _state.value.copy(
                     discovered = folderResults.sortedBy { it.fileName },
-                    scanMessage = if (folderResults.isEmpty()) "No known model files in that folder." else null
+                    scanMessage = if (folderResults.isEmpty()) "No known model files in that folder." else null,
                 )
             } else {
                 _state.value = _state.value.copy(scanMessage = "Folder selection cancelled.")
@@ -122,26 +122,26 @@ class MyModelsViewModel @Inject constructor(
                     _state.value = _state.value.copy(
                         scanning = false,
                         discovered = _state.value.discovered.filterNot { it.fileName == file.fileName },
-                        scanMessage = "Imported ${result.modelId}"
+                        scanMessage = "Imported ${result.modelId}",
                     )
                 }
                 is ModelScanner.ImportResult.AlreadyInstalled -> {
                     _state.value = _state.value.copy(
                         scanning = false,
                         discovered = _state.value.discovered.filterNot { it.fileName == file.fileName },
-                        scanMessage = "${result.modelId} is already installed"
+                        scanMessage = "${result.modelId} is already installed",
                     )
                 }
                 is ModelScanner.ImportResult.NoMatch -> {
                     _state.value = _state.value.copy(
                         scanning = false,
-                        scanMessage = "${file.fileName} is not a supported model"
+                        scanMessage = "${file.fileName} is not a supported model",
                     )
                 }
                 is ModelScanner.ImportResult.Failed -> {
                     _state.value = _state.value.copy(
                         scanning = false,
-                        scanMessage = result.message
+                        scanMessage = result.message,
                     )
                 }
             }

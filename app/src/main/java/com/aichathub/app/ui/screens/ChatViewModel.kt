@@ -5,35 +5,35 @@ import androidx.lifecycle.viewModelScope
 import com.aichathub.app.chat.ChatCoordinator
 import com.aichathub.app.chat.ChatGenerationHelper
 import com.aichathub.app.chat.ChatGenerationState
+import com.aichathub.app.chat.CompactionSuggestion
 import com.aichathub.app.chat.GenerationConfig
 import com.aichathub.app.chat.InferenceRuntime
+import com.aichathub.app.chat.TokenContextEngine
 import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ConversationExportManager
+import com.aichathub.app.data.ModelRepository
+import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.data.local.ConversationDao
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageDao
 import com.aichathub.app.data.local.MessageEntity
-import com.aichathub.app.data.ModelRepository
-import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.device.CompatibilityEngine
 import com.aichathub.app.device.DeviceInfoProvider
 import com.aichathub.app.device.MemoryBudgetCalculator
 import com.aichathub.app.device.ThermalManager
-import com.aichathub.app.chat.CompactionSuggestion
-import com.aichathub.app.chat.TokenContextEngine
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.File
+import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.File
-import javax.inject.Inject
 
 data class ChatUiState(
     val conversationId: Long? = null,
@@ -97,12 +97,13 @@ class ChatViewModel @Inject constructor(
         compatibilityEngine = container_compatibilityEngine,
         conversationDao = container_conversationDao,
         messageDao = container_messageDao,
-        thermalManager = container_thermalManager
+        thermalManager = container_thermalManager,
     )
 
     companion object {
         const val MAX_MESSAGE_CHARS = 1500
         private const val MAX_TRACE_LINES = 120
+
         /** Minimum interval between stream UI updates to reduce allocations and recomposition. */
         private const val STREAM_UPDATE_THROTTLE_MS = 80L
     }
@@ -169,16 +170,15 @@ class ChatViewModel @Inject constructor(
             if (best != null && _state.value.activeModelId == null) {
                 _state.value = _state.value.copy(
                     activeModelId = best.id,
-                    activeModelName = best.name
+                    activeModelName = best.name,
                 )
             }
         }
     }
 
-    private suspend fun readyModels(): List<CatalogModel> =
-        container_modelRepository.installedModels.first()
-            .filter { it.state == ModelLifecycleState.READY && it.filePath != null }
-            .mapNotNull { catalogRepository.getModelById(it.modelId) }
+    private suspend fun readyModels(): List<CatalogModel> = container_modelRepository.installedModels.first()
+        .filter { it.state == ModelLifecycleState.READY && it.filePath != null }
+        .mapNotNull { catalogRepository.getModelById(it.modelId) }
 
     private suspend fun pickBestModel(ready: List<CatalogModel>): CatalogModel? {
         if (ready.isEmpty()) return null
@@ -209,7 +209,7 @@ class ChatViewModel @Inject constructor(
                         _state.value.error
                     },
                     isModelLoaded = container_runtime.isLoaded && s.activeModelId != null,
-                    generationPhase = s.generationState.name
+                    generationPhase = s.generationState.name,
                 )
             }
         }
@@ -234,7 +234,7 @@ class ChatViewModel @Inject constructor(
                     if (best != null) {
                         _state.value = _state.value.copy(
                             activeModelId = best.id,
-                            activeModelName = best.name
+                            activeModelName = best.name,
                         )
                     }
                 }
@@ -261,8 +261,8 @@ class ChatViewModel @Inject constructor(
             if (conv != null) {
                 val catalog = catalogRepository.getModelById(conv.modelId)
                 val st = container_modelRepository.stateFor(conv.modelId)
-                if (catalog != null && st?.state == ModelLifecycleState.READY && st.filePath != null
-                    && _state.value.activeModelId != catalog.id
+                if (catalog != null && st?.state == ModelLifecycleState.READY && st.filePath != null &&
+                    _state.value.activeModelId != catalog.id
                 ) {
                     selectModel(catalog)
                 }
@@ -293,7 +293,7 @@ class ChatViewModel @Inject constructor(
             selectedConversationId = null,
             messages = emptyList(),
             error = null,
-            lastStreamedText = ""
+            lastStreamedText = "",
         )
     }
 
@@ -304,7 +304,7 @@ class ChatViewModel @Inject constructor(
             val file = st?.filePath?.let { File(it) }
             if (st?.state != ModelLifecycleState.READY || file == null || !file.isFile) {
                 _state.value = _state.value.copy(
-                    error = "This model is not ready yet. Download and verify it first."
+                    error = "This model is not ready yet. Download and verify it first.",
                 )
                 return@launch
             }
@@ -321,7 +321,7 @@ class ChatViewModel @Inject constructor(
                     onTrace = { message ->
                         // Gate warnings surface as the (non-fatal) notice text.
                         _state.value = _state.value.copy(error = message)
-                    }
+                    },
                 )
                 coordinator.loadModel(
                     model,
@@ -330,21 +330,21 @@ class ChatViewModel @Inject constructor(
                         temperature = settings.temperature,
                         topK = settings.topK,
                         topP = settings.topP,
-                        maxTokens = settings.maxTokens
+                        maxTokens = settings.maxTokens,
                     ),
                     threads = plan.threads,
-                    contextLength = plan.contextLength
+                    contextLength = plan.contextLength,
                 )
                 if (session != loadSession) return@launch
                 _state.value = _state.value.copy(
                     activeModelId = model.id,
                     activeModelName = model.name,
-                    isLoadingModel = false
+                    isLoadingModel = false,
                 )
             } catch (e: OutOfMemoryError) {
                 _state.value = _state.value.copy(
                     isLoadingModel = false,
-                    error = "Insufficient memory to load this model safely. Try a lighter model."
+                    error = "Insufficient memory to load this model safely. Try a lighter model.",
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -356,12 +356,12 @@ class ChatViewModel @Inject constructor(
                 _state.value = _state.value.copy(
                     isLoadingModel = false,
                     error = e.message
-                        ?: "The model could not be loaded. Please select another installed model."
+                        ?: "The model could not be loaded. Please select another installed model.",
                 )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     isLoadingModel = false,
-                    error = "The model could not be loaded. Please select another installed model."
+                    error = "The model could not be loaded. Please select another installed model.",
                 )
             }
         }
@@ -375,7 +375,7 @@ class ChatViewModel @Inject constructor(
             val st = container_modelRepository.stateFor(modelId)
             if (st?.state != ModelLifecycleState.READY || st.filePath == null) {
                 _state.value = _state.value.copy(
-                    error = "This model is not ready yet. Download and verify it first."
+                    error = "This model is not ready yet. Download and verify it first.",
                 )
                 return@launch
             }
@@ -392,7 +392,7 @@ class ChatViewModel @Inject constructor(
         if (text.isEmpty() || sendInFlight || _state.value.generating) return
         if (text.length > MAX_MESSAGE_CHARS) {
             _state.value = _state.value.copy(
-                error = "That message is too long (max $MAX_MESSAGE_CHARS characters). Please shorten it."
+                error = "That message is too long (max $MAX_MESSAGE_CHARS characters). Please shorten it.",
             )
             return
         }
@@ -409,7 +409,7 @@ class ChatViewModel @Inject constructor(
             generating = true,
             error = null,
             lastStreamedText = "",
-            thinkingTrace = listOf("Preparing message...")
+            thinkingTrace = listOf("Preparing message..."),
         )
 
         viewModelScope.launch {
@@ -442,22 +442,22 @@ class ChatViewModel @Inject constructor(
                                 lastTraceAt = now
                                 val perf = container_runtime.performance.value
                                 val tps = (perf.tokensPerSecond * 10).toInt() / 10f
-                                appendTrace("${perf.tokensGenerated} tokens, ${tps} tok/s")
+                                appendTrace("${perf.tokensGenerated} tokens, $tps tok/s")
                             }
                         },
                         onTrace = ::appendTrace,
                         onLoadState = { loading, error ->
                             _state.value = _state.value.copy(isLoadingModel = loading)
                             if (error != null) _state.value = _state.value.copy(error = error)
-                        }
-                    )
+                        },
+                    ),
                 )
                 // Update conversation ID if a new conversation was created
                 val activeConvId = coordinator.activeConversationId.value
                 if (activeConvId != null && _state.value.conversationId != activeConvId) {
                     _state.value = _state.value.copy(
                         conversationId = activeConvId,
-                        selectedConversationId = activeConvId
+                        selectedConversationId = activeConvId,
                     )
                     observeMessages(activeConvId)
                 }
@@ -467,19 +467,19 @@ class ChatViewModel @Inject constructor(
                         tokens = result.tokensGenerated,
                         elapsedMs = result.elapsedMs,
                         tokensPerSecond = result.tokensPerSecond,
-                        responseChars = result.responseChars
+                        responseChars = result.responseChars,
                     ),
-                    lastStreamedText = result.text
+                    lastStreamedText = result.text,
                 )
             } catch (e: OutOfMemoryError) {
                 _state.value = _state.value.copy(
-                    error = "Generation ran out of memory. Try a lighter model or a shorter message."
+                    error = "Generation ran out of memory. Try a lighter model or a shorter message.",
                 )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
-                    error = e.message ?: "Generation failed. Please try again."
+                    error = e.message ?: "Generation failed. Please try again.",
                 )
             } finally {
                 if (seq == sendSeq) {
@@ -487,7 +487,7 @@ class ChatViewModel @Inject constructor(
                     _state.value = _state.value.copy(
                         generating = false,
                         isLoadingModel = false,
-                        liveThinkingSec = 0
+                        liveThinkingSec = 0,
                     )
                     runCatching { coordinator.resetToIdle() }
                 }
@@ -538,7 +538,7 @@ class ChatViewModel @Inject constructor(
                 }
                 _state.value = _state.value.copy(
                     exportedFileName = "$safeName.$ext",
-                    exportedContent = content
+                    exportedContent = content,
                 )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = "Export failed: ${e.message}")
@@ -568,12 +568,12 @@ class ChatViewModel @Inject constructor(
             userMessage = _state.value.input,
             systemPrompt = "",
             conversationHistory = history,
-            model = model
+            model = model,
         )
         val suggestion = tokenContextEngine.suggestCompaction(status, history)
         _state.value = _state.value.copy(
             contextStatus = status,
-            compactionSuggestion = suggestion
+            compactionSuggestion = suggestion,
         )
     }
 
@@ -598,16 +598,16 @@ class ChatViewModel @Inject constructor(
                         val half = messages.size / 2
                         val toSummarize = messages.take(half)
                         val toKeep = messages.drop(half)
-                        
+
                         // Create a structured summary
                         val summaryBuilder = StringBuilder()
                         summaryBuilder.appendLine("Conversation Summary:")
                         summaryBuilder.appendLine()
-                        
+
                         // Group messages by role and create a coherent summary
                         val userMessages = toSummarize.filter { it.role == "user" }
                         val assistantMessages = toSummarize.filter { it.role == "assistant" }
-                        
+
                         if (userMessages.isNotEmpty()) {
                             summaryBuilder.appendLine("User asked about:")
                             userMessages.forEach { msg ->
@@ -618,7 +618,7 @@ class ChatViewModel @Inject constructor(
                             }
                             summaryBuilder.appendLine()
                         }
-                        
+
                         if (assistantMessages.isNotEmpty()) {
                             summaryBuilder.appendLine("Assistant responded with:")
                             assistantMessages.forEach { msg ->
@@ -629,7 +629,7 @@ class ChatViewModel @Inject constructor(
                             }
                             summaryBuilder.appendLine()
                         }
-                        
+
                         // Add key topics and decisions
                         val allContent = toSummarize.joinToString(" ") { it.content }
                         val keyPhrases = extractKeyPhrases(allContent)
@@ -639,15 +639,15 @@ class ChatViewModel @Inject constructor(
                                 summaryBuilder.appendLine("- $phrase")
                             }
                         }
-                        
+
                         val summary = summaryBuilder.toString().trim()
-                        
+
                         // Store the summary in the conversation
                         container_conversationDao.setSummary(convId, summary)
-                        
+
                         // Delete the older messages
                         toSummarize.forEach { container_messageDao.delete(it.id) }
-                        
+
                         // Add a system message indicating the summary
                         container_messageDao.insert(
                             MessageEntity(
@@ -655,8 +655,8 @@ class ChatViewModel @Inject constructor(
                                 role = "system",
                                 content = "[Previous conversation summary: $summary]",
                                 createdAt = System.currentTimeMillis(),
-                                modelId = _state.value.activeModelId
-                            )
+                                modelId = _state.value.activeModelId,
+                            ),
                         )
                     }
                 }
@@ -676,17 +676,16 @@ class ChatViewModel @Inject constructor(
             .replace(Regex("[^a-zA-Z0-9\\s]"), " ")
             .split(Regex("\\s+"))
             .filter { it.length > 3 }
-        
+
         // Simple keyword extraction based on frequency
         val wordFrequency = mutableMapOf<String, Int>()
         words.forEach { word ->
             wordFrequency[word] = (wordFrequency[word] ?: 0) + 1
         }
-        
+
         return wordFrequency.entries
             .sortedByDescending { it.value }
             .take(10)
             .map { it.key }
     }
-
 }

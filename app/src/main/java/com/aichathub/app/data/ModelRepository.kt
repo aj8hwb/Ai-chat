@@ -7,11 +7,11 @@ import com.aichathub.app.data.local.AiDatabase
 import com.aichathub.app.data.local.InstalledModelEntity
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import java.io.File
 
 /**
  * Manages installed models: filesystem layout + persisted state.
@@ -42,17 +42,13 @@ class ModelRepository(
             list.map { it.toState() }
         }
 
-    suspend fun installedModelsOnce(): List<ModelState> =
-        database.installedModelDao().getAll().map { it.toState() }
+    suspend fun installedModelsOnce(): List<ModelState> = database.installedModelDao().getAll().map { it.toState() }
 
-    suspend fun stateFor(modelId: String): ModelState? =
-        database.installedModelDao().byId(modelId)?.toState()
+    suspend fun stateFor(modelId: String): ModelState? = database.installedModelDao().byId(modelId)?.toState()
 
-    suspend fun isInstalled(modelId: String): Boolean =
-        database.installedModelDao().byId(modelId) != null
+    suspend fun isInstalled(modelId: String): Boolean = database.installedModelDao().byId(modelId) != null
 
-    suspend fun modelFile(model: CatalogModel): File =
-        File(modelsDir, model.fileName)
+    suspend fun modelFile(model: CatalogModel): File = File(modelsDir, model.fileName)
 
     suspend fun setState(modelId: String, state: ModelLifecycleState) = withContext(Dispatchers.IO) {
         val existing = database.installedModelDao().byId(modelId)
@@ -61,10 +57,10 @@ class ModelRepository(
             installedAt = System.currentTimeMillis(),
             filePath = "",
             fileSizeBytes = 0,
-            state = state.name
+            state = state.name,
         )
         database.installedModelDao().upsert(
-            entity.copy(state = state.name)
+            entity.copy(state = state.name),
         )
     }
 
@@ -80,15 +76,15 @@ class ModelRepository(
             installedAt = System.currentTimeMillis(),
             filePath = "",
             fileSizeBytes = sizeBytes,
-            state = ModelLifecycleState.READY.name
+            state = ModelLifecycleState.READY.name,
         )
         database.installedModelDao().upsert(
             entity.copy(
                 filePath = file.absolutePath,
                 fileSizeBytes = sizeBytes,
                 state = ModelLifecycleState.READY.name,
-                installedAt = if (existing == null) System.currentTimeMillis() else existing.installedAt
-            )
+                installedAt = if (existing == null) System.currentTimeMillis() else existing.installedAt,
+            ),
         )
     }
 
@@ -105,8 +101,8 @@ class ModelRepository(
                 filePath = filePath,
                 fileSizeBytes = sizeBytes,
                 state = ModelLifecycleState.READY.name,
-                lastUsedAt = existing?.lastUsedAt ?: 0L
-            )
+                lastUsedAt = existing?.lastUsedAt ?: 0L,
+            ),
         )
     }
 
@@ -147,10 +143,12 @@ class ModelRepository(
                         // File not found — reset to NOT_INSTALLED so the user
                         // can re-download. The download .part files are still on
                         // disk and will be detected by DownloadManager.scanForResumable().
-                        database.installedModelDao().upsert(row.copy(
-                            state = ModelLifecycleState.NOT_INSTALLED,
-                            filePath = ""
-                        ))
+                        database.installedModelDao().upsert(
+                            row.copy(
+                                state = ModelLifecycleState.NOT_INSTALLED,
+                                filePath = "",
+                            ),
+                        )
                     }
                 }
                 else -> {
@@ -178,7 +176,7 @@ class ModelRepository(
                     context.contentResolver.delete(
                         MediaStore.Downloads.EXTERNAL_CONTENT_URI,
                         selection,
-                        args
+                        args,
                     )
                 }
             }
@@ -191,6 +189,6 @@ class ModelRepository(
         filePath = filePath.ifBlank { null },
         fileSizeBytes = fileSizeBytes,
         state = runCatching { ModelLifecycleState.valueOf(state) }.getOrDefault(ModelLifecycleState.INSTALLED),
-        installedAt = installedAt
+        installedAt = installedAt,
     )
 }

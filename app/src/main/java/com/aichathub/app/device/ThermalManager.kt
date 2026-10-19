@@ -54,23 +54,20 @@ object ThermalPolicy {
     fun stateFromPowerStatus(pmStatus: Int?): ThermalManager.ThermalState {
         if (pmStatus == null || pmStatus < 0) return ThermalManager.ThermalState.NORMAL
         return when (pmStatus) {
-            0, 1 -> ThermalManager.ThermalState.NORMAL        // NONE, LIGHT
-            2 -> ThermalManager.ThermalState.WARM             // MODERATE
-            3 -> ThermalManager.ThermalState.HOT              // SEVERE
-            else -> ThermalManager.ThermalState.CRITICAL      // CRITICAL, EMERGENCY, SHUTDOWN
+            0, 1 -> ThermalManager.ThermalState.NORMAL // NONE, LIGHT
+            2 -> ThermalManager.ThermalState.WARM // MODERATE
+            3 -> ThermalManager.ThermalState.HOT // SEVERE
+            else -> ThermalManager.ThermalState.CRITICAL // CRITICAL, EMERGENCY, SHUTDOWN
         }
     }
 
     /** The worse (hotter) of two thermal states wins. */
-    fun combine(
-        a: ThermalManager.ThermalState,
-        b: ThermalManager.ThermalState
-    ): ThermalManager.ThermalState {
+    fun combine(a: ThermalManager.ThermalState, b: ThermalManager.ThermalState): ThermalManager.ThermalState {
         val order = listOf(
             ThermalManager.ThermalState.NORMAL,
             ThermalManager.ThermalState.WARM,
             ThermalManager.ThermalState.HOT,
-            ThermalManager.ThermalState.CRITICAL
+            ThermalManager.ThermalState.CRITICAL,
         )
         return if (order.indexOf(a) >= order.indexOf(b)) a else b
     }
@@ -119,8 +116,11 @@ object ThermalPolicy {
 
     fun reason(state: ThermalManager.ThermalState, powerStatusKnown: Boolean): String = when (state) {
         ThermalManager.ThermalState.NORMAL ->
-            if (powerStatusKnown) "Thermal status normal — full performance"
-            else "No thermal signal available — assuming normal"
+            if (powerStatusKnown) {
+                "Thermal status normal — full performance"
+            } else {
+                "No thermal signal available — assuming normal"
+            }
         ThermalManager.ThermalState.WARM -> "Device warm — reducing threads to prevent throttling"
         ThermalManager.ThermalState.HOT -> "Device hot — significant thread reduction required"
         ThermalManager.ThermalState.CRITICAL -> "Thermal state critical — minimum threads or pause"
@@ -166,7 +166,10 @@ class ThermalManager @Inject constructor(
 ) {
 
     enum class ThermalState {
-        NORMAL, WARM, HOT, CRITICAL
+        NORMAL,
+        WARM,
+        HOT,
+        CRITICAL
     }
 
     data class ThermalInfo(
@@ -255,7 +258,7 @@ class ThermalManager @Inject constructor(
         val reason = ThermalPolicy.reason(state, powerStatus != null || temperature != null)
 
         if (state != lastKnownState) {
-            Log.i(TAG, "Thermal state changed: $lastKnownState -> $state (temp=${temperature}°C, power=$powerStatus)")
+            Log.i(TAG, "Thermal state changed: $lastKnownState -> $state (temp=$temperature°C, power=$powerStatus)")
             lastKnownState = state
         }
 
@@ -265,7 +268,7 @@ class ThermalManager @Inject constructor(
             powerStatusCode = powerStatus,
             recommendedThreads = recommendedThreads,
             shouldThrottle = shouldThrottle,
-            reason = reason
+            reason = reason,
         )
     }
 
@@ -280,7 +283,7 @@ class ThermalManager @Inject constructor(
     fun currentLoadLevel(): com.aichathub.app.util.ModelThreads.ThermalLoadLevel {
         val rawState = ThermalPolicy.combine(
             ThermalPolicy.stateFromBatteryTemp(readTemperature()),
-            ThermalPolicy.stateFromPowerStatus(currentPowerStatus())
+            ThermalPolicy.stateFromPowerStatus(currentPowerStatus()),
         )
         return ThermalPolicy.toLoadLevel(rawState)
     }

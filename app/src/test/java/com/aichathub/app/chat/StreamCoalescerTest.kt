@@ -46,14 +46,14 @@ class StreamCoalescerTest {
         val emitted = mutableListOf<String>()
         val coalescer = StreamCoalescer({ emitted.add(it) }, intervalMs = Long.MAX_VALUE)
         val buffer = StringBuilder("partial because the user pressed stop at 400 tokens")
-        coalescer.onToken(buffer)         // emitted at t0
+        coalescer.onToken(buffer) // emitted at t0
         buffer.append(" more streamed after the interval")
         // (generation cancelled — no more onToken calls)
-        coalescer.flush(buffer)           // cancellation flush
+        coalescer.flush(buffer) // cancellation flush
         assertEquals(2, emitted.size)
         assertEquals(
             "partial because the user pressed stop at 400 tokens more streamed after the interval",
-            emitted.last()
+            emitted.last(),
         )
     }
 

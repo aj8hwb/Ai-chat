@@ -8,9 +8,9 @@ import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 
 /**
  * Discovers GGUF model files that already exist on the device and imports
@@ -75,7 +75,7 @@ class ModelScanner(
             val projection = arrayOf(
                 MediaStore.Downloads._ID,
                 MediaStore.Downloads.DISPLAY_NAME,
-                MediaStore.Downloads.SIZE
+                MediaStore.Downloads.SIZE,
             )
             val selection = "${MediaStore.Downloads.RELATIVE_PATH} LIKE ?"
             val args = arrayOf("Download/AiChatHub/Models/%")
@@ -114,18 +114,14 @@ class ModelScanner(
         found
     }
 
-    private fun discovered(
-        fileName: String,
-        sizeBytes: Long,
-        makeSource: (String) -> Source
-    ): DiscoveredFile? {
+    private fun discovered(fileName: String, sizeBytes: Long, makeSource: (String) -> Source): DiscoveredFile? {
         if (!fileName.endsWith(".gguf", ignoreCase = true)) return null
         val model = catalogRepository.getAllModels().firstOrNull { it.fileName == fileName }
         return DiscoveredFile(
             fileName = fileName,
             source = makeSource(fileName),
             sizeBytes = sizeBytes,
-            matchedModel = model
+            matchedModel = model,
         )
     }
 
@@ -175,7 +171,8 @@ class ModelScanner(
             Log.w(tag, "MODEL_IMPORT_REJECTED ${model.id} — checksum mismatch")
             return@withContext ImportResult.Failed(
                 file.fileName,
-                "Checksum mismatch — this file is not the genuine ${model.name}. Download it from the Model Store instead."
+                "Checksum mismatch — this file is not the genuine ${model.name}. " +
+                    "Download it from the Model Store instead.",
             )
         }
 

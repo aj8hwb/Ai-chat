@@ -64,7 +64,7 @@ object LocalModelCatalog {
             strengths = listOf("Low-refusal", "Multilingual", "Good reasoning", "Apache 2.0"),
             limitations = listOf("Needs roughly 6–8 GB of RAM"),
             parameterCount = 4_000_000_000,
-            chatTemplate = ChatTemplate.CHATML
+            chatTemplate = ChatTemplate.CHATML,
         ),
 
         // ---------------------------------------------------------------
@@ -105,7 +105,7 @@ object LocalModelCatalog {
             strengths = listOf("Very low refusal", "Creative", "Strong comprehension"),
             limitations = listOf("Needs 12 GB+ RAM", "Slow on mid-range phones"),
             parameterCount = 4_000_000_000,
-            chatTemplate = ChatTemplate.GEMMA
+            chatTemplate = ChatTemplate.GEMMA,
         ),
 
         // ---------------------------------------------------------------
@@ -147,7 +147,7 @@ object LocalModelCatalog {
             strengths = listOf("Coding", "Cyber/security", "Low-refusal"),
             limitations = listOf("Needs 8 GB+ RAM"),
             parameterCount = 8_000_000_000,
-            chatTemplate = ChatTemplate.LLAMA3
+            chatTemplate = ChatTemplate.LLAMA3,
         ),
 
         // ---------------------------------------------------------------
@@ -189,7 +189,7 @@ object LocalModelCatalog {
             strengths = listOf("Reliable", "Reasoning", "Low-refusal"),
             limitations = listOf("Needs 8 GB+ RAM"),
             parameterCount = 8_000_000_000,
-            chatTemplate = ChatTemplate.LLAMA3
+            chatTemplate = ChatTemplate.LLAMA3,
         ),
 
         // ---------------------------------------------------------------
@@ -231,7 +231,7 @@ object LocalModelCatalog {
             strengths = listOf("Balanced", "Low-refusal", "Apache 2.0"),
             limitations = listOf("Needs ~7 GB of RAM"),
             parameterCount = 7_000_000_000,
-            chatTemplate = ChatTemplate.CHATML
+            chatTemplate = ChatTemplate.CHATML,
         ),
 
         // ---------------------------------------------------------------
@@ -259,7 +259,8 @@ object LocalModelCatalog {
                 .replace("{file}", "SmolLM2-135M-Instruct-Q4_K_M.gguf"),
             fileName = "SmolLM2-135M-Instruct-Q4_K_M.gguf",
             runtime = "llama.cpp",
-            sourceNote = "Official SmolLM2 135M instruct, GGUF-quantized by bartowski. The SmolLM2 family is designed for on-device use.",
+            sourceNote = "Official SmolLM2 135M instruct, GGUF-quantized by bartowski. " +
+                "The SmolLM2 family is designed for on-device use.",
             capabilities = listOf("chat", "lightweight", "on-device"),
             modelRank = 6,
             checksumSha256 = "2e8040ceae7815abe0dcb3540b9995eaa1fa0d2ca9e797d0a635ae4433c68c2d",
@@ -272,7 +273,7 @@ object LocalModelCatalog {
             strengths = listOf("Tiny download (~105 MB)", "Runs on any device", "Apache 2.0"),
             limitations = listOf("Limited reasoning depth"),
             parameterCount = 135_000_000,
-            chatTemplate = ChatTemplate.CHATML
+            chatTemplate = ChatTemplate.CHATML,
         ),
 
         // ---------------------------------------------------------------
@@ -314,7 +315,7 @@ object LocalModelCatalog {
             strengths = listOf("Better reasoning than 135M", "Runs on most devices", "Apache 2.0"),
             limitations = listOf("Small model — keep expectations modest"),
             parameterCount = 360_000_000,
-            chatTemplate = ChatTemplate.CHATML
+            chatTemplate = ChatTemplate.CHATML,
         ),
 
         // ---------------------------------------------------------------
@@ -343,7 +344,8 @@ object LocalModelCatalog {
                 .replace("{file}", "MobileLLM-143M-Q4_K_M.gguf"),
             fileName = "MobileLLM-143M-Q4_K_M.gguf",
             runtime = "llama.cpp",
-            sourceNote = "Meta MobileLLM-125M (ICML 2024), GGUF-quantized. License: CC-BY-NC 4.0 — non-commercial use only.",
+            sourceNote = "Meta MobileLLM-125M (ICML 2024), GGUF-quantized. " +
+                "License: CC-BY-NC 4.0 — non-commercial use only.",
             capabilities = listOf("lightweight", "on-device", "mobile"),
             modelRank = 8,
             checksumSha256 = "95a54c3ef1ad5e81d5648c0a11d510c316bcddd385fdaa9512d35916995e4358",
@@ -356,7 +358,7 @@ object LocalModelCatalog {
             strengths = listOf("Tiny (~106 MB)", "Mobile-first design", "Fast on CPU"),
             limitations = listOf("Non-commercial license", "Very basic capabilities"),
             parameterCount = 125_000_000,
-            chatTemplate = ChatTemplate.GENERIC
+            chatTemplate = ChatTemplate.GENERIC,
         ),
 
         // ---------------------------------------------------------------
@@ -396,7 +398,7 @@ object LocalModelCatalog {
             strengths = listOf("Efficient architecture", "Runs on low-RAM phones"),
             limitations = listOf("Non-commercial license", "Basic capabilities"),
             parameterCount = 350_000_000,
-            chatTemplate = ChatTemplate.GENERIC
+            chatTemplate = ChatTemplate.GENERIC,
         ),
 
         // ---------------------------------------------------------------
@@ -438,7 +440,7 @@ object LocalModelCatalog {
             strengths = listOf("More capable than 125M/350M", "On-device friendly"),
             limitations = listOf("Non-commercial license"),
             parameterCount = 600_000_000,
-            chatTemplate = ChatTemplate.GENERIC
+            chatTemplate = ChatTemplate.GENERIC,
         ),
 
         // ---------------------------------------------------------------
@@ -479,7 +481,7 @@ object LocalModelCatalog {
             strengths = listOf("Multilingual", "Light coding & math", "Apache 2.0"),
             limitations = listOf("Small model — shallow reasoning"),
             parameterCount = 500_000_000,
-            chatTemplate = ChatTemplate.CHATML
+            chatTemplate = ChatTemplate.CHATML,
         ),
 
         // ---------------------------------------------------------------
@@ -520,7 +522,7 @@ object LocalModelCatalog {
             strengths = listOf("Code-focused", "Debugging", "Apache 2.0"),
             limitations = listOf("0.5B — best for short snippets"),
             parameterCount = 500_000_000,
-            chatTemplate = ChatTemplate.CHATML
+            chatTemplate = ChatTemplate.CHATML,
         ),
 
         // ---------------------------------------------------------------
@@ -549,7 +551,8 @@ object LocalModelCatalog {
                 .replace("{file}", "OpenELM-270M.Q4_K_M.gguf"),
             fileName = "OpenELM-270M.Q4_K_M.gguf",
             runtime = "llama.cpp",
-            sourceNote = "Apple OpenELM-270M (base model), GGUF-quantized. Experimental — text completion, not chat-tuned.",
+            sourceNote = "Apple OpenELM-270M (base model), GGUF-quantized. " +
+                "Experimental — text completion, not chat-tuned.",
             capabilities = listOf("lightweight", "experimental", "text-completion"),
             modelRank = 13,
             checksumSha256 = "6bb72b05e63b2f1878acde5c2c98cba3e1835b3018e5c6ccdd1b2619d8f66b6a",
@@ -562,7 +565,7 @@ object LocalModelCatalog {
             strengths = listOf("Very light", "Efficient architecture"),
             limitations = listOf("Not chat-tuned", "Experimental"),
             parameterCount = 270_000_000,
-            chatTemplate = ChatTemplate.GENERIC
+            chatTemplate = ChatTemplate.GENERIC,
         ),
 
         // ---------------------------------------------------------------
@@ -591,7 +594,8 @@ object LocalModelCatalog {
                 .replace("{file}", "OpenELM-450M.Q4_K_M.gguf"),
             fileName = "OpenELM-450M.Q4_K_M.gguf",
             runtime = "llama.cpp",
-            sourceNote = "Apple OpenELM-450M (base model), GGUF-quantized. Experimental — text completion, not chat-tuned.",
+            sourceNote = "Apple OpenELM-450M (base model), GGUF-quantized. " +
+                "Experimental — text completion, not chat-tuned.",
             capabilities = listOf("lightweight", "experimental", "text-completion"),
             modelRank = 14,
             checksumSha256 = "7373acdac90c20891399646ba2bf42d5f03e850b265442f35faef73c6faf35ea",
@@ -604,7 +608,7 @@ object LocalModelCatalog {
             strengths = listOf("More capable than 270M", "Efficient"),
             limitations = listOf("Not chat-tuned", "Experimental"),
             parameterCount = 450_000_000,
-            chatTemplate = ChatTemplate.GENERIC
+            chatTemplate = ChatTemplate.GENERIC,
         ),
 
         // ---------------------------------------------------------------
@@ -646,8 +650,8 @@ object LocalModelCatalog {
             strengths = listOf("Better conversations than small models", "Apache 2.0"),
             limitations = listOf("Needs ~1.8 GB RAM", "Not auto-recommended on 4 GB phones"),
             parameterCount = 1_100_000_000,
-            chatTemplate = ChatTemplate.LLAMA2
-        )
+            chatTemplate = ChatTemplate.LLAMA2,
+        ),
     )
 
     fun byId(id: String): CatalogModel? = models.firstOrNull { it.id == id }

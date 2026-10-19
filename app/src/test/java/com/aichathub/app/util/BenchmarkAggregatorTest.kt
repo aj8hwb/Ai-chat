@@ -35,9 +35,12 @@ class BenchmarkAggregatorTest {
     @Test
     fun `summary uses the median and reports the observed range`() {
         val trials = listOf(
-            BenchmarkAggregator.Trial(tokens = 101, ttftMs = 1000, totalMs = 2000), // 100 tok/s
-            BenchmarkAggregator.Trial(tokens = 151, ttftMs = 1000, totalMs = 2000), // 150 tok/s
-            BenchmarkAggregator.Trial(tokens = 201, ttftMs = 1000, totalMs = 2000)  // 200 tok/s
+            // 100 tok/s
+            BenchmarkAggregator.Trial(tokens = 101, ttftMs = 1000, totalMs = 2000),
+            // 150 tok/s
+            BenchmarkAggregator.Trial(tokens = 151, ttftMs = 1000, totalMs = 2000),
+            // 200 tok/s
+            BenchmarkAggregator.Trial(tokens = 201, ttftMs = 1000, totalMs = 2000),
         )
         val s = BenchmarkAggregator.summarize(trials)!!
         assertEquals(150f, s.medianTps, 0.5f)
@@ -50,9 +53,12 @@ class BenchmarkAggregatorTest {
     @Test
     fun `invalid trials are dropped from the aggregate`() {
         val trials = listOf(
-            BenchmarkAggregator.Trial(tokens = 0, ttftMs = 0, totalMs = 500),      // failed run
-            BenchmarkAggregator.Trial(tokens = 51, ttftMs = 500, totalMs = 1500),  // 50 tok/s
-            BenchmarkAggregator.Trial(tokens = 101, ttftMs = 500, totalMs = 1500)  // 100 tok/s
+            // failed run
+            BenchmarkAggregator.Trial(tokens = 0, ttftMs = 0, totalMs = 500),
+            // 50 tok/s
+            BenchmarkAggregator.Trial(tokens = 51, ttftMs = 500, totalMs = 1500),
+            // 100 tok/s
+            BenchmarkAggregator.Trial(tokens = 101, ttftMs = 500, totalMs = 1500),
         )
         val s = BenchmarkAggregator.summarize(trials)!!
         assertEquals(75f, s.medianTps, 0.5f)
@@ -63,7 +69,7 @@ class BenchmarkAggregatorTest {
     fun `all-invalid trials yield null - nothing is fabricated`() {
         val trials = listOf(
             BenchmarkAggregator.Trial(tokens = 0, ttftMs = 0, totalMs = 100),
-            BenchmarkAggregator.Trial(tokens = 1, ttftMs = 10, totalMs = 20)
+            BenchmarkAggregator.Trial(tokens = 1, ttftMs = 10, totalMs = 20),
         )
         assertNull(BenchmarkAggregator.summarize(trials))
         assertNull(BenchmarkAggregator.summarize(emptyList()))
@@ -74,7 +80,7 @@ class BenchmarkAggregatorTest {
         assertEquals(
             25f,
             BenchmarkAggregator.median(listOf(10f, 20f, 30f, 40f)),
-            0.001f
+            0.001f,
         )
     }
 

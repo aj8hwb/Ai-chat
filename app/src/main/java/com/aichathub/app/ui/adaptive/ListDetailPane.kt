@@ -29,7 +29,7 @@ fun <T> ListDetailPane(
     onItemSelected: (T) -> Unit,
     listContent: @Composable (items: List<T>, selectedItemId: Any?, onItemSelected: (T) -> Unit) -> Unit,
     detailContent: @Composable (item: T) -> Unit,
-    emptyDetailContent: @Composable () -> Unit = {},
+    emptyDetailContent: @Composable () -> Unit = {}
 ) {
     if (windowSizeClass.isLargeScreen) {
         PermanentListDetail(
@@ -61,7 +61,7 @@ private fun <T> PermanentListDetail(
     onItemSelected: (T) -> Unit,
     listContent: @Composable (items: List<T>, selectedItemId: Any?, onItemSelected: (T) -> Unit) -> Unit,
     detailContent: @Composable (item: T) -> Unit,
-    emptyDetailContent: @Composable () -> Unit = {},
+    emptyDetailContent: @Composable () -> Unit = {}
 ) {
     val selectedItem = remember(selectedItemId, items) {
         items.firstOrNull { getItemId(it) == selectedItemId }
@@ -106,7 +106,7 @@ private fun <T> MobileListNavigation(
     selectedItemId: Any?,
     onItemSelected: (T) -> Unit,
     listContent: @Composable (items: List<T>, selectedItemId: Any?, onItemSelected: (T) -> Unit) -> Unit,
-    detailContent: @Composable (item: T) -> Unit,
+    detailContent: @Composable (item: T) -> Unit
 ) {
     var pendingNavigation by remember { mutableStateOf<T?>(null) }
 
@@ -147,16 +147,14 @@ interface HasId {
 }
 
 @Composable
-fun <T> rememberListDetailState(
-    initialItemId: Any? = null,
-): ListDetailState<T> {
+fun <T> rememberListDetailState(initialItemId: Any? = null): ListDetailState<T> {
     return rememberSaveable(saver = ListDetailState.Saver()) {
         ListDetailState(selectedItemId = initialItemId)
     }
 }
 
 class ListDetailState<T>(
-    selectedItemId: Any? = null,
+    selectedItemId: Any? = null
 ) {
     var selectedItemId by mutableStateOf(selectedItemId)
         private set

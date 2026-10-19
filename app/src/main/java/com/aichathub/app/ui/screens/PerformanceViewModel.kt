@@ -7,12 +7,12 @@ import com.aichathub.app.chat.InferenceRuntime
 import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class PerformanceUiState(
     val tokensPerSecond: Float = 0f,
@@ -42,20 +42,20 @@ class PerformanceViewModel @Inject constructor(
                     tokensPerSecond = p.tokensPerSecond,
                     tokensGenerated = p.tokensGenerated,
                     contextUsed = p.contextUsed,
-                    active = p.generationActive
+                    active = p.generationActive,
                 )
             }
         }
         viewModelScope.launch {
             combine(
                 container_chatCoordinator.state,
-                container_settingsRepository.measuredMemory
+                container_settingsRepository.measuredMemory,
             ) { s, measured ->
                 val model = s.activeModelId?.let { catalogRepository.getModelById(it) }
                 _state.value = _state.value.copy(
                     activeModelName = s.activeModelName,
                     modelMemoryBytes = model?.let { measured[it.id] ?: it.estimatedMemoryBytes } ?: 0,
-                    contextMax = model?.contextLength ?: 0
+                    contextMax = model?.contextLength ?: 0,
                 )
             }.collect { }
         }

@@ -52,12 +52,12 @@ fun ContextWarningBar(
         visible = contextStatus.utilizationPercent > 60f,
         enter = expandVertically(),
         exit = shrinkVertically(),
-        modifier = modifier
+        modifier = modifier,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .padding(horizontal = 16.dp, vertical = 4.dp),
         ) {
             val barColor = contextColor(contextStatus.utilizationPercent)
 
@@ -68,21 +68,21 @@ fun ContextWarningBar(
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp)),
                 color = barColor,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             )
 
             Spacer(Modifier.height(4.dp))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 if (contextStatus.isNearLimit) {
                     Icon(
                         Icons.Filled.Warning,
                         contentDescription = null,
                         tint = barColor,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(14.dp),
                     )
                     Spacer(Modifier.width(4.dp))
                 }
@@ -91,7 +91,7 @@ fun ContextWarningBar(
                     text = formatTokenStatus(contextStatus),
                     style = MaterialTheme.typography.labelSmall,
                     color = barColor,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 )
 
                 if (contextStatus.isAtLimit) {
@@ -99,7 +99,7 @@ fun ContextWarningBar(
                         text = "LIMIT",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = ContextRed
+                        color = ContextRed,
                     )
                 }
             }
@@ -107,12 +107,12 @@ fun ContextWarningBar(
             AnimatedVisibility(
                 visible = suggestion != null && contextStatus.isNearLimit,
                 enter = expandVertically(),
-                exit = shrinkVertically()
+                exit = shrinkVertically(),
             ) {
                 suggestion?.let {
                     SuggestionChip(
                         suggestion = it,
-                        onAction = onSuggestionAction
+                        onAction = onSuggestionAction,
                     )
                 }
             }
@@ -121,10 +121,7 @@ fun ContextWarningBar(
 }
 
 @Composable
-private fun SuggestionChip(
-    suggestion: com.aichathub.app.chat.CompactionSuggestion,
-    onAction: () -> Unit
-) {
+private fun SuggestionChip(suggestion: com.aichathub.app.chat.CompactionSuggestion, onAction: () -> Unit) {
     Row(
         modifier = Modifier
             .padding(top = 4.dp)
@@ -133,25 +130,25 @@ private fun SuggestionChip(
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .clickable(onClick = onAction)
             .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             Icons.Filled.Warning,
             contentDescription = null,
             tint = ContextOrange,
-            modifier = Modifier.size(14.dp)
+            modifier = Modifier.size(14.dp),
         )
         Spacer(Modifier.width(6.dp))
         Text(
             text = suggestionText(suggestion.type),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         )
         Text(
             text = formatTokensSaved(suggestion.estimatedTokensSaved),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

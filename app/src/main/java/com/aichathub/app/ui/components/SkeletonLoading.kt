@@ -34,29 +34,26 @@ import androidx.compose.ui.unit.dp
  * Shimmer effect for skeleton loading states.
  */
 @Composable
-fun shimmerBrush(
-    shimmerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-    targetValue: Float = 1000f
-): Brush {
+fun shimmerBrush(shimmerColor: Color = MaterialTheme.colorScheme.surfaceVariant, targetValue: Float = 1000f): Brush {
     val shimmerTransition = rememberInfiniteTransition(label = "shimmer")
     val shimmerAlpha = shimmerTransition.animateFloat(
         initialValue = 0f,
         targetValue = targetValue,
         animationSpec = infiniteRepeatable(
             animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
+            repeatMode = RepeatMode.Reverse,
         ),
-        label = "shimmerAlpha"
+        label = "shimmerAlpha",
     )
 
     return Brush.linearGradient(
         colors = listOf(
             shimmerColor.copy(alpha = 0.6f),
             shimmerColor.copy(alpha = 0.2f),
-            shimmerColor.copy(alpha = 0.6f)
+            shimmerColor.copy(alpha = 0.6f),
         ),
         start = Offset(0f, 0f),
-        end = Offset(shimmerAlpha.value, shimmerAlpha.value)
+        end = Offset(shimmerAlpha.value, shimmerAlpha.value),
     )
 }
 
@@ -64,17 +61,13 @@ fun shimmerBrush(
  * Skeleton placeholder for text content.
  */
 @Composable
-fun TextSkeleton(
-    modifier: Modifier = Modifier,
-    width: Float = 1f,
-    height: Int = 16
-) {
+fun TextSkeleton(modifier: Modifier = Modifier, width: Float = 1f, height: Int = 16) {
     Box(
         modifier = modifier
             .fillMaxWidth(width)
             .height(height.dp)
             .clip(RoundedCornerShape(4.dp))
-            .background(shimmerBrush())
+            .background(shimmerBrush()),
     )
 }
 
@@ -82,15 +75,12 @@ fun TextSkeleton(
  * Skeleton placeholder for circular elements (avatars, icons).
  */
 @Composable
-fun CircleSkeleton(
-    modifier: Modifier = Modifier,
-    size: Int = 48
-) {
+fun CircleSkeleton(modifier: Modifier = Modifier, size: Int = 48) {
     Box(
         modifier = modifier
             .size(size.dp)
             .clip(CircleShape)
-            .background(shimmerBrush())
+            .background(shimmerBrush()),
     )
 }
 
@@ -98,13 +88,11 @@ fun CircleSkeleton(
  * Skeleton placeholder for card content.
  */
 @Composable
-fun CardSkeleton(
-    modifier: Modifier = Modifier
-) {
+fun CardSkeleton(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp)
+            .padding(16.dp),
     ) {
         Row {
             CircleSkeleton(size = 48)
@@ -126,9 +114,7 @@ fun CardSkeleton(
  * Skeleton for model card.
  */
 @Composable
-fun ModelCardSkeleton(
-    modifier: Modifier = Modifier
-) {
+fun ModelCardSkeleton(modifier: Modifier = Modifier) {
     CardSkeleton(modifier)
 }
 
@@ -136,13 +122,10 @@ fun ModelCardSkeleton(
  * Skeleton for list of items.
  */
 @Composable
-fun ListSkeleton(
-    modifier: Modifier = Modifier,
-    itemCount: Int = 5
-) {
+fun ListSkeleton(modifier: Modifier = Modifier, itemCount: Int = 5) {
     Column(
         modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         repeat(itemCount) {
             CardSkeleton()

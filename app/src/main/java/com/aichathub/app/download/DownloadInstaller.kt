@@ -8,10 +8,10 @@ import android.util.Log
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import java.io.File
 
 /**
  * Handles model file installation after download and verification.
@@ -47,10 +47,7 @@ class DownloadInstaller(
      * @param verifiedFile the verified downloaded file
      * @return true if installation succeeded
      */
-    suspend fun install(
-        model: CatalogModel,
-        verifiedFile: File
-    ): Boolean {
+    suspend fun install(model: CatalogModel, verifiedFile: File): Boolean {
         val finalFile = File(modelsDir, model.fileName)
         val installingFile = File(modelsDir, "${model.fileName}.installing")
 

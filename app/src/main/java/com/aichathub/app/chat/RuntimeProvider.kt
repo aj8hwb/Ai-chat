@@ -24,9 +24,9 @@ enum class BackendType {
          */
         fun fromVendorId(vendorId: String): BackendType = when {
             vendorId.contains("qualcomm", ignoreCase = true) ||
-            vendorId.contains("adreno", ignoreCase = true) -> OPENCL_ADRENO
+                vendorId.contains("adreno", ignoreCase = true) -> OPENCL_ADRENO
             vendorId.contains("arm", ignoreCase = true) ||
-            vendorId.contains("mali", ignoreCase = true) -> OPENCL_MALI
+                vendorId.contains("mali", ignoreCase = true) -> OPENCL_MALI
             vendorId.contains("vulkan", ignoreCase = true) -> VULKAN
             else -> {
                 Log.d(TAG, "Unrecognized GPU vendor: $vendorId")
@@ -126,9 +126,7 @@ class RuntimeProviderRegistry @Inject constructor(
      *    `Set`, so the order is stable within a build).
      * 3. If no provider is available, return null.
      */
-    suspend fun getBestProvider(
-        preferredBackend: BackendType? = null
-    ): RuntimeProvider? {
+    suspend fun getBestProvider(preferredBackend: BackendType? = null): RuntimeProvider? {
         val available = getAvailableProviders()
         if (available.isEmpty()) {
             Log.w(TAG, "No runtime provider available")

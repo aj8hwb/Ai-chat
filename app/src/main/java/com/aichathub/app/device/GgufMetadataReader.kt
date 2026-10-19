@@ -111,7 +111,16 @@ object GgufMetadataReader {
             if (blockCount == null && headCountKv == null && keyLength == null && embeddingLength == null) {
                 null // nothing usable was collected
             } else {
-                GgufKvMetadata(version, architecture, blockCount, embeddingLength, headCount, headCountKv, keyLength, valueLength)
+                GgufKvMetadata(
+                    version,
+                    architecture,
+                    blockCount,
+                    embeddingLength,
+                    headCount,
+                    headCountKv,
+                    keyLength,
+                    valueLength,
+                )
             }
     }
 
@@ -203,7 +212,16 @@ object GgufMetadataReader {
             }
             i++
         }
-        return GgufKvMetadata(version, c.architecture, c.blockCount, c.embeddingLength, c.headCount, c.headCountKv, c.keyLength, c.valueLength)
+        return GgufKvMetadata(
+            version,
+            c.architecture,
+            c.blockCount,
+            c.embeddingLength,
+            c.headCount,
+            c.headCountKv,
+            c.keyLength,
+            c.valueLength,
+        )
     }
 
     /** Reads a fixed-size LE scalar as Long; null when truncated. */
@@ -308,11 +326,11 @@ object GgufMetadataReader {
             layers = layers.toInt(),
             kvHeads = kvHeads.toInt(),
             headDim = effectiveHeadDim.toInt(),
-            bytesPerElement = 2 // f16 K and f16 V (documented assumption)
+            // f16 K and f16 V (documented assumption)
+            bytesPerElement = 2,
         )
     }
 
     /** Accepts only sane dim values; anything else is treated as absent. */
-    private fun safeDim(dim: Long?): Long? =
-        if (dim != null && dim in MIN_HEAD_DIM..MAX_HEAD_DIM) dim else null
+    private fun safeDim(dim: Long?): Long? = if (dim != null && dim in MIN_HEAD_DIM..MAX_HEAD_DIM) dim else null
 }

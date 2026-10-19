@@ -13,7 +13,9 @@ import org.junit.runner.RunWith
  * The profile tells ART which classes and methods to pre-compile
  * for faster startup and smoother performance.
  *
- * Run with: ./gradlew :benchmark:connectedBenchmarkAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.aichathub.app.benchmark.BaselineProfileGenerator
+ * Run with: ./gradlew :benchmark:connectedBenchmarkAndroidTest
+ *         -Pandroid.testInstrumentationRunnerArguments.class=
+ *           com.aichathub.app.benchmark.BaselineProfileGenerator
  * Output: app/src/main/generated/baselineProfiles/
  */
 @RunWith(AndroidJUnit4::class)
@@ -26,7 +28,7 @@ class BaselineProfileGenerator {
     fun generateBaselineProfile() {
         rule.collect(
             packageName = "com.aichathub.app",
-            includeInStartupProfile = true
+            includeInStartupProfile = true,
         ) {
             // Cold start
             pressHome()

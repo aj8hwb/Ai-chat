@@ -50,20 +50,25 @@ fun ChatHistoryDrawer(
     val groups = remember(conversations) { ConversationGroups.groupByDay(conversations) }
     ModalDrawerSheet(
         modifier = Modifier.width(300.dp),
-        drawerContainerColor = MaterialTheme.colorScheme.background
+        drawerContainerColor = MaterialTheme.colorScheme.background,
     ) {
         Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Chats", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Chats",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 Spacer(Modifier.weight(1f))
                 GradientButton(
                     text = "New chat",
                     onClick = onNewChat,
                     icon = Icons.Filled.Add,
-                    modifier = Modifier.padding(0.dp)
+                    modifier = Modifier.padding(0.dp),
                 )
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
@@ -72,15 +77,24 @@ fun ChatHistoryDrawer(
                 Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
                 ) {
-                    Icon(Icons.Filled.Menu, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(36.dp))
+                    Icon(
+                        Icons.Filled.Menu,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(36.dp),
+                    )
                     Spacer(Modifier.height(10.dp))
-                    Text("No chats yet", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "No chats yet",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Text(
                         "Your past conversations will appear here.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             } else {
@@ -91,7 +105,7 @@ fun ChatHistoryDrawer(
                                 group.label,
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                             )
                         }
                         items(group.conversations, key = { it.id }) { conv ->
@@ -99,7 +113,7 @@ fun ChatHistoryDrawer(
                                 conv = conv,
                                 selected = conv.id == activeConversationId,
                                 onClick = { onSelect(conv.id) },
-                                onDelete = { onDelete(conv.id) }
+                                onDelete = { onDelete(conv.id) },
                             )
                         }
                     }
@@ -110,19 +124,14 @@ fun ChatHistoryDrawer(
 }
 
 @Composable
-fun DrawerConversationRow(
-    conv: ConversationEntity,
-    selected: Boolean,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
-) {
+fun DrawerConversationRow(conv: ConversationEntity, selected: Boolean, onClick: () -> Unit, onDelete: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent)
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)))
         Spacer(Modifier.width(10.dp))
@@ -132,7 +141,7 @@ fun DrawerConversationRow(
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(2.dp))
             Text(
@@ -140,14 +149,18 @@ fun DrawerConversationRow(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
         }
         IconButton(onClick = onDelete) {
-            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+            Icon(
+                Icons.Filled.Delete,
+                contentDescription = "Delete",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }
 
-internal fun modelDisplayName(modelId: String): String =
-    LocalModelCatalog.byId(modelId)?.name ?: modelId
+internal fun modelDisplayName(modelId: String): String = LocalModelCatalog.byId(modelId)?.name ?: modelId

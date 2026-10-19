@@ -4,20 +4,16 @@ import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.local.ConversationDao
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageDao
-import com.aichathub.app.data.local.MessageEntity
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelFormat
-import com.aichathub.app.domain.model.ModelLifecycleState
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -30,7 +26,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
-import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatCoordinatorTest {
@@ -61,12 +56,12 @@ class ChatCoordinatorTest {
         fileName = "model.gguf",
         runtime = "llama",
         parameterCount = 7_000_000_000L,
-        chatTemplate = com.aichathub.app.domain.model.ChatTemplate.CHATML
+        chatTemplate = com.aichathub.app.domain.model.ChatTemplate.CHATML,
     )
 
     private val testConfig = GenerationConfig(
         temperature = 0.8f,
-        maxTokens = 512
+        maxTokens = 512,
     )
 
     @Before
@@ -86,12 +81,15 @@ class ChatCoordinatorTest {
             title = "Test",
             modelId = "model-1",
             createdAt = 0L,
-            updatedAt = 0L
+            updatedAt = 0L,
         )
         coEvery { conversationDao.insert(any()) } returns 1L
         coEvery { messageDao.forConversation(any()) } returns emptyList()
 
-        coordinator = ChatCoordinator(runtime, conversationDao, messageDao, modelRepository, kotlinx.coroutines.CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob()))
+        coordinator = ChatCoordinator(
+            runtime, conversationDao, messageDao, modelRepository,
+            kotlinx.coroutines.CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob()),
+        )
     }
 
     @After
@@ -146,7 +144,7 @@ class ChatCoordinatorTest {
                     config = testConfig,
                     systemPrompt = "You are helpful",
                     model = testModel,
-                    onStream = {}
+                    onStream = {},
                 )
             } catch (_: CancellationException) { }
         }
@@ -163,7 +161,7 @@ class ChatCoordinatorTest {
                 config = testConfig,
                 systemPrompt = "You are helpful",
                 model = testModel,
-                onStream = {}
+                onStream = {},
             )
             fail("Expected IllegalStateException")
         } catch (e: IllegalStateException) {
@@ -246,7 +244,7 @@ class ChatCoordinatorTest {
             config = testConfig,
             systemPrompt = "System",
             model = testModel,
-            onStream = {}
+            onStream = {},
         )
 
         val state = coordinator.state.value
@@ -267,7 +265,7 @@ class ChatCoordinatorTest {
                 config = testConfig,
                 systemPrompt = "System",
                 model = testModel,
-                onStream = {}
+                onStream = {},
             )
             fail("Expected exception")
         } catch (e: RuntimeException) {
@@ -300,7 +298,7 @@ class ChatCoordinatorTest {
                 config = testConfig,
                 systemPrompt = "System",
                 model = testModel,
-                onStream = {}
+                onStream = {},
             )
         } catch (_: CancellationException) { }
 
@@ -323,7 +321,7 @@ class ChatCoordinatorTest {
                 config = testConfig,
                 systemPrompt = "System",
                 model = testModel,
-                onStream = {}
+                onStream = {},
             )
         } catch (_: CancellationException) { }
 
@@ -424,13 +422,16 @@ class ChatCoordinatorTest {
                 config = testConfig,
                 systemPrompt = "System",
                 model = testModel,
-                onStream = {}
+                onStream = {},
             )
             fail("Expected OutOfMemoryError")
         } catch (_: OutOfMemoryError) { }
 
         assertEquals(ChatGenerationState.ERROR, coordinator.state.value.generationState)
-        assertEquals("Generation ran out of memory. Try a lighter model or a shorter message.", coordinator.state.value.error)
+        assertEquals(
+            "Generation ran out of memory. Try a lighter model or a shorter message.",
+            coordinator.state.value.error,
+        )
         coVerify { runtime.unload() }
     }
 

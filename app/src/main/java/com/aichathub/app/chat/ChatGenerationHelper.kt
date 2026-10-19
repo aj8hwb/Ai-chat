@@ -1,11 +1,10 @@
 package com.aichathub.app.chat
 
 import android.os.Build
-import android.util.Log
 import com.aichathub.app.data.ModelRepository
+import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.data.local.ConversationDao
 import com.aichathub.app.data.local.MessageDao
-import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.device.CompatibilityEngine
 import com.aichathub.app.device.ContextSelector
 import com.aichathub.app.device.ContextSelector.ContextBudget
@@ -22,11 +21,11 @@ import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.util.ModelThreads
 import com.aichathub.app.util.ThreadCalibration
 import com.aichathub.app.util.TokenEstimator
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import java.io.File
 
 /**
  * Handles the complex orchestration of sending a chat message:
@@ -147,13 +146,13 @@ class ChatGenerationHelper(
             model = model,
             persistUserMessage = params.persistUser,
             historyTurns = settings.historyTurns,
-            onStream = params.onStream
+            onStream = params.onStream,
         )
 
         val elapsedMs = (System.nanoTime() - startNanos) / 1_000_000
         val perf = runtime.performance.value
         val tps = (perf.tokensPerSecond * 10).toInt() / 10f
-        params.onTrace("Done, ${perf.tokensGenerated} tokens, ${tps} tok/s, ${elapsedMs / 1000f}s")
+        params.onTrace("Done, ${perf.tokensGenerated} tokens, $tps tok/s, ${elapsedMs / 1000f}s")
 
         GenerationResult(
             text = result,
@@ -161,7 +160,7 @@ class ChatGenerationHelper(
             tokensGenerated = perf.tokensGenerated,
             elapsedMs = elapsedMs,
             tokensPerSecond = perf.tokensPerSecond,
-            responseChars = result.length
+            responseChars = result.length,
         )
     }
 
@@ -203,10 +202,10 @@ class ChatGenerationHelper(
                     temperature = settings.temperature,
                     topK = settings.topK,
                     topP = settings.topP,
-                    maxTokens = settings.maxTokens
+                    maxTokens = settings.maxTokens,
                 ),
                 threads = plan.threads,
-                contextLength = plan.contextLength
+                contextLength = plan.contextLength,
             )
         } catch (e: OutOfMemoryError) {
             throw e
@@ -253,7 +252,7 @@ class ChatGenerationHelper(
             } else {
                 "No readable GGUF architecture metadata — KV cache uses the " +
                     "conservative parameter heuristic."
-            }
+            },
         )
 
         val thermalInfo = thermalManager?.getThermalInfo(ModelThreads.MAX_THREADS)
@@ -271,14 +270,14 @@ class ChatGenerationHelper(
             runtimeVersion = runtime.runtimeVersionLabel,
             modelId = model.id,
             contextLength = model.contextLength,
-            quantization = model.quantization
+            quantization = model.quantization,
         )
         val calibrationRecord = settingsRepository.threadCalibrationOnce()[cacheKey]
         val baseThreads = ThreadCalibration.resolveThreadCount(
             record = calibrationRecord,
             nowMs = System.currentTimeMillis(),
             batteryConscious = settings.batteryConscious,
-            cpuCores = profile.cpuCores
+            cpuCores = profile.cpuCores,
         )
         val calibrated = calibrationRecord != null && baseThreads == calibrationRecord.threads
         if (calibrated) {
@@ -288,7 +287,7 @@ class ChatGenerationHelper(
         }
         val threads = ModelThreads.withThermal(
             ModelThreads.withMemoryPressure(baseThreads, profile.isLowRamDevice),
-            thermalLevel
+            thermalLevel,
         )
 
         // Adaptive session context from the SAME memory budget the gate uses.
@@ -297,26 +296,30 @@ class ChatGenerationHelper(
             modelWeightsBytes = model.fileSizeBytes,
             contextLength = model.contextLength,
             parameterCount = model.parameterCount.takeIf { it > 0 },
-            kvCacheSpec = kvSpec
+            kvCacheSpec = kvSpec,
         )
         val budgetState = ContextSelector.toBudget(
             maxSafeContextTokens = budget.maxContextTokens,
-            budgetKnown = budget.weightsMemoryBytes > 0
+            budgetKnown = budget.weightsMemoryBytes > 0,
         )
-        val sessionContext = when (val selection =
-            ContextSelector.selectContext(model.contextLength, budgetState, reservedTokens)
+        val sessionContext = when (
+            val selection =
+                ContextSelector.selectContext(model.contextLength, budgetState, reservedTokens)
         ) {
             is ContextSelection.Selected -> selection.tokens
             is ContextSelection.Insufficient -> throw IllegalStateException(selection.reason)
         }
         if (sessionContext < model.contextLength) {
-            onTrace("Runtime context set to $sessionContext tokens (model limit ${model.contextLength}) for device memory safety.")
+            onTrace(
+                "Runtime context set to $sessionContext tokens " +
+                    "(model limit ${model.contextLength}) for device memory safety.",
+            )
         }
         when (budgetState) {
             ContextBudget.Unknown, ContextBudget.Failed ->
                 onTrace(
                     "Device memory budget unavailable — context conservatively capped at " +
-                        "$sessionContext tokens (unverified configurations are never given the model maximum)."
+                        "$sessionContext tokens (unverified configurations are never given the model maximum).",
                 )
             else -> Unit
         }
@@ -333,12 +336,10 @@ class ChatGenerationHelper(
     )
 
     /** Conversation-level system prompt when it exists, else the global one. */
-    private suspend fun activeSystemPrompt(
-        params: GenerationParams,
-        settings: SettingsRepository.Settings
-    ): String = params.conversationId
-        ?.let { conversationDao.byId(it)?.systemPrompt?.takeIf { s -> s.isNotBlank() } }
-        ?: settings.systemPrompt
+    private suspend fun activeSystemPrompt(params: GenerationParams, settings: SettingsRepository.Settings): String =
+        params.conversationId
+            ?.let { conversationDao.byId(it)?.systemPrompt?.takeIf { s -> s.isNotBlank() } }
+            ?: settings.systemPrompt
 
     /**
      * Builds the GenerationConfig, clamping maxTokens to the runtime context
@@ -372,7 +373,7 @@ class ChatGenerationHelper(
             temperature = settings.temperature,
             topK = settings.topK,
             topP = settings.topP,
-            maxTokens = maxTokens
+            maxTokens = maxTokens,
         )
     }
 
@@ -392,7 +393,7 @@ class ChatGenerationHelper(
         if (convId == null) {
             convId = coordinator.createConversation(
                 modelId,
-                com.aichathub.app.util.TextUtils.titleFromPrompt(text)
+                com.aichathub.app.util.TextUtils.titleFromPrompt(text),
             )
         }
         return convId

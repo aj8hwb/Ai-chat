@@ -19,10 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun SystemPromptDialog(
-    onDismiss: () -> Unit,
-    onSave: (String) -> Unit
-) {
+fun SystemPromptDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -32,13 +29,18 @@ fun SystemPromptDialog(
                 Text(
                     "Leave blank to use the global system prompt from Chat Settings.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    placeholder = { Text("Custom instructions for this conversation…", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    placeholder = {
+                        Text(
+                            "Custom instructions for this conversation…",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
                     minLines = 4,
                     maxLines = 8,
                     shape = RoundedCornerShape(16.dp),
@@ -47,8 +49,8 @@ fun SystemPromptDialog(
                         unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        cursorColor = MaterialTheme.colorScheme.primary
-                    )
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                    ),
                 )
             }
         },
@@ -57,6 +59,6 @@ fun SystemPromptDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        }
+        },
     )
 }

@@ -3,6 +3,8 @@ package com.aichathub.app.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aichathub.app.data.CatalogRepository
+import com.aichathub.app.data.ModelRepository
+import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.device.CompatibilityEngine
 import com.aichathub.app.device.DeviceInfoProvider
 import com.aichathub.app.device.MemoryBudgetCalculator
@@ -10,16 +12,14 @@ import com.aichathub.app.domain.model.AiMemoryBudget
 import com.aichathub.app.domain.model.DeviceProfile
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.domain.model.Recommendation
-import com.aichathub.app.data.ModelRepository
-import com.aichathub.app.data.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class HomeUiState(
     val deviceProfile: DeviceProfile? = null,
@@ -66,7 +66,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             modelRepository.installedModels.collect { installed ->
                 _state.value = _state.value.copy(
-                    installedStates = installed.associate { it.modelId to it.state }
+                    installedStates = installed.associate { it.modelId to it.state },
                 )
             }
         }
@@ -87,7 +87,7 @@ class HomeViewModel @Inject constructor(
                 catalogRepository.getAllModels(),
                 profile,
                 budget,
-                measured
+                measured,
             )
             _state.value = HomeUiState(
                 deviceProfile = profile,
@@ -95,7 +95,7 @@ class HomeViewModel @Inject constructor(
                 recommendations = recommendations,
                 analyzing = false,
                 installedStates = _state.value.installedStates,
-                showHelp = _state.value.showHelp
+                showHelp = _state.value.showHelp,
             )
         }
     }

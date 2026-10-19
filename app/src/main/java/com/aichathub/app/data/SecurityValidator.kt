@@ -167,7 +167,10 @@ object SecurityValidator {
                 // Allow 5% tolerance for server reporting differences
                 val tolerance = expectedSize * 0.05
                 if (contentLength > expectedSize + tolerance) {
-                    Log.w(TAG, "Model download too large: $contentLength vs expected $expectedSize (tolerance: $tolerance)")
+                    Log.w(
+                        TAG,
+                        "Model download too large: $contentLength vs expected $expectedSize (tolerance: $tolerance)",
+                    )
                     return false
                 }
                 if (contentLength < expectedSize - tolerance) {
@@ -220,11 +223,7 @@ object SecurityValidator {
      * @param trustedDomains set of trusted domain names
      * @return true if the redirect URL is safe to follow
      */
-    fun isValidRedirect(
-        originalUrl: String,
-        redirectUrl: String,
-        trustedDomains: Set<String>
-    ): Boolean {
+    fun isValidRedirect(originalUrl: String, redirectUrl: String, trustedDomains: Set<String>): Boolean {
         return try {
             if (redirectUrl.length > MAX_URL_LENGTH) {
                 Log.w(TAG, "Redirect URL too long: ${redirectUrl.length}")
@@ -288,7 +287,8 @@ object SecurityValidator {
                 val magic = ByteArray(4)
                 raf.readFully(magic)
                 if (magic[0] != 0x47.toByte() || magic[1] != 0x47.toByte() ||
-                    magic[2] != 0x55.toByte() || magic[3] != 0x46.toByte()) {
+                    magic[2] != 0x55.toByte() || magic[3] != 0x46.toByte()
+                ) {
                     Log.w(TAG, "Invalid GGUF magic bytes")
                     return false
                 }

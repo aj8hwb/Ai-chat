@@ -50,10 +50,7 @@ import com.aichathub.app.ui.components.AppCard
 import com.aichathub.app.ui.components.SectionHeader
 
 @Composable
-fun PrivacySettingsScreen(
-    onNavigateBack: () -> Unit,
-    viewModel: PrivacySettingsViewModel = hiltViewModel()
-) {
+fun PrivacySettingsScreen(onNavigateBack: () -> Unit, viewModel: PrivacySettingsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -67,30 +64,30 @@ fun PrivacySettingsScreen(
     if (state.clearConfirmPending) {
         ClearDataConfirmDialog(
             onConfirm = viewModel::clearAllLocalData,
-            onDismiss = viewModel::dismissClearConfirm
+            onDismiss = viewModel::dismissClearConfirm,
         )
     }
 
     androidx.compose.material3.Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
         ) {
             item {
                 Text(
                     "Privacy Center",
                     style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "Your data stays on your device.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(16.dp))
             }
@@ -101,8 +98,8 @@ fun PrivacySettingsScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                    )
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         DashboardRow("AI Processing", state.dashboard.aiProcessing)
@@ -129,7 +126,7 @@ fun PrivacySettingsScreen(
                             title = "App Lock",
                             subtitle = "Require biometric or PIN to open the app",
                             checked = state.appLockEnabled,
-                            onCheckedChange = viewModel::onAppLockToggle
+                            onCheckedChange = viewModel::onAppLockToggle,
                         )
                     }
                 }
@@ -146,7 +143,7 @@ fun PrivacySettingsScreen(
                             title = "Incognito Chat",
                             subtitle = "Don't save conversations when this is on",
                             checked = state.incognitoMode,
-                            onCheckedChange = viewModel::onIncognitoToggle
+                            onCheckedChange = viewModel::onIncognitoToggle,
                         )
                     }
                 }
@@ -163,7 +160,7 @@ fun PrivacySettingsScreen(
                             title = "Auto-clear Clipboard",
                             subtitle = "Clear copied text after 60 seconds",
                             checked = state.clipboardAutoClear,
-                            onCheckedChange = viewModel::onClipboardAutoClearToggle
+                            onCheckedChange = viewModel::onClipboardAutoClearToggle,
                         )
                         HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
 
@@ -172,23 +169,27 @@ fun PrivacySettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     "Clear Crash Logs",
                                     style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = MaterialTheme.colorScheme.onSurface,
                                 )
                                 Text(
-                                    if (state.crashLogCount > 0) "${state.crashLogCount} log entries" else "No crash logs",
+                                    if (state.crashLogCount > 0) {
+                                        "${state.crashLogCount} log entries"
+                                    } else {
+                                        "No crash logs"
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             OutlinedButton(
                                 onClick = viewModel::clearCrashLogs,
-                                enabled = !state.operationInProgress && state.crashLogCount > 0
+                                enabled = !state.operationInProgress && state.crashLogCount > 0,
                             ) {
                                 Text("Clear")
                             }
@@ -200,18 +201,18 @@ fun PrivacySettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     "Clear All Local Data",
                                     style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.error
+                                    color = MaterialTheme.colorScheme.error,
                                 )
                                 Text(
                                     "Crash logs, temp files, conversation data",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             Button(
@@ -219,13 +220,13 @@ fun PrivacySettingsScreen(
                                 enabled = !state.operationInProgress,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.error,
-                                    contentColor = MaterialTheme.colorScheme.onError
-                                )
+                                    contentColor = MaterialTheme.colorScheme.onError,
+                                ),
                             ) {
                                 Icon(
                                     Icons.Filled.DeleteForever,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(18.dp),
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Text("Clear")
@@ -244,32 +245,38 @@ fun PrivacySettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            imageVector = if (state.modelIntegrityOk)
+                            imageVector = if (state.modelIntegrityOk) {
                                 Icons.Filled.CheckCircle
-                            else
-                                Icons.Filled.Error,
+                            } else {
+                                Icons.Filled.Error
+                            },
                             contentDescription = null,
-                            tint = if (state.modelIntegrityOk)
+                            tint = if (state.modelIntegrityOk) {
                                 MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(24.dp)
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            },
+                            modifier = Modifier.size(24.dp),
                         )
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text(
-                                if (state.modelIntegrityOk) "All model files intact" else "Model files may be corrupted",
+                                if (state.modelIntegrityOk) {
+                                    "All model files intact"
+                                } else {
+                                    "Model files may be corrupted"
+                                },
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
                             )
                             Text(
                                 "Locally installed model files verified",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -283,7 +290,7 @@ fun PrivacySettingsScreen(
                             .fillMaxWidth()
                             .padding(vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
                         Spacer(Modifier.width(12.dp))
@@ -303,34 +310,31 @@ private fun DashboardRow(label: String, value: String) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = Icons.Filled.Shield,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(16.dp)
+            modifier = Modifier.size(16.dp),
         )
         Spacer(Modifier.width(8.dp))
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         )
         Text(
             value,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
 @Composable
-private fun ClearDataConfirmDialog(
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
+private fun ClearDataConfirmDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
@@ -338,15 +342,15 @@ private fun ClearDataConfirmDialog(
         text = {
             Text(
                 "This will permanently delete crash logs, temporary files, and all saved conversations. " +
-                    "This action cannot be undone."
+                    "This action cannot be undone.",
             )
         },
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
                 colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error
-                )
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
             ) {
                 Text("Delete Everything")
             }
@@ -355,7 +359,7 @@ private fun ClearDataConfirmDialog(
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }
-        }
+        },
     )
 }
 
@@ -371,30 +375,30 @@ private fun SwitchRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(22.dp),
         )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 title,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange
+            onCheckedChange = onCheckedChange,
         )
     }
 }

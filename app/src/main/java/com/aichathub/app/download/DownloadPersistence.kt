@@ -62,7 +62,7 @@ class DownloadPersistence(
                     val f = File(downloadsDir, DownloadSegmentPolicy.partFileName(model.fileName, i))
                     if (f.exists()) f.length() else null
                 },
-                segments = meta
+                segments = meta,
             )
         }
         return if (merged.exists()) merged.length() else 0L
@@ -146,10 +146,7 @@ class DownloadPersistence(
     /**
      * Scans for resumable downloads and returns their state.
      */
-    fun scanForResumable(
-        models: List<CatalogModel>,
-        networkType: String?
-    ): List<DownloadInfo> {
+    fun scanForResumable(models: List<CatalogModel>, networkType: String?): List<DownloadInfo> {
         val resumable = mutableListOf<DownloadInfo>()
         for (model in models) {
             val bytes = existingDownloadedBytes(model)
@@ -162,8 +159,8 @@ class DownloadPersistence(
                         totalBytes = model.fileSizeBytes,
                         downloadedBytes = bytes,
                         status = DownloadStatus.PAUSED,
-                        networkType = networkType
-                    )
+                        networkType = networkType,
+                    ),
                 )
             }
         }

@@ -10,12 +10,8 @@ class ThreadCalibrationTest {
 
     private val now = 1_000_000_000L
 
-    private fun record(
-        threads: Int,
-        tps: Float = 10f,
-        complete: Boolean = true,
-        ts: Long = now
-    ) = ThreadCalibration.CalibrationRecord(threads, tps, ts, 2, complete)
+    private fun record(threads: Int, tps: Float = 10f, complete: Boolean = true, ts: Long = now) =
+        ThreadCalibration.CalibrationRecord(threads, tps, ts, 2, complete)
 
     // ── candidates ──────────────────────────────────────────────────────
 
@@ -50,12 +46,12 @@ class ThreadCalibrationTest {
             2 to listOf(
                 ThreadCalibration.CalibrationSample(2, 100f),
                 ThreadCalibration.CalibrationSample(2, 10f),
-                ThreadCalibration.CalibrationSample(2, 10f)
+                ThreadCalibration.CalibrationSample(2, 10f),
             ),
             3 to listOf(
                 ThreadCalibration.CalibrationSample(3, 30f),
-                ThreadCalibration.CalibrationSample(3, 30f)
-            )
+                ThreadCalibration.CalibrationSample(3, 30f),
+            ),
         )
         assertEquals(3, ThreadCalibration.best(samples))
     }
@@ -65,7 +61,7 @@ class ThreadCalibrationTest {
         val samples = mapOf(
             3 to listOf(ThreadCalibration.CalibrationSample(3, 20f)),
             1 to listOf(ThreadCalibration.CalibrationSample(1, 20f)),
-            2 to listOf(ThreadCalibration.CalibrationSample(2, 20f))
+            2 to listOf(ThreadCalibration.CalibrationSample(2, 20f)),
         )
         assertEquals(1, ThreadCalibration.best(samples))
     }
@@ -77,9 +73,9 @@ class ThreadCalibrationTest {
                 listOf(
                     ThreadCalibration.CalibrationSample(2, 0f),
                     ThreadCalibration.CalibrationSample(2, -5f),
-                    ThreadCalibration.CalibrationSample(2, Float.NaN)
-                )
-            )
+                    ThreadCalibration.CalibrationSample(2, Float.NaN),
+                ),
+            ),
         )
         assertNull(ThreadCalibration.medianTps(emptyList()))
     }
@@ -89,8 +85,8 @@ class ThreadCalibrationTest {
         assertNull(ThreadCalibration.best(emptyMap()))
         assertNull(
             ThreadCalibration.best(
-                mapOf(2 to listOf(ThreadCalibration.CalibrationSample(2, 0f)))
-            )
+                mapOf(2 to listOf(ThreadCalibration.CalibrationSample(2, 0f))),
+            ),
         )
     }
 
@@ -103,10 +99,10 @@ class ThreadCalibrationTest {
                 listOf(
                     ThreadCalibration.CalibrationSample(2, 0f),
                     ThreadCalibration.CalibrationSample(2, 10f),
-                    ThreadCalibration.CalibrationSample(2, 20f)
-                )
+                    ThreadCalibration.CalibrationSample(2, 20f),
+                ),
             )!!,
-            0.001f
+            0.001f,
         )
     }
 
@@ -136,7 +132,7 @@ class ThreadCalibrationTest {
         val baseline = ModelThreads.recommended(batteryConscious = false, cpuCores = 8)
         assertEquals(
             baseline,
-            ThreadCalibration.resolveThreadCount(null, now, false, 8)
+            ThreadCalibration.resolveThreadCount(null, now, false, 8),
         )
     }
 
@@ -144,7 +140,7 @@ class ThreadCalibrationTest {
     fun `valid complete record wins`() {
         assertEquals(
             3,
-            ThreadCalibration.resolveThreadCount(record(threads = 3), now + 1000, false, 8)
+            ThreadCalibration.resolveThreadCount(record(threads = 3), now + 1000, false, 8),
         )
     }
 
@@ -153,7 +149,7 @@ class ThreadCalibrationTest {
         val baseline = ModelThreads.recommended(batteryConscious = false, cpuCores = 8)
         assertEquals(
             baseline,
-            ThreadCalibration.resolveThreadCount(record(threads = 4, complete = false), now + 1000, false, 8)
+            ThreadCalibration.resolveThreadCount(record(threads = 4, complete = false), now + 1000, false, 8),
         )
     }
 
@@ -166,8 +162,8 @@ class ThreadCalibrationTest {
                 record(threads = 4, ts = now - ThreadCalibration.VALIDITY_MS - 1),
                 now,
                 false,
-                8
-            )
+                8,
+            ),
         )
     }
 
@@ -176,11 +172,11 @@ class ThreadCalibrationTest {
         val baseline = ModelThreads.recommended(batteryConscious = false, cpuCores = 8)
         assertEquals(
             baseline,
-            ThreadCalibration.resolveThreadCount(record(threads = 0), now + 1, false, 8)
+            ThreadCalibration.resolveThreadCount(record(threads = 0), now + 1, false, 8),
         )
         assertEquals(
             baseline,
-            ThreadCalibration.resolveThreadCount(record(threads = 99), now + 1, false, 8)
+            ThreadCalibration.resolveThreadCount(record(threads = 99), now + 1, false, 8),
         )
     }
 
@@ -191,7 +187,7 @@ class ThreadCalibrationTest {
             assertEquals(
                 "tps=$tps must resolve to the baseline",
                 baseline,
-                ThreadCalibration.resolveThreadCount(record(threads = 3, tps = tps), now + 1, false, 8)
+                ThreadCalibration.resolveThreadCount(record(threads = 3, tps = tps), now + 1, false, 8),
             )
         }
     }
@@ -207,12 +203,12 @@ class ThreadCalibrationTest {
                     tokensPerSecond = 10f,
                     timestampMs = now,
                     trialsPerCandidate = 0,
-                    complete = true
+                    complete = true,
                 ),
                 now + 1,
                 false,
-                8
-            )
+                8,
+            ),
         )
     }
 
@@ -224,7 +220,7 @@ class ThreadCalibrationTest {
         val baseline = ModelThreads.recommended(batteryConscious = false, cpuCores = 3)
         assertEquals(
             baseline,
-            ThreadCalibration.resolveThreadCount(record(threads = 4), now + 1, false, 3)
+            ThreadCalibration.resolveThreadCount(record(threads = 4), now + 1, false, 3),
         )
         // The same record applies fine on an 8-core device (4 ≤ cores − 1).
         assertEquals(4, ThreadCalibration.resolveThreadCount(record(threads = 4), now + 1, false, 8))
@@ -236,7 +232,7 @@ class ThreadCalibrationTest {
     fun `encode-decode round trip`() {
         val map = mapOf(
             "a|b|c|4096|Q4" to record(threads = 3, tps = 12.5f, ts = 555L),
-            "x" to record(threads = 1, tps = 3f, ts = 7L, complete = false)
+            "x" to record(threads = 1, tps = 3f, ts = 7L, complete = false),
         )
         val decoded = ThreadCalibration.decode(ThreadCalibration.encode(map))
         assertEquals(2, decoded.size)
@@ -272,7 +268,7 @@ class ThreadCalibrationTest {
             line("trials|k", "3,10.0,1234,0,1"),
             // Non-positive timestamp.
             line("ts|k", "3,10.0,0,2,1"),
-            line("tsneg|k", "3,10.0,-1,2,1")
+            line("tsneg|k", "3,10.0,-1,2,1"),
         ).joinToString(";")
         val decoded = ThreadCalibration.decode(raw)
         assertEquals(setOf("ok|k"), decoded.keys)

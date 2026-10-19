@@ -11,14 +11,11 @@ import androidx.compose.ui.unit.dp
 import com.aichathub.app.ui.theme.GradientPrimary
 
 @Composable
-fun GradientHeaderCard(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
+fun GradientHeaderCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
         modifier = modifier
             .background(Brush.linearGradient(GradientPrimary), RoundedCornerShape(24.dp))
-            .padding(20.dp)
+            .padding(20.dp),
     ) {
         content()
     }

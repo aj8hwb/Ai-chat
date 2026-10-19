@@ -1,5 +1,7 @@
 package com.aichathub.app.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -28,11 +30,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.ui.components.AppCard
 import com.aichathub.app.ui.components.EmptyState
@@ -48,10 +48,7 @@ import com.aichathub.app.ui.navigation.Screen
 import com.aichathub.app.util.ConversationGroups
 
 @Composable
-fun HistoryScreen(
-    onNavigate: (String) -> Unit,
-    viewModel: HistoryViewModel = hiltViewModel()
-) {
+fun HistoryScreen(onNavigate: (String) -> Unit, viewModel: HistoryViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var deleteTarget by remember { mutableStateOf<Long?>(null) }
     var renameTarget by remember { mutableStateOf<ConversationEntity?>(null) }
@@ -61,10 +58,10 @@ fun HistoryScreen(
     // Backup = create a new JSON document via the system file picker;
     // Restore = pick an existing backup JSON to import.
     val backupLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
+        ActivityResultContracts.CreateDocument("application/json"),
     ) { uri -> if (uri != null) viewModel.backup(uri) }
     val restoreLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
+        ActivityResultContracts.OpenDocument(),
     ) { uri -> if (uri != null) viewModel.restore(uri) }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -75,13 +72,13 @@ fun HistoryScreen(
                     "Conversations",
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     enabled = state.busy.not(),
                     onClick = {
                         backupLauncher.launch(viewModel.suggestedBackupFileName())
-                    }
+                    },
                 ) {
                     Text("Backup", color = MaterialTheme.colorScheme.primary)
                 }
@@ -89,7 +86,7 @@ fun HistoryScreen(
                     enabled = state.busy.not(),
                     onClick = {
                         restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "*/*"))
-                    }
+                    },
                 ) {
                     Text("Restore", color = MaterialTheme.colorScheme.primary)
                 }
@@ -99,7 +96,13 @@ fun HistoryScreen(
                 value = query,
                 onValueChange = { query = it },
                 placeholder = { Text("Search conversations…", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth(),
@@ -108,8 +111,8 @@ fun HistoryScreen(
                     unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                     focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                     unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    cursorColor = MaterialTheme.colorScheme.primary
-                )
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                ),
             )
             Spacer(Modifier.height(8.dp))
         }
@@ -117,19 +120,19 @@ fun HistoryScreen(
         state.message?.let { msg ->
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     msg,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 )
                 Text(
                     "Dismiss",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 8.dp).clickable { viewModel.clearMessage() }
+                    modifier = Modifier.padding(start = 8.dp).clickable { viewModel.clearMessage() },
                 )
             }
         }
@@ -150,18 +153,19 @@ fun HistoryScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (visible.isEmpty()) {
                 item {
                     EmptyState(
                         icon = Icons.Filled.History,
                         title = if (query.isBlank()) "No Conversations" else "No matches",
-                        description = if (query.isBlank())
+                        description = if (query.isBlank()) {
                             "Start your first local AI conversation."
-                        else
-                            "No conversations match \"$query\".",
-                        modifier = Modifier.padding(vertical = 40.dp)
+                        } else {
+                            "No conversations match \"$query\"."
+                        },
+                        modifier = Modifier.padding(vertical = 40.dp),
                     )
                 }
             } else {
@@ -171,7 +175,7 @@ fun HistoryScreen(
                             group.label,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
                         )
                     }
                     items(group.conversations, key = { it.id }) { conv ->
@@ -183,7 +187,7 @@ fun HistoryScreen(
                                 renameText = conv.title.ifBlank { "New chat" }
                             },
                             onExport = { viewModel.export(conv.id) },
-                            onDelete = { deleteTarget = conv.id }
+                            onDelete = { deleteTarget = conv.id },
                         )
                     }
                 }
@@ -203,8 +207,10 @@ fun HistoryScreen(
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            }
+                TextButton(
+                    onClick = { deleteTarget = null },
+                ) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            },
         )
     }
 
@@ -223,8 +229,8 @@ fun HistoryScreen(
                         unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        cursorColor = MaterialTheme.colorScheme.primary
-                    )
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                    ),
                 )
             },
             confirmButton = {
@@ -234,8 +240,10 @@ fun HistoryScreen(
                 }) { Text("Save", color = MaterialTheme.colorScheme.primary) }
             },
             dismissButton = {
-                TextButton(onClick = { renameTarget = null }) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            }
+                TextButton(
+                    onClick = { renameTarget = null },
+                ) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            },
         )
     }
 }
@@ -251,38 +259,50 @@ private fun ConversationRow(
     AppCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     conv.title.ifBlank { "New chat" },
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
                 )
                 Spacer(Modifier.height(4.dp))
                 Row {
                     Text(
                         com.aichathub.app.data.model.LocalModelCatalog.byId(conv.modelId)?.name ?: conv.modelId,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
                         ConversationGroups.timeLabel(conv.updatedAt),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
             IconButton(onClick = onRename) {
-                Icon(Icons.Filled.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    Icons.Filled.Edit,
+                    contentDescription = "Rename",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             IconButton(onClick = onExport) {
-                Icon(Icons.Filled.Download, contentDescription = "Export", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    Icons.Filled.Download,
+                    contentDescription = "Export",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    Icons.Filled.Delete,
+                    contentDescription = "Delete",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

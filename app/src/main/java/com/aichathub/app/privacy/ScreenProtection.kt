@@ -54,9 +54,10 @@ object ScreenProtection {
                     activity.setTaskDescription(
                         android.app.ActivityManager.TaskDescription(
                             desc.label,
-                            null, // No icon = blank preview
-                            desc.primaryColor
-                        )
+                            // No icon = blank preview
+                            null,
+                            desc.primaryColor,
+                        ),
                     )
                 }
             }

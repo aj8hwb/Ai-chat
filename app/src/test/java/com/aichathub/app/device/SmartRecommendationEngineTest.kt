@@ -6,8 +6,6 @@ import com.aichathub.app.domain.model.CompatibilityLevel
 import com.aichathub.app.domain.model.DeviceProfile
 import com.aichathub.app.domain.model.ModelFormat
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -23,7 +21,7 @@ class SmartRecommendationEngineTest {
         storageAvailableBytes = 150L * 1024 * 1024 * 1024,
         cpuCores = 12,
         abi = "arm64-v8a",
-        androidVersion = 14
+        androidVersion = 14,
     )
 
     private val lowRamProfile = DeviceProfile(
@@ -34,7 +32,7 @@ class SmartRecommendationEngineTest {
         cpuCores = 4,
         abi = "arm64-v8a",
         androidVersion = 14,
-        isLowRamDevice = true
+        isLowRamDevice = true,
     )
 
     private val generousBudget = AiMemoryBudget(
@@ -42,7 +40,7 @@ class SmartRecommendationEngineTest {
         reservedBytes = 1L * 1024 * 1024 * 1024,
         runtimeOverheadBytes = 400L * 1024 * 1024,
         safetyReserveBytes = 700L * 1024 * 1024,
-        modelMemoryBytes = 6L * 1024 * 1024 * 1024
+        modelMemoryBytes = 6L * 1024 * 1024 * 1024,
     )
 
     private val tightBudget = AiMemoryBudget(
@@ -50,7 +48,7 @@ class SmartRecommendationEngineTest {
         reservedBytes = 512L * 1024 * 1024,
         runtimeOverheadBytes = 300L * 1024 * 1024,
         safetyReserveBytes = 500L * 1024 * 1024,
-        modelMemoryBytes = 1L * 1024 * 1024 * 1024
+        modelMemoryBytes = 1L * 1024 * 1024 * 1024,
     )
 
     private fun model(
@@ -78,7 +76,7 @@ class SmartRecommendationEngineTest {
         fileName = "model.gguf",
         runtime = "llama",
         parameterCount = parameterCount,
-        chatTemplate = com.aichathub.app.domain.model.ChatTemplate.CHATML
+        chatTemplate = com.aichathub.app.domain.model.ChatTemplate.CHATML,
     )
 
     @Before
@@ -94,7 +92,7 @@ class SmartRecommendationEngineTest {
             model = model(estimatedMemoryMb = 1000),
             profile = highRamProfile,
             budget = generousBudget,
-            mode = RecommendationMode.BEST_BALANCE
+            mode = RecommendationMode.BEST_BALANCE,
         )
 
         assertTrue(rec.score > 0.5f)
@@ -106,12 +104,12 @@ class SmartRecommendationEngineTest {
         val recHigh = engine.score(
             model = model(estimatedMemoryMb = 500),
             profile = highRamProfile,
-            budget = generousBudget
+            budget = generousBudget,
         )
         val recLow = engine.score(
             model = model(estimatedMemoryMb = 500),
             profile = lowRamProfile,
-            budget = tightBudget
+            budget = tightBudget,
         )
 
         assertTrue(recHigh.score >= recLow.score)
@@ -122,7 +120,7 @@ class SmartRecommendationEngineTest {
         val rec = engine.score(
             model = model(estimatedMemoryMb = 8000),
             profile = highRamProfile,
-            budget = tightBudget
+            budget = tightBudget,
         )
 
         assertTrue(rec.memoryScore < 0.5f)
@@ -136,7 +134,7 @@ class SmartRecommendationEngineTest {
             model = model(estimatedMemoryMb = 500, fileSizeMb = 200),
             profile = highRamProfile,
             budget = generousBudget,
-            mode = RecommendationMode.BEST_BALANCE
+            mode = RecommendationMode.BEST_BALANCE,
         )
 
         assertEquals(RecommendationMode.BEST_BALANCE, rec.mode)
@@ -149,7 +147,7 @@ class SmartRecommendationEngineTest {
             model = model(estimatedMemoryMb = 500, fileSizeMb = 200),
             profile = highRamProfile,
             budget = generousBudget,
-            mode = RecommendationMode.FASTEST
+            mode = RecommendationMode.FASTEST,
         )
 
         assertEquals(RecommendationMode.FASTEST, rec.mode)
@@ -162,7 +160,7 @@ class SmartRecommendationEngineTest {
             model = model(estimatedMemoryMb = 500, fileSizeMb = 200),
             profile = highRamProfile,
             budget = generousBudget,
-            mode = RecommendationMode.BEST_QUALITY
+            mode = RecommendationMode.BEST_QUALITY,
         )
 
         assertEquals(RecommendationMode.BEST_QUALITY, rec.mode)
@@ -175,7 +173,7 @@ class SmartRecommendationEngineTest {
             model = model(estimatedMemoryMb = 500, fileSizeMb = 200),
             profile = highRamProfile,
             budget = generousBudget,
-            mode = RecommendationMode.SMALLEST
+            mode = RecommendationMode.SMALLEST,
         )
 
         assertEquals(RecommendationMode.SMALLEST, rec.mode)
@@ -201,7 +199,7 @@ class SmartRecommendationEngineTest {
         val rec = engine.score(
             model = model(estimatedMemoryMb = 500),
             profile = highRamProfile,
-            budget = generousBudget
+            budget = generousBudget,
         )
 
         assertEquals(RiskLevel.SAFE, rec.riskLevel)
@@ -212,7 +210,7 @@ class SmartRecommendationEngineTest {
         val rec = engine.score(
             model = model(estimatedMemoryMb = 8000, fileSizeMb = 5000),
             profile = lowRamProfile,
-            budget = tightBudget
+            budget = tightBudget,
         )
 
         assertEquals(RiskLevel.NOT_RECOMMENDED, rec.riskLevel)
@@ -224,7 +222,7 @@ class SmartRecommendationEngineTest {
         val rec = engine.score(
             model = model(estimatedMemoryMb = 900),
             profile = highRamProfile,
-            budget = tightBudget
+            budget = tightBudget,
         )
 
         // Should be MODERATE or HEAVY depending on exact calculation
@@ -239,13 +237,13 @@ class SmartRecommendationEngineTest {
             model = model(),
             profile = highRamProfile,
             budget = generousBudget,
-            thermalStatus = ThermalStatus.NONE
+            thermalStatus = ThermalStatus.NONE,
         )
         val hot = engine.score(
             model = model(),
             profile = highRamProfile,
             budget = generousBudget,
-            thermalStatus = ThermalStatus.SEVERE
+            thermalStatus = ThermalStatus.SEVERE,
         )
 
         assertTrue(cool.batteryThermalScore > hot.batteryThermalScore)
@@ -258,7 +256,7 @@ class SmartRecommendationEngineTest {
             model = model(),
             profile = highRamProfile,
             budget = generousBudget,
-            thermalStatus = ThermalStatus.CRITICAL
+            thermalStatus = ThermalStatus.CRITICAL,
         )
 
         assertTrue(rec.batteryThermalScore < 0.2f)
@@ -270,7 +268,7 @@ class SmartRecommendationEngineTest {
             model = model(),
             profile = highRamProfile,
             budget = generousBudget,
-            thermalStatus = ThermalStatus.EMERGENCY
+            thermalStatus = ThermalStatus.EMERGENCY,
         )
 
         assertEquals(0f, rec.batteryThermalScore)
@@ -282,13 +280,13 @@ class SmartRecommendationEngineTest {
             model = model(),
             profile = highRamProfile,
             budget = generousBudget,
-            batteryLevel = 90
+            batteryLevel = 90,
         )
         val dying = engine.score(
             model = model(),
             profile = highRamProfile,
             budget = generousBudget,
-            batteryLevel = 10
+            batteryLevel = 10,
         )
 
         assertTrue(charged.batteryThermalScore >= dying.batteryThermalScore)
@@ -300,7 +298,7 @@ class SmartRecommendationEngineTest {
             model = model(),
             profile = highRamProfile,
             budget = generousBudget,
-            batteryLevel = -1
+            batteryLevel = -1,
         )
 
         // Unknown battery gets 0.7 * 0.35 weight contribution
@@ -314,13 +312,13 @@ class SmartRecommendationEngineTest {
         val withoutBench = engine.score(
             model = model(id = "bench-model"),
             profile = lowRamProfile,
-            budget = generousBudget
+            budget = generousBudget,
         )
         val withBench = engine.score(
             model = model(id = "bench-model"),
             profile = lowRamProfile,
             budget = generousBudget,
-            pastBenchmarks = mapOf("bench-model" to 45f)
+            pastBenchmarks = mapOf("bench-model" to 45f),
         )
 
         assertTrue(withBench.speedScore > withoutBench.speedScore)
@@ -333,7 +331,7 @@ class SmartRecommendationEngineTest {
         val models = listOf(
             model(id = "heavy", estimatedMemoryMb = 8000),
             model(id = "light", estimatedMemoryMb = 200),
-            model(id = "medium", estimatedMemoryMb = 1500)
+            model(id = "medium", estimatedMemoryMb = 1500),
         )
 
         val recs = engine.recommendAll(models, highRamProfile, generousBudget)
@@ -349,7 +347,7 @@ class SmartRecommendationEngineTest {
         val recs = engine.recommendAll(
             listOf(model()),
             highRamProfile,
-            generousBudget
+            generousBudget,
         )
 
         assertEquals(1, recs.size)
@@ -362,7 +360,7 @@ class SmartRecommendationEngineTest {
         val rec = engine.score(
             model = model(estimatedMemoryMb = 200),
             profile = highRamProfile,
-            budget = generousBudget
+            budget = generousBudget,
         )
 
         assertEquals(CompatibilityLevel.EXCELLENT, rec.compatibilityLevel)
@@ -373,7 +371,7 @@ class SmartRecommendationEngineTest {
         val rec = engine.score(
             model = model(estimatedMemoryMb = 10000, fileSizeMb = 8000),
             profile = lowRamProfile,
-            budget = tightBudget
+            budget = tightBudget,
         )
 
         assertEquals(CompatibilityLevel.NOT_RECOMMENDED, rec.compatibilityLevel)
@@ -386,7 +384,7 @@ class SmartRecommendationEngineTest {
         val rec = engine.score(
             model = model(),
             profile = highRamProfile,
-            budget = generousBudget
+            budget = generousBudget,
         )
 
         assertEquals("Fast", rec.expectedSpeed)
@@ -397,7 +395,7 @@ class SmartRecommendationEngineTest {
         val rec = engine.score(
             model = model(estimatedMemoryMb = 500, parameterCount = 2_000_000_000),
             profile = lowRamProfile,
-            budget = tightBudget
+            budget = tightBudget,
         )
 
         assertEquals("Slow", rec.expectedSpeed)
@@ -412,7 +410,7 @@ class SmartRecommendationEngineTest {
             model = m,
             profile = highRamProfile,
             budget = tightBudget,
-            measuredPss = mapOf("measured-model" to (3L * 1024 * 1024 * 1024))
+            measuredPss = mapOf("measured-model" to (3L * 1024 * 1024 * 1024)),
         )
 
         // With 3GB measured vs 200MB estimated, memory score should be worse
@@ -425,7 +423,7 @@ class SmartRecommendationEngineTest {
     fun `score is always between 0 and 1`() {
         val models = listOf(
             model(estimatedMemoryMb = 100, fileSizeMb = 50),
-            model(estimatedMemoryMb = 10000, fileSizeMb = 8000)
+            model(estimatedMemoryMb = 10000, fileSizeMb = 8000),
         )
         val profiles = listOf(highRamProfile, lowRamProfile)
         val budgets = listOf(generousBudget, tightBudget)
@@ -452,12 +450,13 @@ class SmartRecommendationEngineTest {
     @Test
     fun `tight storage reduces storage score`() {
         val profileTight = highRamProfile.copy(
-            storageAvailableBytes = 600L * 1024 * 1024 // 600MB free
+            // 600MB free
+            storageAvailableBytes = 600L * 1024 * 1024,
         )
         val rec = engine.score(
             model = model(fileSizeMb = 400),
             profile = profileTight,
-            budget = generousBudget
+            budget = generousBudget,
         )
 
         assertTrue(rec.storageScore < 0.5f)
@@ -468,7 +467,7 @@ class SmartRecommendationEngineTest {
         val rec = engine.score(
             model = model(fileSizeMb = 100),
             profile = highRamProfile,
-            budget = generousBudget
+            budget = generousBudget,
         )
 
         assertEquals(1.0f, rec.storageScore)

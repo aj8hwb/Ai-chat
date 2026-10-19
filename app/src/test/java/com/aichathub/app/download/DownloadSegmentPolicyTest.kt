@@ -29,7 +29,10 @@ class DownloadSegmentPolicyTest {
 
     @Test
     fun `small files never segment`() {
-        assertEquals(1, DownloadSegmentPolicy.resolveFresh(true, bytes(DownloadSegmentPolicy.SEGMENT_BYTES_THRESHOLD - 1)))
+        assertEquals(
+            1,
+            DownloadSegmentPolicy.resolveFresh(true, bytes(DownloadSegmentPolicy.SEGMENT_BYTES_THRESHOLD - 1)),
+        )
     }
 
     @Test

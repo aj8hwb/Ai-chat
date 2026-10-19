@@ -13,13 +13,13 @@ class ContextSelectorTest {
         val result = ContextSelector.selectContext(8192, ContextBudget.Unknown)
         assertEquals(
             ContextSelection.Selected(ContextSelector.CONSERVATIVE_FALLBACK_CONTEXT),
-            result
+            result,
         )
         assertTrue(result !is ContextSelection.Insufficient)
         // The model maximum is NEVER auto-selected for an unknown budget.
         assertTrue(
             (result as ContextSelection.Selected).tokens <
-                8192
+                8192,
         )
     }
 
@@ -28,7 +28,7 @@ class ContextSelectorTest {
         val result = ContextSelector.selectContext(8192, ContextBudget.Failed)
         assertEquals(
             ContextSelection.Selected(ContextSelector.CONSERVATIVE_FALLBACK_CONTEXT),
-            result
+            result,
         )
     }
 
@@ -36,7 +36,7 @@ class ContextSelectorTest {
     fun `unknown budget with a small model max is bounded by the model`() {
         assertEquals(
             ContextSelection.Selected(1024),
-            ContextSelector.selectContext(1024, ContextBudget.Unknown)
+            ContextSelector.selectContext(1024, ContextBudget.Unknown),
         )
     }
 
@@ -45,7 +45,7 @@ class ContextSelectorTest {
         val result = ContextSelector.selectContext(
             8192,
             ContextBudget.Unknown,
-            reservedTokens = ContextSelector.CONSERVATIVE_FALLBACK_CONTEXT + 1L
+            reservedTokens = ContextSelector.CONSERVATIVE_FALLBACK_CONTEXT + 1L,
         ) as ContextSelection.Insufficient
         assertTrue(result.reason.contains("fallback"))
     }
@@ -78,7 +78,7 @@ class ContextSelectorTest {
     fun `known budget restricts a larger model max`() {
         assertEquals(
             ContextSelection.Selected(2048),
-            ContextSelector.selectContext(8192, ContextBudget.Known(2048))
+            ContextSelector.selectContext(8192, ContextBudget.Known(2048)),
         )
     }
 
@@ -86,7 +86,7 @@ class ContextSelectorTest {
     fun `known budget larger than the model max never exceeds the model`() {
         assertEquals(
             ContextSelection.Selected(4096),
-            ContextSelector.selectContext(4096, ContextBudget.Known(32_768))
+            ContextSelector.selectContext(4096, ContextBudget.Known(32_768)),
         )
     }
 
@@ -94,7 +94,7 @@ class ContextSelectorTest {
     fun `budget equal to model max passes through`() {
         assertEquals(
             ContextSelection.Selected(4096),
-            ContextSelector.selectContext(4096, ContextBudget.Known(4096))
+            ContextSelector.selectContext(4096, ContextBudget.Known(4096)),
         )
     }
 
@@ -102,14 +102,22 @@ class ContextSelectorTest {
 
     @Test
     fun `reserved tokens above the budget fail with the required minimum`() {
-        val result = ContextSelector.selectContext(8192, ContextBudget.Known(2048), reservedTokens = 4000L) as ContextSelection.Insufficient
+        val result = ContextSelector.selectContext(
+            8192,
+            ContextBudget.Known(2048),
+            reservedTokens = 4000L,
+        ) as ContextSelection.Insufficient
         assertEquals(4000L, result.requiredMinimum)
         assertTrue(result.reason.contains("safe memory budget"))
     }
 
     @Test
     fun `reserved tokens above the model maximum fail`() {
-        val result = ContextSelector.selectContext(2048, ContextBudget.Unknown, reservedTokens = 3072L) as ContextSelection.Insufficient
+        val result = ContextSelector.selectContext(
+            2048,
+            ContextBudget.Unknown,
+            reservedTokens = 3072L,
+        ) as ContextSelection.Insufficient
         assertEquals(3072L, result.requiredMinimum)
         assertTrue(result.reason.contains("model's own context limit"))
     }
@@ -128,7 +136,7 @@ class ContextSelectorTest {
         // 2048 ≥ 1000, so Selected(2048) is correct.
         assertEquals(
             ContextSelection.Selected(2048),
-            ContextSelector.selectContext(8192, ContextBudget.Known(2048), reservedTokens = 1000L)
+            ContextSelector.selectContext(8192, ContextBudget.Known(2048), reservedTokens = 1000L),
         )
     }
 
@@ -138,7 +146,7 @@ class ContextSelectorTest {
     fun `negative reserved tokens are treated as zero`() {
         assertEquals(
             ContextSelection.Selected(ContextSelector.CONSERVATIVE_FALLBACK_CONTEXT),
-            ContextSelector.selectContext(8192, ContextBudget.Unknown, reservedTokens = -50L)
+            ContextSelector.selectContext(8192, ContextBudget.Unknown, reservedTokens = -50L),
         )
     }
 
@@ -146,11 +154,11 @@ class ContextSelectorTest {
     fun `unknown model max falls back to the runtime minimum`() {
         assertEquals(
             ContextSelection.Selected(ContextSelector.MIN_CONTEXT),
-            ContextSelector.selectContext(0, ContextBudget.Unknown)
+            ContextSelector.selectContext(0, ContextBudget.Unknown),
         )
         assertEquals(
             ContextSelection.Selected(ContextSelector.MIN_CONTEXT),
-            ContextSelector.selectContext(-500, ContextBudget.Unknown)
+            ContextSelector.selectContext(-500, ContextBudget.Unknown),
         )
     }
 
@@ -159,14 +167,18 @@ class ContextSelectorTest {
         // Int.MAX_VALUE budget with 4096 model max → model max wins.
         assertEquals(
             ContextSelection.Selected(4096),
-            ContextSelector.selectContext(4096, ContextBudget.Known(Int.MAX_VALUE))
+            ContextSelector.selectContext(4096, ContextBudget.Known(Int.MAX_VALUE)),
         )
     }
 
     @Test
     fun `very large reservation does not overflow`() {
         // Long reservation far beyond Int range → plain insufficiency.
-        val result = ContextSelector.selectContext(8192, ContextBudget.Known(2048), reservedTokens = Long.MAX_VALUE) as ContextSelection.Insufficient
+        val result = ContextSelector.selectContext(
+            8192,
+            ContextBudget.Known(2048),
+            reservedTokens = Long.MAX_VALUE,
+        ) as ContextSelection.Insufficient
         assertEquals(Long.MAX_VALUE, result.requiredMinimum)
     }
 

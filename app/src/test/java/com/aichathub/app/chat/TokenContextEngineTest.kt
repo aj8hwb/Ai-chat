@@ -34,7 +34,7 @@ class TokenContextEngineTest {
         downloadUrl = "",
         fileName = "small.gguf",
         runtime = "llama",
-        chatTemplate = ChatTemplate.CHATML
+        chatTemplate = ChatTemplate.CHATML,
     )
 
     private val largeModel = CatalogModel(
@@ -55,7 +55,7 @@ class TokenContextEngineTest {
         downloadUrl = "",
         fileName = "large.gguf",
         runtime = "llama",
-        chatTemplate = ChatTemplate.LLAMA3
+        chatTemplate = ChatTemplate.LLAMA3,
     )
 
     @Before
@@ -71,7 +71,7 @@ class TokenContextEngineTest {
             userMessage = "Hello",
             systemPrompt = "You are helpful",
             conversationHistory = emptyList(),
-            model = smallModel
+            model = smallModel,
         )
 
         assertTrue(status.promptTokens > 0)
@@ -87,13 +87,13 @@ class TokenContextEngineTest {
             userMessage = "Hi",
             systemPrompt = "",
             conversationHistory = emptyList(),
-            model = smallModel
+            model = smallModel,
         )
         val withSystem = engine.estimateContext(
             userMessage = "Hi",
             systemPrompt = "You are a helpful assistant who always responds concisely.",
             conversationHistory = emptyList(),
-            model = smallModel
+            model = smallModel,
         )
 
         assertTrue(withSystem.systemTokens > withoutSystem.systemTokens)
@@ -104,12 +104,14 @@ class TokenContextEngineTest {
     fun `estimateContext with long history adds history tokens`() {
         val shortHistory = listOf(
             "user" to "Hello",
-            "assistant" to "Hi there!"
+            "assistant" to "Hi there!",
         )
-        val longHistory = (1..20).flatMap { listOf(
-            "user" to "Message $it from user with some extra content to make it longer",
-            "assistant" to "Response $it from assistant with additional details and explanation"
-        ) }
+        val longHistory = (1..20).flatMap {
+            listOf(
+                "user" to "Message $it from user with some extra content to make it longer",
+                "assistant" to "Response $it from assistant with additional details and explanation",
+            )
+        }
 
         val shortStatus = engine.estimateContext("Hi", "sys", shortHistory, smallModel)
         val longStatus = engine.estimateContext("Hi", "sys", longHistory, smallModel)
@@ -123,7 +125,7 @@ class TokenContextEngineTest {
             userMessage = "x".repeat(100_000),
             systemPrompt = "y".repeat(100_000),
             conversationHistory = emptyList(),
-            model = smallModel
+            model = smallModel,
         )
 
         assertTrue(status.utilizationPercent <= 100f)
@@ -148,7 +150,7 @@ class TokenContextEngineTest {
             userMessage = "x".repeat(500),
             systemPrompt = "y".repeat(500),
             conversationHistory = (1..10).map { "user" to "z".repeat(100) },
-            model = tinyModel
+            model = tinyModel,
         )
 
         assertTrue(status.isNearLimit)
@@ -161,7 +163,7 @@ class TokenContextEngineTest {
             userMessage = "x".repeat(500),
             systemPrompt = "y".repeat(500),
             conversationHistory = (1..20).map { "user" to "z".repeat(200) },
-            model = tinyModel
+            model = tinyModel,
         )
 
         assertTrue(status.isAtLimit)
@@ -173,7 +175,7 @@ class TokenContextEngineTest {
             userMessage = "Hi",
             systemPrompt = "sys",
             conversationHistory = emptyList(),
-            model = largeModel
+            model = largeModel,
         )
 
         assertFalse(status.isNearLimit)
@@ -226,7 +228,7 @@ class TokenContextEngineTest {
             maxTokens = 4096,
             utilizationPercent = 2.4f,
             isNearLimit = false,
-            isAtLimit = false
+            isAtLimit = false,
         )
         val history = listOf("user" to "Hi")
 
@@ -245,13 +247,13 @@ class TokenContextEngineTest {
             maxTokens = 4096,
             utilizationPercent = 85.4f,
             isNearLimit = true,
-            isAtLimit = false
+            isAtLimit = false,
         )
         val history = listOf(
             "user" to "Old message",
             "assistant" to "Old response",
             "user" to "New message",
-            "assistant" to "New response"
+            "assistant" to "New response",
         )
 
         val suggestion = engine.suggestCompaction(status, history)
@@ -271,7 +273,7 @@ class TokenContextEngineTest {
             maxTokens = 4096,
             utilizationPercent = 90.3f,
             isNearLimit = true,
-            isAtLimit = false
+            isAtLimit = false,
         )
         val history = (1..10).map { "user" to "Message $it with content" }
 
@@ -291,7 +293,7 @@ class TokenContextEngineTest {
             maxTokens = 4096,
             utilizationPercent = 97.7f,
             isNearLimit = true,
-            isAtLimit = true
+            isAtLimit = true,
         )
         val history = listOf("user" to "Hi")
 
@@ -301,7 +303,7 @@ class TokenContextEngineTest {
         assertEquals(CompactionType.START_NEW, suggestion!!.type)
         assertEquals(
             "Context is at capacity with minimal history. Start a new conversation.",
-            suggestion.reason
+            suggestion.reason,
         )
     }
 
@@ -315,7 +317,7 @@ class TokenContextEngineTest {
             maxTokens = 4096,
             utilizationPercent = 97.7f,
             isNearLimit = true,
-            isAtLimit = true
+            isAtLimit = true,
         )
         val history = (1..10).map { "user" to "Message $it" }
 

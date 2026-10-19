@@ -63,7 +63,7 @@ class MarkdownFormatterTest {
         val out = MarkdownFormatter.render(
             "# Hi\n\nSome **bold** and `code` here.",
             base,
-            accent
+            accent,
         )
         assertTrue(out.text.contains("Hi"))
         assertTrue(out.text.contains("bold"))

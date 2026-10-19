@@ -15,8 +15,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -48,6 +46,7 @@ import com.aichathub.app.ui.screens.SettingsScreen
 import com.aichathub.app.ui.screens.StorageScreen
 import com.aichathub.app.ui.screens.SystemStatusScreen
 import com.aichathub.app.util.NavigationAnimations
+import kotlinx.coroutines.launch
 
 @Composable
 fun AiChatHubApp() {
@@ -58,10 +57,13 @@ fun AiChatHubApp() {
     val startDestination = remember {
         val settingsRepo = dagger.hilt.EntryPoints.get(
             context.applicationContext,
-            SettingsRepositoryEntryPoint::class.java
+            SettingsRepositoryEntryPoint::class.java,
         ).settingsRepository()
-        if (settingsRepo.cachedOnboardingCompleted) Screen.Home.route
-        else Screen.Onboarding.route
+        if (settingsRepo.cachedOnboardingCompleted) {
+            Screen.Home.route
+        } else {
+            Screen.Onboarding.route
+        }
     }
 
     Scaffold(
@@ -72,7 +74,7 @@ fun AiChatHubApp() {
             if (bottomDestinations.any { it.route == currentRoute }) {
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    tonalElevation = 0.dp
+                    tonalElevation = 0.dp,
                 ) {
                     bottomDestinations.forEach { destination ->
                         val selected = currentRoute == destination.route
@@ -97,34 +99,35 @@ fun AiChatHubApp() {
                             icon = {
                                 Icon(destination.icon!!, contentDescription = destination.label)
                             },
-                            label = { Text(destination.label!!, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) },
+                            label = {
+                                Text(
+                                    destination.label!!,
+                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+                                )
+                            },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
                                 unselectedIconColor = MaterialTheme.colorScheme.outline,
                                 unselectedTextColor = MaterialTheme.colorScheme.outline,
-                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                            )
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                            ),
                         )
                     }
                 }
             }
-        }
+        },
     ) { padding ->
         AppNavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = Modifier.padding(padding)
+            modifier = Modifier.padding(padding),
         )
     }
 }
 
 @Composable
-private fun AppNavHost(
-    navController: NavHostController,
-    startDestination: String,
-    modifier: Modifier = Modifier
-) {
+private fun AppNavHost(navController: NavHostController, startDestination: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     NavHost(
         navController = navController,
@@ -133,7 +136,7 @@ private fun AppNavHost(
         enterTransition = { NavigationAnimations.enterTransition() },
         exitTransition = { NavigationAnimations.exitTransition() },
         popEnterTransition = { NavigationAnimations.popEnterTransition() },
-        popExitTransition = { NavigationAnimations.popExitTransition() }
+        popExitTransition = { NavigationAnimations.popExitTransition() },
     ) {
         composable(Screen.Onboarding.route) {
             val scope = rememberCoroutineScope()
@@ -142,20 +145,23 @@ private fun AppNavHost(
                     scope.launch {
                         val settingsRepo = dagger.hilt.EntryPoints.get(
                             context.applicationContext,
-                            SettingsRepositoryEntryPoint::class.java
+                            SettingsRepositoryEntryPoint::class.java,
                         ).settingsRepository()
                         settingsRepo.setOnboardingCompleted(true)
                     }
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Onboarding.route) { inclusive = true }
                     }
-                }
+                },
             )
         }
         composable(Screen.Home.route, deepLinks = listOf(navDeepLink { uriPattern = Screen.Home.deepLinkPattern })) {
             HomeScreen(onNavigate = navController::navigate)
         }
-        composable(Screen.Models.route, deepLinks = listOf(navDeepLink { uriPattern = Screen.Models.deepLinkPattern })) {
+        composable(
+            Screen.Models.route,
+            deepLinks = listOf(navDeepLink { uriPattern = Screen.Models.deepLinkPattern }),
+        ) {
             ModelsScreen(onNavigate = navController::navigate)
         }
         composable(
@@ -164,13 +170,13 @@ private fun AppNavHost(
                 androidx.navigation.navArgument(Screen.Chat.ARG) {
                     type = androidx.navigation.NavType.StringType
                     defaultValue = ""
-                }
-            )
+                },
+            ),
         ) { entry ->
             val modelId = entry.arguments?.getString(Screen.Chat.ARG).orEmpty()
             ChatScreen(
                 onNavigate = navController::navigate,
-                modelId = modelId.ifBlank { null }
+                modelId = modelId.ifBlank { null },
             )
         }
         composable(Screen.Playground.route) {
@@ -187,8 +193,8 @@ private fun AppNavHost(
             arguments = listOf(
                 androidx.navigation.navArgument(Screen.ModelDetails.ARG) {
                     type = androidx.navigation.NavType.StringType
-                }
-            )
+                },
+            ),
         ) { entry ->
             val modelId = entry.arguments?.getString(Screen.ModelDetails.ARG) ?: return@composable
             ModelDetailsScreen(
@@ -197,7 +203,7 @@ private fun AppNavHost(
                 onOpenChat = {
                     navController.popBackStack()
                     navController.navigate(Screen.Chat.routeFor(modelId))
-                }
+                },
             )
         }
         composable(Screen.Downloads.route) {
@@ -227,7 +233,14 @@ private fun AppNavHost(
         composable(Screen.About.route) {
             AboutScreen(onBack = { navController.popBackStack() })
         }
-        composable(Screen.PrivacyCenter.route, deepLinks = listOf(navDeepLink { uriPattern = Screen.PrivacyCenter.deepLinkPattern })) {
+        composable(
+            Screen.PrivacyCenter.route,
+            deepLinks = listOf(
+                navDeepLink {
+                    uriPattern = Screen.PrivacyCenter.deepLinkPattern
+                },
+            ),
+        ) {
             PrivacySettingsScreen(onNavigateBack = { navController.popBackStack() })
         }
         composable(
@@ -235,13 +248,13 @@ private fun AppNavHost(
             arguments = listOf(
                 androidx.navigation.navArgument(Screen.Conversation.ARG) {
                     type = androidx.navigation.NavType.LongType
-                }
-            )
+                },
+            ),
         ) { entry ->
             val conversationId = entry.arguments?.getLong(Screen.Conversation.ARG)
             ChatScreen(
                 onNavigate = navController::navigate,
-                conversationId = conversationId
+                conversationId = conversationId,
             )
         }
     }

@@ -28,7 +28,7 @@ class ModelThreadsTest {
     fun `single core device still gets the minimum`() {
         assertEquals(
             ModelThreads.MIN_THREADS,
-            ModelThreads.recommended(batteryConscious = false, cpuCores = 1)
+            ModelThreads.recommended(batteryConscious = false, cpuCores = 1),
         )
     }
 
@@ -37,37 +37,41 @@ class ModelThreadsTest {
         // 16 cores → base = 15 → clamped to MAX_THREADS
         assertEquals(
             ModelThreads.MAX_THREADS,
-            ModelThreads.recommended(batteryConscious = false, cpuCores = 16)
+            ModelThreads.recommended(batteryConscious = false, cpuCores = 16),
         )
     }
 
     @Test
     fun `eight core device uses cores minus one`() {
-        assertEquals(7.coerceIn(ModelThreads.MIN_THREADS, ModelThreads.MAX_THREADS),
-            ModelThreads.recommended(batteryConscious = false, cpuCores = 8))
+        assertEquals(
+            7.coerceIn(ModelThreads.MIN_THREADS, ModelThreads.MAX_THREADS),
+            ModelThreads.recommended(batteryConscious = false, cpuCores = 8),
+        )
     }
 
     @Test
     fun `battery conscious ignores core count`() {
         assertEquals(
             ModelThreads.BATTERY_CONSERVATIVE,
-            ModelThreads.recommended(batteryConscious = true, cpuCores = 16)
+            ModelThreads.recommended(batteryConscious = true, cpuCores = 16),
         )
         assertEquals(
             ModelThreads.BATTERY_CONSERVATIVE,
-            ModelThreads.recommended(batteryConscious = true, cpuCores = 2)
+            ModelThreads.recommended(batteryConscious = true, cpuCores = 2),
         )
     }
 
     @Test
     fun `warm thermal state reduces threads by a quarter`() {
         val base = ModelThreads.recommended(
-            batteryConscious = false, cpuCores = 8,
-            thermalLevel = ModelThreads.ThermalLoadLevel.NORMAL
+            batteryConscious = false,
+            cpuCores = 8,
+            thermalLevel = ModelThreads.ThermalLoadLevel.NORMAL,
         )
         val warm = ModelThreads.recommended(
-            batteryConscious = false, cpuCores = 8,
-            thermalLevel = ModelThreads.ThermalLoadLevel.WARM
+            batteryConscious = false,
+            cpuCores = 8,
+            thermalLevel = ModelThreads.ThermalLoadLevel.WARM,
         )
         assertEquals((base * 0.75f).toInt().coerceAtLeast(1), warm)
         assertTrue(warm < base)
@@ -76,12 +80,14 @@ class ModelThreadsTest {
     @Test
     fun `hot thermal state halves threads`() {
         val base = ModelThreads.recommended(
-            batteryConscious = false, cpuCores = 8,
-            thermalLevel = ModelThreads.ThermalLoadLevel.NORMAL
+            batteryConscious = false,
+            cpuCores = 8,
+            thermalLevel = ModelThreads.ThermalLoadLevel.NORMAL,
         )
         val hot = ModelThreads.recommended(
-            batteryConscious = false, cpuCores = 8,
-            thermalLevel = ModelThreads.ThermalLoadLevel.HOT
+            batteryConscious = false,
+            cpuCores = 8,
+            thermalLevel = ModelThreads.ThermalLoadLevel.HOT,
         )
         assertEquals((base * 0.5f).toInt().coerceAtLeast(1), hot)
         assertTrue(hot >= 1)
@@ -92,16 +98,18 @@ class ModelThreadsTest {
         assertEquals(
             1,
             ModelThreads.recommended(
-                batteryConscious = false, cpuCores = 8,
-                thermalLevel = ModelThreads.ThermalLoadLevel.CRITICAL
-            )
+                batteryConscious = false,
+                cpuCores = 8,
+                thermalLevel = ModelThreads.ThermalLoadLevel.CRITICAL,
+            ),
         )
         assertEquals(
             1,
             ModelThreads.recommended(
-                batteryConscious = true, cpuCores = 8,
-                thermalLevel = ModelThreads.ThermalLoadLevel.CRITICAL
-            )
+                batteryConscious = true,
+                cpuCores = 8,
+                thermalLevel = ModelThreads.ThermalLoadLevel.CRITICAL,
+            ),
         )
     }
 
@@ -110,17 +118,19 @@ class ModelThreadsTest {
         assertEquals(
             ModelThreads.MIN_THREADS,
             ModelThreads.recommended(
-                batteryConscious = false, cpuCores = 8,
-                memoryPressure = true
-            )
+                batteryConscious = false,
+                cpuCores = 8,
+                memoryPressure = true,
+            ),
         )
         // Pressure never INCREASES the count.
         assertEquals(
             ModelThreads.BATTERY_CONSERVATIVE,
             ModelThreads.recommended(
-                batteryConscious = true, cpuCores = 8,
-                memoryPressure = true
-            )
+                batteryConscious = true,
+                cpuCores = 8,
+                memoryPressure = true,
+            ),
         )
     }
 
@@ -130,10 +140,11 @@ class ModelThreadsTest {
         assertEquals(
             1,
             ModelThreads.recommended(
-                batteryConscious = false, cpuCores = 8,
+                batteryConscious = false,
+                cpuCores = 8,
                 thermalLevel = ModelThreads.ThermalLoadLevel.CRITICAL,
-                memoryPressure = true
-            )
+                memoryPressure = true,
+            ),
         )
     }
 
@@ -175,6 +186,12 @@ class ModelThreadsTest {
 
     @Test
     fun `composable reductions stay in the runtime clamp`() {
-        assertEquals(1, ModelThreads.withMemoryPressure(ModelThreads.withThermal(4, ModelThreads.ThermalLoadLevel.CRITICAL), memoryPressure = true))
+        assertEquals(
+            1,
+            ModelThreads.withMemoryPressure(
+                ModelThreads.withThermal(4, ModelThreads.ThermalLoadLevel.CRITICAL),
+                memoryPressure = true,
+            ),
+        )
     }
 }

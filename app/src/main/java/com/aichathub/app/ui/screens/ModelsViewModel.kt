@@ -2,9 +2,7 @@ package com.aichathub.app.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aichathub.app.chat.InferenceRuntime
 import com.aichathub.app.data.CatalogRepository
-import com.aichathub.app.data.model.LocalModelCatalog
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.device.CompatibilityEngine
@@ -14,19 +12,17 @@ import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.CompatibilityLevel
 import com.aichathub.app.domain.model.DeviceProfile
 import com.aichathub.app.domain.model.ModelLifecycleState
-import com.aichathub.app.domain.model.Recommendation
 import com.aichathub.app.download.DownloadInfo
 import com.aichathub.app.download.DownloadManager
 import com.aichathub.app.download.DownloadStartResult
-import com.aichathub.app.download.DownloadStatus
 import com.aichathub.app.util.Formatters
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class ModelsUiState(
     val models: List<CatalogModel> = emptyList(),
@@ -48,8 +44,10 @@ data class ModelsUiState(
                 model.category.contains(query, ignoreCase = true)
             val matchesCategory = selectedCategory == "All" ||
                 model.category == selectedCategory ||
-                (selectedCategory == "Recommended" &&
-                    (compatibility[model.id]?.rank ?: 0) >= 4)
+                (
+                    selectedCategory == "Recommended" &&
+                        (compatibility[model.id]?.rank ?: 0) >= 4
+                    )
             matchesQuery && matchesCategory
         }
 }
@@ -85,14 +83,14 @@ class ModelsViewModel @Inject constructor(
                 refresh()
             }
         }
-        
+
         viewModelScope.launch {
             container_catalogRepository.catalogState.collect { state ->
                 when (state) {
                     is CatalogRepository.CatalogState.Ready -> {
                         _state.value = _state.value.copy(
                             catalogSource = state.source,
-                            loading = false
+                            loading = false,
                         )
                     }
                     is CatalogRepository.CatalogState.Loading -> {
@@ -101,7 +99,7 @@ class ModelsViewModel @Inject constructor(
                     is CatalogRepository.CatalogState.Error -> {
                         _state.value = _state.value.copy(
                             error = state.message,
-                            loading = false
+                            loading = false,
                         )
                     }
                 }
@@ -123,7 +121,7 @@ class ModelsViewModel @Inject constructor(
         viewModelScope.launch {
             container_modelRepository.installedModels.collect { installed ->
                 _state.value = _state.value.copy(
-                    states = installed.associate { it.modelId to it.state }
+                    states = installed.associate { it.modelId to it.state },
                 )
             }
         }
@@ -133,7 +131,7 @@ class ModelsViewModel @Inject constructor(
         viewModelScope.launch {
             container_downloadManager.downloads.collect { downloads ->
                 _state.value = _state.value.copy(
-                    downloads = downloads.associateBy { it.modelId }
+                    downloads = downloads.associateBy { it.modelId },
                 )
             }
         }
@@ -150,13 +148,13 @@ class ModelsViewModel @Inject constructor(
                 models,
                 profile,
                 budget,
-                measured
+                measured,
             )
             _state.value = _state.value.copy(
                 models = models,
                 compatibility = recommendations.associate { it.model.id to it.level },
                 profile = profile,
-                loading = false
+                loading = false,
             )
         }
     }
@@ -179,7 +177,8 @@ class ModelsViewModel @Inject constructor(
                 is DownloadStartResult.AlreadyActive -> Unit
                 is DownloadStartResult.NoStorage -> {
                     _state.value = _state.value.copy(
-                        error = "Not enough free space. You need ${Formatters.bytes(result.requiredBytes)} free (${Formatters.bytes(result.availableBytes)} available)."
+                        error = "Not enough free space. You need ${Formatters.bytes(result.requiredBytes)} free " +
+                            "(${Formatters.bytes(result.availableBytes)} available).",
                     )
                 }
                 is DownloadStartResult.Failed -> {
@@ -204,6 +203,6 @@ class ModelsViewModel @Inject constructor(
     }
 
     val categories: List<String>
-        get() = listOf("All", "Recommended") + 
+        get() = listOf("All", "Recommended") +
             _state.value.models.map { it.category }.distinct()
 }

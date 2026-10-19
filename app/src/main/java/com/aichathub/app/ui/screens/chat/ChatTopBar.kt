@@ -31,7 +31,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.aichathub.app.data.local.MessageEntity
 import com.aichathub.app.ui.theme.Success
 
 @Composable
@@ -62,7 +61,7 @@ fun ChatTopBar(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         if (conversationId != null) {
             IconButton(onClick = onBack) {
@@ -78,7 +77,7 @@ fun ChatTopBar(
             Box {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { onModelClick() }
+                    modifier = Modifier.clickable { onModelClick() },
                 ) {
                     Text(
                         activeModelName ?: "Select a model",
@@ -86,22 +85,28 @@ fun ChatTopBar(
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Icon(
                         Icons.Filled.ArrowDropDown,
                         contentDescription = "Switch model",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 DropdownMenu(
                     expanded = modelMenuExpanded,
-                    onDismissRequest = onModelDismiss
+                    onDismissRequest = onModelDismiss,
                 ) {
                     if (installedModels.isEmpty()) {
                         DropdownMenuItem(
-                            text = { Text("No models installed yet", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                            onClick = onModelDismiss
+                            text = {
+                                Text(
+                                    "No models installed yet",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            onClick = onModelDismiss,
                         )
                     } else {
                         installedModels.forEach { (id, name) ->
@@ -111,18 +116,26 @@ fun ChatTopBar(
                                         Text(
                                             name,
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = if (id == activeModelId) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            color = if (id == activeModelId) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurface
+                                            },
                                         )
                                         if (id == activeModelId) {
                                             Spacer(Modifier.width(6.dp))
-                                            Text("●", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                            Text(
+                                                "●",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
                                         }
                                     }
                                 },
                                 onClick = {
                                     onModelDismiss()
                                     if (id != activeModelId) onModelSelect(id)
-                                }
+                                },
                             )
                         }
                     }
@@ -147,13 +160,17 @@ fun ChatTopBar(
                         else -> "No model loaded"
                     },
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
 
         IconButton(onClick = onSettingsClick) {
-            Icon(Icons.Filled.Tune, contentDescription = "Chat Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(
+                Icons.Filled.Tune,
+                contentDescription = "Chat Settings",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         IconButton(onClick = onSearchClick) {
             Icon(Icons.Filled.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -161,29 +178,37 @@ fun ChatTopBar(
 
         Box {
             IconButton(onClick = onExportClick) {
-                Icon(Icons.Filled.IosShare, contentDescription = "Export", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    Icons.Filled.IosShare,
+                    contentDescription = "Export",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             DropdownMenu(
                 expanded = showExportMenu,
-                onDismissRequest = onExportDismiss
+                onDismissRequest = onExportDismiss,
             ) {
                 DropdownMenuItem(
                     text = { Text("Export as Markdown", color = MaterialTheme.colorScheme.onSurface) },
-                    onClick = { onExportSelect("markdown") }
+                    onClick = { onExportSelect("markdown") },
                 )
                 DropdownMenuItem(
                     text = { Text("Export as JSON", color = MaterialTheme.colorScheme.onSurface) },
-                    onClick = { onExportSelect("json") }
+                    onClick = { onExportSelect("json") },
                 )
                 DropdownMenuItem(
                     text = { Text("Export as Plain Text", color = MaterialTheme.colorScheme.onSurface) },
-                    onClick = { onExportSelect("plaintext") }
+                    onClick = { onExportSelect("plaintext") },
                 )
             }
         }
 
         IconButton(onClick = onMoreClick) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "System prompt", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(
+                Icons.Filled.MoreVert,
+                contentDescription = "System prompt",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 

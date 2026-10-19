@@ -8,7 +8,9 @@ import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageEntity
 import kotlinx.coroutines.runBlocking
 import org.junit.After
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -43,8 +45,8 @@ class RoomDatabaseInstrumentedTest {
                 title = "Test Chat",
                 modelId = "test-model",
                 createdAt = now,
-                updatedAt = now
-            )
+                updatedAt = now,
+            ),
         )
         assertTrue("Conversation ID should be positive", id > 0)
 
@@ -62,8 +64,8 @@ class RoomDatabaseInstrumentedTest {
                 title = "Summary Test",
                 modelId = "test-model",
                 createdAt = now,
-                updatedAt = now
-            )
+                updatedAt = now,
+            ),
         )
 
         val summary = "User discussed Python programming. Decided to use Flask for web development."
@@ -81,8 +83,8 @@ class RoomDatabaseInstrumentedTest {
                 title = "Message Test",
                 modelId = "test-model",
                 createdAt = now,
-                updatedAt = now
-            )
+                updatedAt = now,
+            ),
         )
 
         db.messageDao().insert(
@@ -91,8 +93,8 @@ class RoomDatabaseInstrumentedTest {
                 role = "user",
                 content = "Hello, how are you?",
                 createdAt = now,
-                modelId = "test-model"
-            )
+                modelId = "test-model",
+            ),
         )
 
         db.messageDao().insert(
@@ -101,8 +103,8 @@ class RoomDatabaseInstrumentedTest {
                 role = "assistant",
                 content = "I'm doing well, thanks for asking!",
                 createdAt = now + 1000,
-                modelId = "test-model"
-            )
+                modelId = "test-model",
+            ),
         )
 
         val messages = db.messageDao().forConversation(convId)
@@ -119,8 +121,8 @@ class RoomDatabaseInstrumentedTest {
                 title = "Cascade Test",
                 modelId = "test-model",
                 createdAt = now,
-                updatedAt = now
-            )
+                updatedAt = now,
+            ),
         )
 
         db.messageDao().insert(
@@ -129,8 +131,8 @@ class RoomDatabaseInstrumentedTest {
                 role = "user",
                 content = "Test message",
                 createdAt = now,
-                modelId = "test-model"
-            )
+                modelId = "test-model",
+            ),
         )
 
         db.conversationDao().delete(convId)

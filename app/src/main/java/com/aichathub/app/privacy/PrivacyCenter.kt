@@ -6,17 +6,15 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.aichathub.app.data.SettingsRepository
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.File
 
 /**
  * Centralized privacy-management singleton.
@@ -214,7 +212,7 @@ object PrivacyCenter {
             appLockEnabled = s?.appLockEnabled ?: false,
             incognitoMode = s?.incognitoMode ?: false,
             clipboardAutoClear = s?.clipboardAutoClear ?: false,
-            crashLogPurge = s?.crashLogPurge ?: false
+            crashLogPurge = s?.crashLogPurge ?: false,
         )
     }
 
@@ -259,7 +257,7 @@ object PrivacyCenter {
             telemetry = "Off",
             incognito = if (_incognitoMode.value) "On" else "Off",
             appLock = if (_appLockEnabled.value) "On" else "Off",
-            clipboardAccess = if (_clipboardAutoClear.value) "Auto-clear (60s)" else "On"
+            clipboardAccess = if (_clipboardAutoClear.value) "Auto-clear (60s)" else "On",
         )
     }
 }

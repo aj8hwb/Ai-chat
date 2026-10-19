@@ -11,6 +11,7 @@ import com.aichathub.app.domain.model.ChatTemplate
 import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.privacy.PrivacyCenter
 import com.aichathub.app.util.TokenEstimator
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -21,10 +22,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.File
 
 enum class ChatGenerationState {
-    IDLE, LOADING, GENERATING, STOPPING, DONE, ERROR
+    IDLE,
+    LOADING,
+    GENERATING,
+    STOPPING,
+    DONE,
+    ERROR
 }
 
 data class ChatSessionState(
@@ -68,6 +73,7 @@ class ChatCoordinator(
     // The coordinator never owns the scope, so there is nothing to "destroy".
     private var autoUnloadJob: Job? = null
     private val autoUnloadDelayMs = 30_000L // 30 seconds
+
     @Volatile private var isInBackground = false
 
     /**
@@ -87,13 +93,13 @@ class ChatCoordinator(
         _state.value = _state.value.copy(
             isLoadingModel = true,
             generationState = ChatGenerationState.LOADING,
-            error = null
+            error = null,
         )
         if (!file.exists() || file.length() == 0L) {
             _state.value = _state.value.copy(
                 isLoadingModel = false,
                 generationState = ChatGenerationState.ERROR,
-                error = "The model file is missing or incomplete. Please re-download it."
+                error = "The model file is missing or incomplete. Please re-download it.",
             )
             throw IllegalStateException("Model file missing or empty: ${file.absolutePath}")
         }
@@ -108,7 +114,7 @@ class ChatCoordinator(
                     Log.i(
                         "ChatCoordinator",
                         "MODEL_LOAD_START ${model.id} threads=$threads context=$sessionContext " +
-                            "(modelLimit=${model.contextLength})"
+                            "(modelLimit=${model.contextLength})",
                     )
                     runtime.load(model.id, file, sessionContext, config, threads)
                     Log.i("ChatCoordinator", "MODEL_LOAD_SUCCESS ${model.id}")
@@ -119,7 +125,7 @@ class ChatCoordinator(
                 activeModelId = model.id,
                 activeModelName = model.name,
                 isLoadingModel = false,
-                generationState = ChatGenerationState.IDLE
+                generationState = ChatGenerationState.IDLE,
             )
         } catch (e: OutOfMemoryError) {
             Log.e("ChatCoordinator", "MODEL_LOAD_FAILED OOM ${model.id}", e)
@@ -127,7 +133,7 @@ class ChatCoordinator(
             _state.value = _state.value.copy(
                 isLoadingModel = false,
                 generationState = ChatGenerationState.ERROR,
-                error = "❌ Insufficient memory to load this model safely. Try a lighter model."
+                error = "❌ Insufficient memory to load this model safely. Try a lighter model.",
             )
             throw e
         } catch (e: Exception) {
@@ -136,7 +142,7 @@ class ChatCoordinator(
             _state.value = _state.value.copy(
                 isLoadingModel = false,
                 generationState = ChatGenerationState.ERROR,
-                error = "The model could not be loaded with the current device resources."
+                error = "The model could not be loaded with the current device resources.",
             )
             throw e
         }
@@ -152,24 +158,23 @@ class ChatCoordinator(
         _state.value = _state.value.copy(
             activeModelId = null,
             activeModelName = null,
-            generationState = ChatGenerationState.IDLE
+            generationState = ChatGenerationState.IDLE,
         )
     }
 
-    suspend fun createConversation(modelId: String, title: String = "New chat"): Long =
-        withContext(Dispatchers.IO) {
-            val now = System.currentTimeMillis()
-            val id = conversationDao.insert(
-                ConversationEntity(
-                    title = title,
-                    modelId = modelId,
-                    createdAt = now,
-                    updatedAt = now
-                )
-            )
-            _activeConversationId.value = id
-            id
-        }
+    suspend fun createConversation(modelId: String, title: String = "New chat"): Long = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val id = conversationDao.insert(
+            ConversationEntity(
+                title = title,
+                modelId = modelId,
+                createdAt = now,
+                updatedAt = now,
+            ),
+        )
+        _activeConversationId.value = id
+        id
+    }
 
     suspend fun selectConversation(id: Long) {
         _activeConversationId.value = id
@@ -237,18 +242,21 @@ class ChatCoordinator(
 
                     // Build prompt from in-memory context (no Room history in incognito)
                     val systemBlock = renderSystemBlock(model.chatTemplate, systemPrompt)
-                    val fullPrompt = systemBlock + renderPrompt(model.chatTemplate, listOf(
-                        MessageEntity(
-                            conversationId = convId,
-                            role = "user",
-                            content = prompt,
-                            createdAt = System.currentTimeMillis(),
-                            modelId = model.id
-                        )
-                    ))
+                    val fullPrompt = systemBlock + renderPrompt(
+                        model.chatTemplate,
+                        listOf(
+                            MessageEntity(
+                                conversationId = convId,
+                                role = "user",
+                                content = prompt,
+                                createdAt = System.currentTimeMillis(),
+                                modelId = model.id,
+                            ),
+                        ),
+                    )
 
                     val effectiveConfig = config.copy(
-                        stopSequences = templateStopSequences(model.chatTemplate)
+                        stopSequences = templateStopSequences(model.chatTemplate),
                     )
                     val result = runtime.generateStreaming(
                         prompt = fullPrompt,
@@ -256,7 +264,7 @@ class ChatCoordinator(
                         onToken = { token ->
                             streamed.append(token)
                             coalescer.onToken(streamed)
-                        }
+                        },
                     )
 
                     _state.value = _state.value.copy(generationState = ChatGenerationState.DONE)
@@ -269,7 +277,8 @@ class ChatCoordinator(
                     conversationId = null
                 }
                 if (conversationId == null) {
-                    conversationId = createConversation(model.id, com.aichathub.app.util.TextUtils.titleFromPrompt(prompt))
+                    conversationId =
+                        createConversation(model.id, com.aichathub.app.util.TextUtils.titleFromPrompt(prompt))
                 }
                 val convId = conversationId!!
 
@@ -280,8 +289,8 @@ class ChatCoordinator(
                             role = "user",
                             content = prompt,
                             createdAt = System.currentTimeMillis(),
-                            modelId = model.id
-                        )
+                            modelId = model.id,
+                        ),
                     )
                 }
 
@@ -291,7 +300,7 @@ class ChatCoordinator(
                 // Apply the model's own template stop sequences so generation
                 // ends at a natural boundary instead of running to maxTokens.
                 val effectiveConfig = config.copy(
-                    stopSequences = templateStopSequences(model.chatTemplate)
+                    stopSequences = templateStopSequences(model.chatTemplate),
                 )
                 val result = runtime.generateStreaming(
                     prompt = fullPrompt,
@@ -299,7 +308,7 @@ class ChatCoordinator(
                     onToken = { token ->
                         streamed.append(token)
                         coalescer.onToken(streamed)
-                    }
+                    },
                 )
 
                 messageDao.insert(
@@ -308,8 +317,8 @@ class ChatCoordinator(
                         role = "assistant",
                         content = result,
                         createdAt = System.currentTimeMillis(),
-                        modelId = model.id
-                    )
+                        modelId = model.id,
+                    ),
                 )
                 conversationDao.touch(convId, System.currentTimeMillis())
 
@@ -324,7 +333,7 @@ class ChatCoordinator(
             runCatching { runtime.unload() }
             _state.value = _state.value.copy(
                 generationState = ChatGenerationState.ERROR,
-                error = "Generation ran out of memory. Try a lighter model or a shorter message."
+                error = "Generation ran out of memory. Try a lighter model or a shorter message.",
             )
             throw e
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -343,8 +352,8 @@ class ChatCoordinator(
                             role = "assistant",
                             content = partial + "\n\n_(stopped)_",
                             createdAt = System.currentTimeMillis(),
-                            modelId = model.id
-                        )
+                            modelId = model.id,
+                        ),
                     )
                     conversationDao.touch(conversationId!!, System.currentTimeMillis())
                 }
@@ -360,7 +369,7 @@ class ChatCoordinator(
             Log.e("ChatCoordinator", "INFERENCE_FAILED ${model.id}", e)
             _state.value = _state.value.copy(
                 generationState = ChatGenerationState.ERROR,
-                error = "Generation failed. Please try again."
+                error = "Generation failed. Please try again.",
             )
             throw e
         } finally {
@@ -384,7 +393,7 @@ class ChatCoordinator(
     suspend fun resetToIdle() {
         _state.value = _state.value.copy(
             generationState = ChatGenerationState.IDLE,
-            error = null
+            error = null,
         )
     }
 
@@ -426,7 +435,7 @@ class ChatCoordinator(
                             runtime.unload()
                             _state.value = _state.value.copy(
                                 activeModelId = null,
-                                activeModelName = null
+                                activeModelName = null,
                             )
                         }
                     }
@@ -451,7 +460,7 @@ class ChatCoordinator(
                         runtime.unload()
                         _state.value = _state.value.copy(
                             activeModelId = null,
-                            activeModelName = null
+                            activeModelName = null,
                         )
                     } catch (e: Exception) {
                         Log.w(TAG, "Auto-unload failed", e)
@@ -501,8 +510,10 @@ class ChatCoordinator(
             .takeIf { it > 0 }
             ?: model.contextLength
         val turnsBudgetTokens =
-            (TokenEstimator.promptBudgetTokens(contextLimit, maxOutputTokens) -
-                TokenEstimator.estimate(systemBlock)).coerceAtLeast(64)
+            (
+                TokenEstimator.promptBudgetTokens(contextLimit, maxOutputTokens) -
+                    TokenEstimator.estimate(systemBlock)
+                ).coerceAtLeast(64)
 
         // Check for conversation summary
         val summary = conversationDao.getSummary(conversationId)
@@ -516,7 +527,7 @@ class ChatCoordinator(
                 role = "system",
                 content = "[Previous conversation summary: $summary]",
                 createdAt = System.currentTimeMillis(),
-                modelId = model.id
+                modelId = model.id,
             )
             turns = (listOf(summaryMessage) + turns).toMutableList()
         }

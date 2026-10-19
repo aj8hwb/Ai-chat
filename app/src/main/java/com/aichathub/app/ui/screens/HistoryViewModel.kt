@@ -5,21 +5,21 @@ import android.content.ContentValues
 import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aichathub.app.chat.ChatCoordinator
 import com.aichathub.app.data.ChatBackupManager
 import com.aichathub.app.data.local.ConversationDao
 import com.aichathub.app.data.local.MessageDao
-import com.aichathub.app.chat.ChatCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import javax.inject.Inject
 
 data class HistoryUiState(
     val conversations: List<com.aichathub.app.data.local.ConversationEntity> = emptyList(),
@@ -63,7 +63,7 @@ class HistoryViewModel @Inject constructor(
     fun export(id: Long) {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
             _state.value = _state.value.copy(
-                message = "Export needs Android 10 (API 29) or newer."
+                message = "Export needs Android 10 (API 29) or newer.",
             )
             return
         }
@@ -144,6 +144,5 @@ class HistoryViewModel @Inject constructor(
         }
     }
 
-    fun suggestedBackupFileName(): String =
-        container_chatBackupManager.suggestedFileName()
+    fun suggestedBackupFileName(): String = container_chatBackupManager.suggestedFileName()
 }

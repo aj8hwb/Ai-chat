@@ -135,13 +135,13 @@ object TokenEstimator {
      */
     fun truncateToTokenBudget(text: String, maxTokens: Int): String {
         if (text.isEmpty()) return text
-        
+
         val estimatedTokens = estimate(text)
         if (estimatedTokens <= maxTokens) return text
-        
+
         val ratio = charsPerToken(text)
         val targetChars = (maxTokens * ratio * 0.9).toInt() // 10% safety margin
-        
+
         return if (targetChars >= text.length) {
             text
         } else {
@@ -150,7 +150,15 @@ object TokenEstimator {
     }
 
     private enum class Script {
-        LATIN, CJK, HANGUL, DEVANAGARI, BENGALI, THAI, ARABIC, CYRILLIC, MIXED
+        LATIN,
+        CJK,
+        HANGUL,
+        DEVANAGARI,
+        BENGALI,
+        THAI,
+        ARABIC,
+        CYRILLIC,
+        MIXED
     }
 
     private fun detectDominantScript(text: String): Script {
@@ -201,7 +209,8 @@ object TokenEstimator {
 
     private fun containsCode(text: String): Boolean {
         // Simple heuristic: code has lots of symbols and keywords
-        val codeIndicators = listOf("{", "}", "()", ";", "==", "!=", "//", "/*", "fun ", "val ", "var ", "if (", "for (")
+        val codeIndicators =
+            listOf("{", "}", "()", ";", "==", "!=", "//", "/*", "fun ", "val ", "var ", "if (", "for (")
         val count = codeIndicators.count { text.contains(it, ignoreCase = true) }
         return count >= 2
     }
@@ -217,10 +226,10 @@ object TokenEstimator {
                 codePoint in 0x1F300..0x1F5FF || // Misc Symbols and Pictographs
                 codePoint in 0x1F680..0x1F6FF || // Transport and Map
                 codePoint in 0x1F900..0x1F9FF || // Supplemental Symbols
-                codePoint in 0x2600..0x26FF ||   // Misc Symbols
-                codePoint in 0x2700..0x27BF ||   // Dingbats
-                codePoint in 0xFE00..0xFE0F ||   // Variation Selectors
-                codePoint in 0x1F000..0x1F02F    // Mahjong Tiles
+                codePoint in 0x2600..0x26FF || // Misc Symbols
+                codePoint in 0x2700..0x27BF || // Dingbats
+                codePoint in 0xFE00..0xFE0F || // Variation Selectors
+                codePoint in 0x1F000..0x1F02F // Mahjong Tiles
             ) {
                 count++
             }

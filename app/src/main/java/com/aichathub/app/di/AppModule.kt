@@ -67,7 +67,7 @@ object AppModule {
     ): BackendSelector {
         return BackendSelector(
             context = context.applicationContext,
-            deviceInfoProvider = deviceInfoProvider
+            deviceInfoProvider = deviceInfoProvider,
         )
     }
 
@@ -89,7 +89,7 @@ object AppModule {
             modelRepository = modelRepository,
             deviceInfoProvider = deviceInfoProvider,
             settingsRepository = settingsRepository,
-            catalogRepository = catalogRepository
+            catalogRepository = catalogRepository,
         )
     }
 
@@ -105,15 +105,13 @@ object AppModule {
             context = context.applicationContext,
             modelsDir = modelsDir,
             modelRepository = modelRepository,
-            catalogRepository = catalogRepository
+            catalogRepository = catalogRepository,
         )
     }
 
     @Provides
     @Singleton
-    fun provideRemoteCatalogRepository(
-        @ApplicationContext context: Context
-    ): RemoteCatalogRepository {
+    fun provideRemoteCatalogRepository(@ApplicationContext context: Context): RemoteCatalogRepository {
         return RemoteCatalogRepository(context.applicationContext)
     }
 
@@ -125,7 +123,7 @@ object AppModule {
     ): CatalogRepository {
         return CatalogRepository(
             context = context.applicationContext,
-            remoteCatalogRepository = remoteCatalogRepository
+            remoteCatalogRepository = remoteCatalogRepository,
         )
     }
 
@@ -158,7 +156,7 @@ object AppModule {
                 },
                 thermalWatchdog = {
                     runCatching { thermalManager.currentLoadLevel() }.getOrNull()
-                }
+                },
             )
         }
         return LazyInferenceRuntime(registry, fallbackRuntime)
@@ -178,7 +176,7 @@ object AppModule {
             conversationDao = conversationDao,
             messageDao = messageDao,
             modelRepository = modelRepository,
-            appScope = appScope
+            appScope = appScope,
         )
     }
 }
@@ -204,8 +202,8 @@ object RuntimeProviderModule {
         return setOf(
             LlamaCppRuntimeProvider(
                 context = context.applicationContext,
-                settingsRepository = settingsRepository
-            )
+                settingsRepository = settingsRepository,
+            ),
         )
     }
 }

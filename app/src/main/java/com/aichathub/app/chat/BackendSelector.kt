@@ -49,14 +49,22 @@ class BackendSelector @Inject constructor(
 
         /** GPU vendor ID strings that indicate Adreno (Qualcomm) hardware. */
         private val ADRENO_VENDORS = setOf(
-            "Qualcomm", "qualcomm", "Qualcomm Technologies, Inc.",
-            "Adreno", "adreno"
+            "Qualcomm",
+            "qualcomm",
+            "Qualcomm Technologies, Inc.",
+            "Adreno",
+            "adreno",
         )
 
         /** GPU vendor ID strings that indicate Mali (ARM) hardware. */
         private val MALI_VENDORS = setOf(
-            "ARM", "arm", "ARM Ltd.", "Mali", "mali",
-            "ARM, Inc.", "ARM Limited"
+            "ARM",
+            "arm",
+            "ARM Ltd.",
+            "Mali",
+            "mali",
+            "ARM, Inc.",
+            "ARM Limited",
         )
     }
 
@@ -107,7 +115,7 @@ class BackendSelector @Inject constructor(
             gpuAccelerationAvailable = gpuAccelerationAvailable,
             deviceGpuModel = gpuInfo?.renderer,
             deviceGpuVendor = gpuInfo?.vendor,
-            reason = reason
+            reason = reason,
         )
         cachedInfo = info
         Log.i(TAG, "Backend info: $info")
@@ -157,7 +165,7 @@ class BackendSelector @Inject constructor(
             GpuInfo(
                 vendor = vendor.trim(),
                 renderer = renderer.trim(),
-                version = version?.trim() ?: "unknown"
+                version = version?.trim() ?: "unknown",
             )
         } catch (e: Exception) {
             Log.d(TAG, "GL probe failed: ${e.message}")

@@ -5,18 +5,18 @@ import androidx.lifecycle.viewModelScope
 import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.device.DeviceInfoProvider
-import com.aichathub.app.download.DownloadManager
-import com.aichathub.app.download.DownloadSegmentPolicy
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.DeviceProfile
+import com.aichathub.app.download.DownloadManager
+import com.aichathub.app.download.DownloadSegmentPolicy
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
 data class StorageUiState(
     val profile: DeviceProfile? = null,
@@ -47,7 +47,7 @@ class StorageViewModel @Inject constructor(
                 _state.value = _state.value.copy(
                     models = installed.mapNotNull { catalogRepository.getModelById(it.modelId) },
                     sizes = sizes,
-                    modelsTotalBytes = sizes.values.sum()
+                    modelsTotalBytes = sizes.values.sum(),
                 )
             }
         }

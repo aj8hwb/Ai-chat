@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -20,7 +19,6 @@ import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
@@ -70,12 +68,14 @@ fun ModelCard(
     onResume: (() -> Unit)? = null,
     onCancel: (() -> Unit)? = null
 ) {
-    AppCard(modifier = modifier.semantics {
-        contentDescription = "Model: ${model.name}, ${model.parameters}, ${model.provider}"
-    }.clickable(onClick = onClick)) {
+    AppCard(
+        modifier = modifier.semantics {
+            contentDescription = "Model: ${model.name}, ${model.parameters}, ${model.provider}"
+        }.clickable(onClick = onClick),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             ModelIcon(model = model, size = 48.dp)
             Spacer(Modifier.width(14.dp))
@@ -87,7 +87,7 @@ fun ModelCard(
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
                     if (recommended) {
                         Spacer(Modifier.width(6.dp))
@@ -100,7 +100,7 @@ fun ModelCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
                 if (model.purposeTitle.isNotBlank()) {
                     Spacer(Modifier.height(4.dp))
@@ -109,25 +109,25 @@ fun ModelCard(
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (showSize) {
                         Text(
                             Formatters.bytes(model.fileSizeBytes),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline
+                            color = MaterialTheme.colorScheme.outline,
                         )
                     }
                     Text(
                         model.parameters,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.colorScheme.outline,
                     )
                     if (compatibility != null) {
                         Spacer(Modifier.width(2.dp))
@@ -138,13 +138,17 @@ fun ModelCard(
             Spacer(Modifier.width(8.dp))
             if (onMore != null) {
                 IconButton(onClick = onMore) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(
+                        Icons.Filled.MoreVert,
+                        contentDescription = "More",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             } else if (primaryAction == null && onDownload == null) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = "Open",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -160,7 +164,7 @@ fun ModelCard(
         } else if (primaryAction != null) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.End,
             ) {
                 primaryAction()
             }
@@ -169,12 +173,12 @@ fun ModelCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.End,
             ) {
                 GradientButton(
                     text = "Download",
                     onClick = onDownload ?: {},
-                    icon = Icons.Filled.Download
+                    icon = Icons.Filled.Download,
                 )
             }
         } else {
@@ -195,26 +199,33 @@ fun DownloadProgressBlock(
     onCancel: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.fillMaxWidth().semantics {
-        contentDescription = "Download progress: ${download.progress}%, ${download.downloadedBytes} of ${download.totalBytes}"
-    }.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(
+        modifier = modifier.fillMaxWidth().semantics {
+            contentDescription = "Download progress: ${download.progress}%, " +
+                "${download.downloadedBytes} of ${download.totalBytes}"
+        }.padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
         val verifying = download.status == DownloadStatus.VERIFYING
         val paused = download.status == DownloadStatus.PAUSED
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (verifying) "Verifying integrity…"
-                else if (paused) "Paused · ${download.progress}%"
-                else "Downloading · ${download.progress}%",
+                if (verifying) {
+                    "Verifying integrity…"
+                } else if (paused) {
+                    "Paused · ${download.progress}%"
+                } else {
+                    "Downloading · ${download.progress}%"
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             )
             if (download.speedBytesPerSec > 0 && !verifying) {
                 Text(
                     "${Formatters.bytes(download.speedBytesPerSec)}/s",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
         }
@@ -224,7 +235,7 @@ fun DownloadProgressBlock(
             modifier = Modifier.fillMaxWidth().height(6.dp),
             color = if (verifying) Color(0xFF22D3EE) else Color(0xFF8B5CF6),
             trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            strokeCap = StrokeCap.Round
+            strokeCap = StrokeCap.Round,
         )
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -232,13 +243,13 @@ fun DownloadProgressBlock(
                 "${Formatters.bytes(download.downloadedBytes)} / ${Formatters.bytes(download.totalBytes)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             )
             if (download.etaSeconds > 0 && !verifying) {
                 Text(
                     "ETA ${etaText(download.etaSeconds)}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
+                    color = MaterialTheme.colorScheme.outline,
                 )
                 Spacer(Modifier.width(10.dp))
             }
@@ -246,15 +257,30 @@ fun DownloadProgressBlock(
                 Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                     if (paused) {
                         IconButton(onClick = onResume ?: {}, modifier = Modifier.size(44.dp)) {
-                            Icon(Icons.Filled.PlayArrow, contentDescription = "Resume", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                            Icon(
+                                Icons.Filled.PlayArrow,
+                                contentDescription = "Resume",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp),
+                            )
                         }
                     } else {
                         IconButton(onClick = onPause ?: {}, modifier = Modifier.size(44.dp)) {
-                            Icon(Icons.Filled.Pause, contentDescription = "Pause", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                            Icon(
+                                Icons.Filled.Pause,
+                                contentDescription = "Pause",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp),
+                            )
                         }
                     }
                     IconButton(onClick = onCancel ?: {}, modifier = Modifier.size(44.dp)) {
-                        Icon(Icons.Filled.Cancel, contentDescription = "Cancel", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                        Icon(
+                            Icons.Filled.Cancel,
+                            contentDescription = "Cancel",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp),
+                        )
                     }
                 }
             }
@@ -273,13 +299,13 @@ fun RecommendedTag() {
     Box(
         modifier = Modifier
             .background(Color(0xFF8B5CF6).copy(alpha = 0.15f), RoundedCornerShape(50))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
         Text(
             "Recommended",
             style = MaterialTheme.typography.labelSmall,
             color = Color(0xFFA78BFA),
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
         )
     }
 }
@@ -288,10 +314,7 @@ fun RecommendedTag() {
  * Model identity icon with a gradient derived from the model id hash.
  */
 @Composable
-fun ModelIcon(
-    model: CatalogModel,
-    size: androidx.compose.ui.unit.Dp = 48.dp
-) {
+fun ModelIcon(model: CatalogModel, size: androidx.compose.ui.unit.Dp = 48.dp) {
     val gradients = listOf(GradientPurple, GradientCyan, listOf(Color(0xFFF472B6), Color(0xFFA78BFA)))
     val idx = (model.id.hashCode() and Int.MAX_VALUE) % gradients.size
     val gradient = gradients[idx]
@@ -300,13 +323,13 @@ fun ModelIcon(
         modifier = Modifier
             .size(size)
             .background(Brush.linearGradient(gradient), RoundedCornerShape((size.value * 0.28f).dp)),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = model.name.split(" ").firstOrNull()?.firstOrNull()?.toString() ?: "AI",
             style = MaterialTheme.typography.titleMedium,
             color = Color.White,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
         )
     }
 }
@@ -323,19 +346,19 @@ fun ModelActionButtons(
             GradientButton(
                 text = "Download",
                 onClick = onDownload,
-                icon = Icons.Filled.Download
+                icon = Icons.Filled.Download,
             )
         ModelLifecycleState.INSTALLED ->
             GradientButton(
                 text = "Open Chat",
                 onClick = onChat,
-                icon = Icons.Filled.ChatBubbleOutline
+                icon = Icons.Filled.ChatBubbleOutline,
             )
         ModelLifecycleState.READY, ModelLifecycleState.RUNNING ->
             GradientButton(
                 text = "Chat",
                 onClick = onChat,
-                icon = Icons.Filled.ChatBubbleOutline
+                icon = Icons.Filled.ChatBubbleOutline,
             )
         ModelLifecycleState.ERROR ->
             GradientButton(text = "Retry", onClick = onDownload)

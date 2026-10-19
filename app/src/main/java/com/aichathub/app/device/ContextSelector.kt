@@ -102,10 +102,7 @@ object ContextSelector {
      *  - weights known but the remaining headroom is ≤ 0 → budget KNOWN and
      *    zero — an explicit insufficiency, not an unknown.
      */
-    fun toBudget(
-        maxSafeContextTokens: Int,
-        budgetKnown: Boolean
-    ): ContextBudget = when {
+    fun toBudget(maxSafeContextTokens: Int, budgetKnown: Boolean): ContextBudget = when {
         !budgetKnown -> ContextBudget.Unknown
         maxSafeContextTokens <= 0 -> ContextBudget.Known(0)
         else -> ContextBudget.Known(maxSafeContextTokens)
@@ -122,11 +119,7 @@ object ContextSelector {
      *   plus reserved generation tokens. Must be ≥ 0; larger values are used
      *   as-is in Long arithmetic (no Int overflow).
      */
-    fun selectContext(
-        modelMaxContext: Int,
-        budget: ContextBudget,
-        reservedTokens: Long = 0L
-    ): ContextSelection {
+    fun selectContext(modelMaxContext: Int, budget: ContextBudget, reservedTokens: Long = 0L): ContextSelection {
         // Session requirement: it must fit the runtime minimum AND the
         // requested prompt + generation reservation.
         val needed = maxOf(MIN_CONTEXT.toLong(), reservedTokens.coerceAtLeast(0L))
@@ -151,7 +144,7 @@ object ContextSelector {
                     requiredMinimum = needed,
                     reason = "The device memory budget is unavailable, so context is limited to a safe " +
                         "$fallback-token fallback and this conversation needs at least $needed. " +
-                        "Shorten the message or try again when more memory information is available."
+                        "Shorten the message or try again when more memory information is available.",
                 )
             }
             return ContextSelection.Selected(fallback.toInt())
@@ -166,7 +159,7 @@ object ContextSelector {
             return ContextSelection.Insufficient(
                 requiredMinimum = needed,
                 reason = "The safe memory budget for this model allows 0 context tokens. " +
-                    "Close other apps or try a lighter model (needs at least $needed tokens)."
+                    "Close other apps or try a lighter model (needs at least $needed tokens).",
             )
         }
 
@@ -178,7 +171,7 @@ object ContextSelector {
             return ContextSelection.Insufficient(
                 requiredMinimum = needed,
                 reason = "The safe memory budget allows only $candidate context tokens, " +
-                    "below the ${MIN_CONTEXT}-token runtime minimum. Try a lighter model."
+                    "below the ${MIN_CONTEXT}-token runtime minimum. Try a lighter model.",
             )
         }
 
@@ -189,13 +182,10 @@ object ContextSelector {
         return ContextSelection.Selected(candidate.toInt())
     }
 
-    private fun insufficient(
-        needed: Long,
-        available: Long,
-        source: String
-    ): ContextSelection.Insufficient = ContextSelection.Insufficient(
-        requiredMinimum = needed,
-        reason = "This conversation needs at least $needed tokens of context, but only " +
-            "$available are available from $source. Shorten the message or try a lighter model."
-    )
+    private fun insufficient(needed: Long, available: Long, source: String): ContextSelection.Insufficient =
+        ContextSelection.Insufficient(
+            requiredMinimum = needed,
+            reason = "This conversation needs at least $needed tokens of context, but only " +
+                "$available are available from $source. Shorten the message or try a lighter model.",
+        )
 }

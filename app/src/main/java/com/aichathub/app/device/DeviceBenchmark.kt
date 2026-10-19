@@ -4,10 +4,10 @@ import android.app.ActivityManager
 import android.content.Context
 import android.os.StatFs
 import android.util.Log
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * On-device benchmark that scores CPU, RAM, storage, and thermal state.
@@ -22,15 +22,21 @@ object DeviceBenchmark {
     private const val BENCHMARK_FILE = "device_benchmark.json"
 
     data class BenchmarkResult(
-        val cpuScore: Int,       // 0-100
-        val ramScore: Int,       // 0-100
-        val storageScore: Int,   // 0-100
-        val overallScore: Int,   // 0-100 (weighted average)
+        // 0-100
+        val cpuScore: Int,
+        // 0-100
+        val ramScore: Int,
+        // 0-100
+        val storageScore: Int,
+        // 0-100 (weighted average)
+        val overallScore: Int,
         val totalRamMb: Long,
         val availableRamMb: Long,
         val storageSpeedMbPerSec: Float,
-        val recommendedModelSize: String, // "1B", "3B", "7B", etc.
-        val maxRecommendedQuant: String,  // "Q4_K_M", "Q5_K_S", etc.
+        // "1B", "3B", "7B", etc.
+        val recommendedModelSize: String,
+        // "Q4_K_M", "Q5_K_S", etc.
+        val maxRecommendedQuant: String,
         val benchmarkTimestamp: Long
     )
 
@@ -60,10 +66,13 @@ object DeviceBenchmark {
             storageSpeedMbPerSec = storageSpeed,
             recommendedModelSize = recommendation.first,
             maxRecommendedQuant = recommendation.second,
-            benchmarkTimestamp = System.currentTimeMillis()
+            benchmarkTimestamp = System.currentTimeMillis(),
         )
 
-        Log.i(TAG, "Benchmark complete: cpu=$cpuScore ram=${ramResult.score} storage=$storageScore overall=$overallScore")
+        Log.i(
+            TAG,
+            "Benchmark complete: cpu=$cpuScore ram=${ramResult.score} storage=$storageScore overall=$overallScore",
+        )
         Log.i(TAG, "Recommendation: ${result.recommendedModelSize} ${result.maxRecommendedQuant}")
 
         saveResult(context, result)
@@ -116,8 +125,8 @@ object DeviceBenchmark {
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val memInfo = ActivityManager.MemoryInfo()
         am.getMemoryInfo(memInfo)
-        val totalMb = memInfo.totalMem / (1024 * 1024)      // Total SYSTEM RAM
-        val availableMb = memInfo.availMem / (1024 * 1024)  // Available SYSTEM RAM
+        val totalMb = memInfo.totalMem / (1024 * 1024) // Total SYSTEM RAM
+        val availableMb = memInfo.availMem / (1024 * 1024) // Available SYSTEM RAM
         // App-heap metrics are logged separately (informational only).
         val runtime = Runtime.getRuntime()
         val appHeapUsedMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
@@ -143,17 +152,17 @@ object DeviceBenchmark {
         // Score based on total and available SYSTEM RAM (not app heap)
         val score = when {
             totalMb >= 8192 -> 100 // 8GB+
-            totalMb >= 6144 -> 85  // 6GB
-            totalMb >= 4096 -> 70  // 4GB
-            totalMb >= 3072 -> 55  // 3GB
-            totalMb >= 2048 -> 40  // 2GB
+            totalMb >= 6144 -> 85 // 6GB
+            totalMb >= 4096 -> 70 // 4GB
+            totalMb >= 3072 -> 55 // 3GB
+            totalMb >= 2048 -> 40 // 2GB
             else -> 20
         }
 
         return RamResult(
             score = score,
             totalMb = totalMb,
-            availableMb = availableMb
+            availableMb = availableMb,
         )
     }
 
@@ -166,11 +175,11 @@ object DeviceBenchmark {
         val availableGb = stat.availableBlocksLong * stat.blockSizeLong / (1024 * 1024 * 1024)
 
         return when {
-            availableGb >= 50 -> 100  // 50GB+
-            availableGb >= 20 -> 85   // 20GB
-            availableGb >= 10 -> 70   // 10GB
-            availableGb >= 5 -> 55    // 5GB
-            availableGb >= 2 -> 40    // 2GB
+            availableGb >= 50 -> 100 // 50GB+
+            availableGb >= 20 -> 85 // 20GB
+            availableGb >= 10 -> 70 // 10GB
+            availableGb >= 5 -> 55 // 5GB
+            availableGb >= 2 -> 40 // 2GB
             else -> 20
         }
     }
@@ -280,7 +289,7 @@ object DeviceBenchmark {
                 storageSpeedMbPerSec = get("storageSpeedMbPerSec")?.toFloatOrNull() ?: 100f,
                 recommendedModelSize = get("recommendedModelSize") ?: "3B",
                 maxRecommendedQuant = get("maxRecommendedQuant") ?: "Q4_K_M",
-                benchmarkTimestamp = get("benchmarkTimestamp")?.toLongOrNull() ?: 0L
+                benchmarkTimestamp = get("benchmarkTimestamp")?.toLongOrNull() ?: 0L,
             )
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load benchmark result", e)

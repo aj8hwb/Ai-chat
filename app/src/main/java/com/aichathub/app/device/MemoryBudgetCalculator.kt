@@ -59,11 +59,7 @@ object MemoryBudgetCalculator {
         return calculate(profile, null, null)
     }
 
-    fun calculate(
-        profile: DeviceProfile,
-        modelWeightsBytes: Long?,
-        contextLength: Int?
-    ): AiMemoryBudget {
+    fun calculate(profile: DeviceProfile, modelWeightsBytes: Long?, contextLength: Int?): AiMemoryBudget {
         return calculate(profile, modelWeightsBytes, contextLength, null)
     }
 
@@ -183,7 +179,7 @@ object MemoryBudgetCalculator {
             kvCacheMemoryBytes = kvCacheMemory,
             contextMemoryBytes = contextMemory,
             threadBufferBytes = threadBuffers,
-            maxContextTokens = maxContextTokens
+            maxContextTokens = maxContextTokens,
         )
     }
 
@@ -222,11 +218,7 @@ object MemoryBudgetCalculator {
     /**
      * Calculates the safe context length for a specific model.
      */
-    fun calculateSafeContextLength(
-        profile: DeviceProfile,
-        modelWeightsBytes: Long,
-        requestedContextLength: Int
-    ): Int {
+    fun calculateSafeContextLength(profile: DeviceProfile, modelWeightsBytes: Long, requestedContextLength: Int): Int {
         val budget = calculate(profile, modelWeightsBytes, requestedContextLength)
         return budget.maxContextTokens.coerceAtMost(requestedContextLength)
     }

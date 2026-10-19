@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.Debug
 import android.util.Log
 import com.aichathub.app.util.ModelThreads
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,8 +17,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.codeshipping.llamakotlin.LlamaConfig
 import org.codeshipping.llamakotlin.LlamaModel
-import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Real on-device inference via llama.cpp (org.codeshipping:llama-kotlin-android).
@@ -107,6 +107,7 @@ class LlamaCppRuntime(
     /** Load-time settings reused when building per-generation native configs. */
     @Volatile
     private var reloadContextLength: Int = 512
+
     @Volatile
     private var reloadThreads: Int = 4
 
@@ -133,12 +134,7 @@ class LlamaCppRuntime(
         }
     }
 
-    private suspend fun doLoad(
-        modelId: String,
-        file: File,
-        contextLength: Int,
-        sampling: GenerationConfig?
-    ) {
+    private suspend fun doLoad(modelId: String, file: File, contextLength: Int, sampling: GenerationConfig?) {
         Log.i(tag, "Loading model $modelId from ${file.absolutePath}")
         val s = sampling ?: GenerationConfig()
         val config = LlamaConfig(
@@ -148,7 +144,7 @@ class LlamaCppRuntime(
             temperature = s.temperature,
             topP = s.topP,
             topK = s.topK,
-            seed = if (s.randomSeed == 0) -1 else s.randomSeed
+            seed = if (s.randomSeed == 0) -1 else s.randomSeed,
         )
         val pssBefore = pssBytes()
         val loaded = LlamaModel.load(file.absolutePath, config)
@@ -157,14 +153,17 @@ class LlamaCppRuntime(
         activeModelId = modelId
         _performance.value = InferenceRuntime.Performance(
             contextUsed = 0,
-            contextTokensMax = contextLength.coerceAtLeast(512)
+            contextTokensMax = contextLength.coerceAtLeast(512),
         )
         // Report the REAL memory this model consumes on this device (App PSS
         // delta around the load). This feeds the recommendation system so it
         // scores models on measured footprint, not just the catalog estimate.
         val pssDelta = (pssBytes() - pssBefore).coerceAtLeast(0)
         if (pssDelta > 0) onModelMemoryMeasured?.invoke(modelId, pssDelta)
-        Log.i(tag, "Model $modelId loaded (threads=${reloadThreads}, temp=${config.temperature}) ${LlamaModel.getVersion()}")
+        Log.i(
+            tag,
+            "Model $modelId loaded (threads=$reloadThreads, temp=${config.temperature}) ${LlamaModel.getVersion()}",
+        )
         memoryLog("after load $modelId")
     }
 
@@ -193,10 +192,7 @@ class LlamaCppRuntime(
         }
     }
 
-    override suspend fun generate(
-        prompt: String,
-        config: GenerationConfig
-    ): String = nativeMutex.withLock {
+    override suspend fun generate(prompt: String, config: GenerationConfig): String = nativeMutex.withLock {
         check(!closed.get()) { "Runtime already released" }
         if (cancelled.get()) throw CancellationException("Generation cancelled before start")
         val m = requireModel()
@@ -299,7 +295,7 @@ class LlamaCppRuntime(
                 _performance.value = _performance.value.copy(
                     tokensPerSecond = if (elapsed > 0f) tokens / elapsed else 0f,
                     tokensGenerated = tokens,
-                    generationActive = true
+                    generationActive = true,
                 )
             }
             // Thermal watchdog ~2x per second (cheap synchronous probe):
@@ -313,7 +309,7 @@ class LlamaCppRuntime(
                     runCatching { m.cancelGeneration() }
                         .onFailure { Log.w(tag, "Native thermal-stop cancel failed", it) }
                     throw CancellationException(
-                        "Generation stopped: device reached its critical thermal state."
+                        "Generation stopped: device reached its critical thermal state.",
                     )
                 }
             }
@@ -385,8 +381,7 @@ class LlamaCppRuntime(
         }
     }
 
-    private fun requireModel(): LlamaModel =
-        model ?: throw IllegalStateException("Model is not loaded")
+    private fun requireModel(): LlamaModel = model ?: throw IllegalStateException("Model is not loaded")
 
     /** Builds a full native config for one generation, preserving the load-time
      *  context size / threads while applying the per-generation sampling. */
@@ -399,7 +394,7 @@ class LlamaCppRuntime(
         topK = config.topK,
         maxTokens = config.maxTokens.coerceAtLeast(1),
         seed = if (config.randomSeed == 0) -1 else config.randomSeed,
-        stopSequences = config.stopSequences
+        stopSequences = config.stopSequences,
     )
 
     private fun pssBytes(): Long = runCatching {
@@ -435,7 +430,7 @@ class LlamaCppRuntime(
             tokensPerSecond = tps,
             tokensGenerated = tokensGenerated,
             contextUsed = (promptTokens + tokensGenerated),
-            contextTokensMax = reloadContextLength.coerceAtLeast(512)
+            contextTokensMax = reloadContextLength.coerceAtLeast(512),
         )
     }
 }

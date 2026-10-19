@@ -22,7 +22,7 @@ class CompatibilityEngineTest {
         storageAvailableBytes = 40L * 1024 * 1024 * 1024,
         cpuCores = 8,
         abi = "arm64-v8a",
-        androidVersion = 14
+        androidVersion = 14,
     )
 
     private val lowRamProfile = DeviceProfile(
@@ -33,7 +33,7 @@ class CompatibilityEngineTest {
         cpuCores = 4,
         abi = "arm64-v8a",
         androidVersion = 14,
-        isLowRamDevice = true
+        isLowRamDevice = true,
     )
 
     private fun budget(modelMemoryMb: Int) = AiMemoryBudget(
@@ -41,19 +41,15 @@ class CompatibilityEngineTest {
         reservedBytes = 1L * 1024 * 1024 * 1024,
         runtimeOverheadBytes = 400L * 1024 * 1024,
         safetyReserveBytes = 700L * 1024 * 1024,
-        modelMemoryBytes = modelMemoryMb.toLong() * 1024 * 1024
+        modelMemoryBytes = modelMemoryMb.toLong() * 1024 * 1024,
     )
 
-    private fun model(
-        estimatedMemoryMb: Int,
-        parameterCount: Long = 0,
-        fileSizeMb: Int = 0
-    ) = CatalogModel(
+    private fun model(estimatedMemoryMb: Int, parameterCount: Long = 0, fileSizeMb: Int = 0) = CatalogModel(
         id = "test-model",
         name = "Test Model",
         provider = "test",
         description = "test",
-        parameters = "${parameterCount}",
+        parameters = "$parameterCount",
         category = "chat",
         format = ModelFormat.GGUF,
         quantization = "Q4_K_M",
@@ -66,7 +62,7 @@ class CompatibilityEngineTest {
         downloadUrl = "https://example.com/model.gguf",
         fileName = "model.gguf",
         runtime = "llama",
-        parameterCount = parameterCount
+        parameterCount = parameterCount,
     )
 
     @Test
@@ -108,7 +104,7 @@ class CompatibilityEngineTest {
         val recs = engine.recommendAll(
             listOf(model(4096), model(200)),
             largeProfile,
-            budget(2048)
+            budget(2048),
         )
         val heavy = recs.first { it.model.estimatedMemoryBytes > budget(2048).modelMemoryBytes }
         assertNotNull(heavy.quantizationNote)
@@ -121,7 +117,7 @@ class CompatibilityEngineTest {
         val recs = engine.recommendAll(
             listOf(model(4096), model(200), model(1536)),
             largeProfile,
-            budget(2048)
+            budget(2048),
         )
         assertEquals(CompatibilityLevel.EXCELLENT, recs[0].level)
         assertEquals(CompatibilityLevel.RECOMMENDED, recs[1].level)
@@ -138,7 +134,7 @@ class CompatibilityEngineTest {
             model(200),
             largeProfile,
             budget(2048),
-            measuredMemory = mapOf("test-model" to (5L * 1024 * 1024 * 1024))
+            measuredMemory = mapOf("test-model" to (5L * 1024 * 1024 * 1024)),
         )
         assertEquals(CompatibilityLevel.HEAVY, level)
     }
@@ -150,7 +146,7 @@ class CompatibilityEngineTest {
             model(200),
             largeProfile,
             budget(2048),
-            measuredMemory = mapOf("some-other-model" to (9L * 1024 * 1024 * 1024))
+            measuredMemory = mapOf("some-other-model" to (9L * 1024 * 1024 * 1024)),
         )
         assertEquals(CompatibilityLevel.EXCELLENT, level)
     }
@@ -162,7 +158,7 @@ class CompatibilityEngineTest {
         // badge recommends.
         assertEquals(
             LoadDecision.SAFE,
-            engine.loadDecision(model(1536), budget(2048))
+            engine.loadDecision(model(1536), budget(2048)),
         )
     }
 
@@ -171,13 +167,13 @@ class CompatibilityEngineTest {
         // 2.4GB model, 2GB usable budget: 1.2x -> HEAVY band, still loadable.
         assertEquals(
             LoadDecision.HEAVY,
-            engine.loadDecision(model(2458), budget(2048))
+            engine.loadDecision(model(2458), budget(2048)),
         )
         // Boundary: exactly 1.35x is still HEAVY (allowed).
         val boundary = (2048.0 * 1.35).toInt()
         assertEquals(
             LoadDecision.HEAVY,
-            engine.loadDecision(model(boundary), budget(2048))
+            engine.loadDecision(model(boundary), budget(2048)),
         )
     }
 
@@ -188,13 +184,13 @@ class CompatibilityEngineTest {
         // the load gate finally agree.
         assertEquals(
             LoadDecision.BLOCKED,
-            engine.loadDecision(model(3584), budget(2048))
+            engine.loadDecision(model(3584), budget(2048)),
         )
         // Just past the boundary must flip to BLOCKED.
         val justOver = (2048.0 * 1.35 + 1).toInt()
         assertEquals(
             LoadDecision.BLOCKED,
-            engine.loadDecision(model(justOver), budget(2048))
+            engine.loadDecision(model(justOver), budget(2048)),
         )
     }
 
@@ -207,19 +203,18 @@ class CompatibilityEngineTest {
             engine.loadDecision(
                 model(200),
                 budget(2048),
-                measuredMemory = mapOf("test-model" to (5L * 1024 * 1024 * 1024))
-            )
+                measuredMemory = mapOf("test-model" to (5L * 1024 * 1024 * 1024)),
+            ),
         )
     }
 
     // ── hard load gate (loadEligibility) ────────────────────────────────
 
     /** The gate computes its own budget; probe it to write exact tests. */
-    private fun probeUsableBytes(): Long =
-        engine.loadEligibility(
-            model(estimatedMemoryMb = 100, fileSizeMb = 100),
-            largeProfile
-        ).usableBytes
+    private fun probeUsableBytes(): Long = engine.loadEligibility(
+        model(estimatedMemoryMb = 100, fileSizeMb = 100),
+        largeProfile,
+    ).usableBytes
 
     @Test
     fun `unmeasured model whose weights alone exceed the budget is hard BLOCKED not warned`() {
@@ -231,7 +226,7 @@ class CompatibilityEngineTest {
         val mb = 1024L * 1024
         val m = model(
             estimatedMemoryMb = ((usable * 1.5) / mb).toInt(),
-            fileSizeMb = ((usable * 2.0) / mb).toInt()
+            fileSizeMb = ((usable * 2.0) / mb).toInt(),
         )
         val result = engine.loadEligibility(m, largeProfile)
         assertEquals(LoadEligibility.BLOCK, result.eligibility)
@@ -244,7 +239,7 @@ class CompatibilityEngineTest {
         val mb = 1024L * 1024
         val m = model(
             estimatedMemoryMb = ((usable * 1.5) / mb).toInt(),
-            fileSizeMb = ((usable * 2.0) / mb).toInt()
+            fileSizeMb = ((usable * 2.0) / mb).toInt(),
         )
         val message = engine.loadEligibility(m, largeProfile).message
         assertTrue(message.contains("file alone"))
@@ -257,7 +252,7 @@ class CompatibilityEngineTest {
         val mb = 1024L * 1024
         val m = model(
             estimatedMemoryMb = ((usable * 1.5) / mb).toInt(),
-            fileSizeMb = ((usable * 0.25) / mb).toInt()
+            fileSizeMb = ((usable * 0.25) / mb).toInt(),
         )
         val result = engine.loadEligibility(m, largeProfile)
         assertEquals(LoadEligibility.WARN, result.eligibility)
@@ -269,12 +264,12 @@ class CompatibilityEngineTest {
         val mb = 1024L * 1024
         val m = model(
             estimatedMemoryMb = 100,
-            fileSizeMb = ((usable * 0.25) / mb).toInt()
+            fileSizeMb = ((usable * 0.25) / mb).toInt(),
         )
         val result = engine.loadEligibility(
             m,
             largeProfile,
-            measuredMemory = mapOf("test-model" to (usable * 2))
+            measuredMemory = mapOf("test-model" to (usable * 2)),
         )
         assertEquals(LoadEligibility.BLOCK, result.eligibility)
         assertTrue(result.measured)
@@ -286,7 +281,7 @@ class CompatibilityEngineTest {
         val mb = 1024L * 1024
         val m = model(
             estimatedMemoryMb = ((usable * 0.5) / mb).toInt(),
-            fileSizeMb = ((usable * 0.25) / mb).toInt()
+            fileSizeMb = ((usable * 0.25) / mb).toInt(),
         )
         assertEquals(LoadEligibility.ALLOW, engine.loadEligibility(m, largeProfile).eligibility)
     }

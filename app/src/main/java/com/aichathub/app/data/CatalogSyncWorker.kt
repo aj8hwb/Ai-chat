@@ -45,7 +45,7 @@ class CatalogSyncWorker @AssistedInject constructor(
         fun enqueue(context: Context) {
             val request = PeriodicWorkRequestBuilder<CatalogSyncWorker>(
                 repeatInterval = 24,
-                repeatIntervalTimeUnit = TimeUnit.HOURS
+                repeatIntervalTimeUnit = TimeUnit.HOURS,
             )
                 .setInitialDelay(1, TimeUnit.HOURS)
                 .build()
@@ -54,7 +54,7 @@ class CatalogSyncWorker @AssistedInject constructor(
                 .enqueueUniquePeriodicWork(
                     WORK_NAME,
                     ExistingPeriodicWorkPolicy.KEEP,
-                    request
+                    request,
                 )
 
             Log.i(TAG, "Catalog sync work enqueued (every 24h)")
@@ -126,7 +126,7 @@ class CatalogSyncWorker @AssistedInject constructor(
             ForegroundInfo(
                 NOTIFICATION_ID,
                 notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
             )
         } else {
             @Suppress("DEPRECATION")
@@ -168,7 +168,7 @@ class CatalogSyncWorker @AssistedInject constructor(
         val channel = NotificationChannel(
             NOTIFICATION_CHANNEL_ID,
             "Catalog Sync",
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_LOW,
         ).apply {
             description = "Notifications about model catalog updates"
         }

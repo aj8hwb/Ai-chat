@@ -13,7 +13,7 @@ class DownloadActionReceiver : BroadcastReceiver() {
         val modelId = intent.getStringExtra(EXTRA_MODEL_ID) ?: return
         val entryPoint = EntryPointAccessors.fromApplication(
             context.applicationContext,
-            DownloadManagerEntryPoint::class.java
+            DownloadManagerEntryPoint::class.java,
         )
         val manager = entryPoint.downloadManager()
         when (intent.action) {
@@ -51,7 +51,7 @@ class DownloadActionReceiver : BroadcastReceiver() {
                 context,
                 requestCode,
                 intent,
-                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT,
             )
         }
     }

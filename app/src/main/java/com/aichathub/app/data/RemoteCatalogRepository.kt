@@ -7,6 +7,10 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.aichathub.app.data.model.RemoteCatalogManifest
+import java.io.File
+import java.net.URI
+import java.net.URL
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -16,10 +20,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.CacheControl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.io.File
-import java.net.URI
-import java.net.URL
-import java.util.concurrent.TimeUnit
 
 private val Context.catalogDataStore by preferencesDataStore(name = "remote_catalog")
 
@@ -46,8 +46,10 @@ class RemoteCatalogRepository(private val context: Context) {
             "https://raw.githubusercontent.com/aichathub/catalog/main/manifest.json"
         private const val MAX_CACHE_AGE_HOURS = 24L
         private const val CACHE_FILE_NAME = "catalog_manifest.json"
+
         /** Maximum allowed manifest response size (1 MB). */
         private const val MAX_MANIFEST_SIZE_BYTES = 1_024_024L
+
         /** Maximum allowed file name length. */
         private const val MAX_FILE_NAME_LENGTH = 255
 
@@ -60,7 +62,7 @@ class RemoteCatalogRepository(private val context: Context) {
             "github.com",
             "huggingface.co",
             "hf.co",
-            "cdn-lfs.huggingface.co"
+            "cdn-lfs.huggingface.co",
         )
     }
 
@@ -110,7 +112,7 @@ class RemoteCatalogRepository(private val context: Context) {
             .cacheControl(
                 CacheControl.Builder()
                     .maxStale(MAX_CACHE_AGE_HOURS, TimeUnit.HOURS)
-                    .build()
+                    .build(),
             )
 
         if (!cachedEtag.isNullOrBlank()) {
@@ -150,7 +152,10 @@ class RemoteCatalogRepository(private val context: Context) {
                     // Persist the new manifest
                     saveManifest(body, etagHeader, validatedManifest.version)
 
-                    Log.i(TAG, "Fetched catalog v${validatedManifest.version} (${validatedManifest.models.size} models)")
+                    Log.i(
+                        TAG,
+                        "Fetched catalog v${validatedManifest.version} (${validatedManifest.models.size} models)",
+                    )
                     validatedManifest
                 }
 
@@ -181,8 +186,11 @@ class RemoteCatalogRepository(private val context: Context) {
     suspend fun getLocalManifest(): RemoteCatalogManifest? = withContext(Dispatchers.IO) {
         val prefs = context.catalogDataStore.data.first()
         val cachedJson = prefs[Keys.manifestJson]
-        if (cachedJson.isNullOrBlank()) null
-        else parseCachedManifest(cachedJson)
+        if (cachedJson.isNullOrBlank()) {
+            null
+        } else {
+            parseCachedManifest(cachedJson)
+        }
     }
 
     /**
@@ -262,11 +270,13 @@ class RemoteCatalogRepository(private val context: Context) {
         // Remove signature and keyId from the payload
         val payload = kotlinx.serialization.json.JsonObject(obj.filterKeys { it != "signature" && it != "keyId" })
         // Build the envelope
-        val envelope = kotlinx.serialization.json.JsonObject(mapOf(
-            "payload" to payload,
-            "signature" to kotlinx.serialization.json.JsonPrimitive(signature),
-            "keyId" to kotlinx.serialization.json.JsonPrimitive(keyId)
-        ))
+        val envelope = kotlinx.serialization.json.JsonObject(
+            mapOf(
+                "payload" to payload,
+                "signature" to kotlinx.serialization.json.JsonPrimitive(signature),
+                "keyId" to kotlinx.serialization.json.JsonPrimitive(keyId),
+            ),
+        )
         return envelope.toString()
     }
 
@@ -381,11 +391,7 @@ class RemoteCatalogRepository(private val context: Context) {
         }
     }
 
-    private suspend fun saveManifest(
-        jsonString: String,
-        etag: String?,
-        version: Int
-    ) {
+    private suspend fun saveManifest(jsonString: String, etag: String?, version: Int) {
         context.catalogDataStore.edit { prefs ->
             prefs[Keys.manifestJson] = jsonString
             if (etag != null) {

@@ -52,16 +52,16 @@ data class ConversationEntity(
     tableName = "messages",
     indices = [
         Index(value = ["conversationId"]),
-        Index(value = ["conversationId", "createdAt"])
+        Index(value = ["conversationId", "createdAt"]),
     ],
     foreignKeys = [
         ForeignKey(
             entity = ConversationEntity::class,
             parentColumns = ["id"],
             childColumns = ["conversationId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ]
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
 )
 data class MessageEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -178,10 +178,10 @@ interface MessageDao {
     entities = [
         InstalledModelEntity::class,
         ConversationEntity::class,
-        MessageEntity::class
+        MessageEntity::class,
     ],
     version = 5,
-    exportSchema = true
+    exportSchema = true,
 )
 abstract class AiDatabase : RoomDatabase() {
     abstract fun installedModelDao(): InstalledModelDao
@@ -194,7 +194,9 @@ abstract class AiDatabase : RoomDatabase() {
          */
         val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_messages_conversationId` ON `messages` (`conversationId`)")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_messages_conversationId` ON `messages` (`conversationId`)",
+                )
             }
         }
 
@@ -224,7 +226,10 @@ abstract class AiDatabase : RoomDatabase() {
          */
         val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_messages_conversationId_createdAt` ON `messages` (`conversationId`, `createdAt`)")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_messages_conversationId_createdAt` " +
+                        "ON `messages` (`conversationId`, `createdAt`)",
+                )
             }
         }
     }

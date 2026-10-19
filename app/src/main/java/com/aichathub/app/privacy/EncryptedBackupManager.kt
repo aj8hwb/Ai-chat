@@ -58,6 +58,7 @@ object EncryptedBackupManager {
     private const val GCM_IV_LENGTH = 12
     private const val GCM_TAG_LENGTH = 128
     private const val SALT_LENGTH = 32
+
     /**
      * PBKDF2 iteration count. 600,000 is the OWASP 2023 recommendation for
      * PBKDF2-HMAC-SHA256 at 256-bit key length. This provides meaningful
@@ -96,17 +97,17 @@ object EncryptedBackupManager {
 
         val keyGenerator = KeyGenerator.getInstance(
             KeyProperties.KEY_ALGORITHM_AES,
-            ANDROID_KEYSTORE
+            ANDROID_KEYSTORE,
         )
         keyGenerator.init(
             KeyGenParameterSpec.Builder(
                 KEYSTORE_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
             )
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setKeySize(256)
-                .build()
+                .build(),
         )
         return keyGenerator.generateKey()
     }
@@ -124,11 +125,7 @@ object EncryptedBackupManager {
     /**
      * Encrypts a file using AES-256-GCM with Keystore key (streaming).
      */
-    fun encryptFile(
-        context: Context,
-        inputFile: File,
-        outputFile: File
-    ): Boolean {
+    fun encryptFile(context: Context, inputFile: File, outputFile: File): Boolean {
         return try {
             val key = getOrCreateKey()
             val cipher = Cipher.getInstance(AES_GCM)
@@ -163,12 +160,7 @@ object EncryptedBackupManager {
     /**
      * Encrypts a file using AES-256-GCM with a password (cross-device portable, streaming).
      */
-    fun encryptFileWithPassword(
-        context: Context,
-        inputFile: File,
-        outputFile: File,
-        password: String
-    ): Boolean {
+    fun encryptFileWithPassword(context: Context, inputFile: File, outputFile: File, password: String): Boolean {
         return try {
             val salt = ByteArray(SALT_LENGTH)
             SecureRandom().nextBytes(salt)
@@ -208,12 +200,7 @@ object EncryptedBackupManager {
      * Decrypts a .aichathub file using AES-256-GCM (streaming).
      * Automatically detects whether keystore or password mode was used.
      */
-    fun decryptFile(
-        context: Context,
-        inputFile: File,
-        outputFile: File,
-        password: String? = null
-    ): Boolean {
+    fun decryptFile(context: Context, inputFile: File, outputFile: File, password: String? = null): Boolean {
         return try {
             FileInputStream(inputFile).use { inp ->
                 // Read header fields (small, sequential)
@@ -304,12 +291,7 @@ object EncryptedBackupManager {
     /**
      * Exports conversation data as an encrypted backup.
      */
-    fun exportEncryptedBackup(
-        context: Context,
-        data: String,
-        outputFile: File,
-        password: String? = null
-    ): Boolean {
+    fun exportEncryptedBackup(context: Context, data: String, outputFile: File, password: String? = null): Boolean {
         val tempFile = File(context.cacheDir, "backup_temp.json")
         return try {
             tempFile.writeText(data)
@@ -326,16 +308,14 @@ object EncryptedBackupManager {
     /**
      * Imports an encrypted backup.
      */
-    fun importEncryptedBackup(
-        context: Context,
-        inputFile: File,
-        password: String? = null
-    ): String? {
+    fun importEncryptedBackup(context: Context, inputFile: File, password: String? = null): String? {
         val tempFile = File(context.cacheDir, "import_temp.json")
         return try {
             if (decryptFile(context, inputFile, tempFile, password)) {
                 tempFile.readText()
-            } else null
+            } else {
+                null
+            }
         } finally {
             tempFile.delete()
         }
@@ -346,7 +326,7 @@ object EncryptedBackupManager {
             (value shr 24).toByte(),
             (value shr 16).toByte(),
             (value shr 8).toByte(),
-            value.toByte()
+            value.toByte(),
         )
     }
 

@@ -1,7 +1,5 @@
 package com.aichathub.app.privacy
 
-import android.content.Context
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -65,15 +63,11 @@ object BiometricAuthManager {
      * @param onAuthSuccess called when authentication succeeds
      * @param onAuthFailure called when authentication fails or is cancelled
      */
-    fun authenticate(
-        activity: FragmentActivity,
-        onAuthSuccess: () -> Unit,
-        onAuthFailure: () -> Unit = {}
-    ) {
+    fun authenticate(activity: FragmentActivity, onAuthSuccess: () -> Unit, onAuthFailure: () -> Unit = {}) {
         val biometricManager = BiometricManager.from(activity)
         val canAuth = biometricManager.canAuthenticate(
             BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                BiometricManager.Authenticators.DEVICE_CREDENTIAL,
         )
 
         if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
@@ -111,7 +105,7 @@ object BiometricAuthManager {
             .setSubtitle("Verify your identity to continue")
             .setAllowedAuthenticators(
                 BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                    BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                    BiometricManager.Authenticators.DEVICE_CREDENTIAL,
             )
             .build()
 

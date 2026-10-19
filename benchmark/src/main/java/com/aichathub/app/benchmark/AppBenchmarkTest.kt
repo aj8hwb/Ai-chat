@@ -35,7 +35,7 @@ class AppBenchmarkTest {
         metrics = listOf(StartupTimingMetric()),
         iterations = 5,
         startupMode = StartupMode.COLD,
-        compilationMode = CompilationMode.DEFAULT()
+        compilationMode = CompilationMode.DEFAULT(),
     ) {
         pressHome()
         startActivityAndWait()
@@ -47,7 +47,7 @@ class AppBenchmarkTest {
         metrics = listOf(StartupTimingMetric()),
         iterations = 5,
         startupMode = StartupMode.WARM,
-        compilationMode = CompilationMode.DEFAULT()
+        compilationMode = CompilationMode.DEFAULT(),
     ) {
         pressHome()
         startActivityAndWait()
@@ -58,7 +58,7 @@ class AppBenchmarkTest {
         packageName = "com.aichathub.app",
         metrics = listOf(FrameTimingMetric()),
         iterations = 5,
-        compilationMode = CompilationMode.DEFAULT()
+        compilationMode = CompilationMode.DEFAULT(),
     ) {
         // Navigate to chat
         startActivityAndWait()
@@ -75,7 +75,7 @@ class AppBenchmarkTest {
         packageName = "com.aichathub.app",
         metrics = listOf(FrameTimingMetric()),
         iterations = 3,
-        compilationMode = CompilationMode.DEFAULT()
+        compilationMode = CompilationMode.DEFAULT(),
     ) {
         startActivityAndWait()
         // Navigate to models screen
@@ -88,7 +88,7 @@ class AppBenchmarkTest {
         packageName = "com.aichathub.app",
         metrics = listOf(FrameTimingMetric()),
         iterations = 3,
-        compilationMode = CompilationMode.DEFAULT()
+        compilationMode = CompilationMode.DEFAULT(),
     ) {
         startActivityAndWait()
         device.findObject(By.text("Settings"))?.click()

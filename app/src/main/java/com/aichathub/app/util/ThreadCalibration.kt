@@ -42,7 +42,8 @@ object ThreadCalibration {
         val tokensPerSecond: Float,
         val timestampMs: Long,
         val trialsPerCandidate: Int,
-        val complete: Boolean // false when the calibration was cut short (thermal/time/cancel)
+        // false when the calibration was cut short (thermal/time/cancel)
+        val complete: Boolean
     )
 
     /** Thread counts to compare, ascending, within the runtime's clamps. */
@@ -120,12 +121,7 @@ object ThreadCalibration {
      * A calibration result NEVER overrides thermal or memory-pressure
      * reductions — those are applied by the caller on top of this value.
      */
-    fun resolveThreadCount(
-        record: CalibrationRecord?,
-        nowMs: Long,
-        batteryConscious: Boolean,
-        cpuCores: Int
-    ): Int {
+    fun resolveThreadCount(record: CalibrationRecord?, nowMs: Long, batteryConscious: Boolean, cpuCores: Int): Int {
         val baseline = ModelThreads.recommended(batteryConscious, cpuCores)
         if (record == null) return baseline
         if (!record.complete) return baseline
@@ -145,16 +141,15 @@ object ThreadCalibration {
     // are sanitized at write time); record fields are numeric + flags joined
     // by ','.
 
-    fun encode(map: Map<String, CalibrationRecord>): String =
-        map.entries.joinToString(";") { (key, r) ->
-            sanitizeKey(key) + "@" + listOf(
-                r.threads.toString(),
-                r.tokensPerSecond.toString(),
-                r.timestampMs.toString(),
-                r.trialsPerCandidate.toString(),
-                if (r.complete) "1" else "0"
-            ).joinToString(",")
-        }
+    fun encode(map: Map<String, CalibrationRecord>): String = map.entries.joinToString(";") { (key, r) ->
+        sanitizeKey(key) + "@" + listOf(
+            r.threads.toString(),
+            r.tokensPerSecond.toString(),
+            r.timestampMs.toString(),
+            r.trialsPerCandidate.toString(),
+            if (r.complete) "1" else "0",
+        ).joinToString(",")
+    }
 
     /**
      * Persisted-record READ validation (spec §5): malformed, corrupted or
@@ -190,6 +185,5 @@ object ThreadCalibration {
         return result
     }
 
-    private fun sanitizeKey(key: String): String =
-        key.replace(";", "|").replace("@", "_")
+    private fun sanitizeKey(key: String): String = key.replace(";", "|").replace("@", "_")
 }

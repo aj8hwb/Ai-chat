@@ -30,7 +30,7 @@ fun ChatComposer(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.Bottom
+        verticalAlignment = Alignment.Bottom,
     ) {
         OutlinedTextField(
             value = input,
@@ -46,8 +46,8 @@ fun ChatComposer(
                 unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                 focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                cursorColor = MaterialTheme.colorScheme.primary
-            )
+                cursorColor = MaterialTheme.colorScheme.primary,
+            ),
         )
         Spacer(Modifier.width(10.dp))
         if (generating || isLoadingModel) {
@@ -55,21 +55,18 @@ fun ChatComposer(
                 text = "Stop",
                 onClick = onStop,
                 icon = Icons.Filled.Stop,
-                enabled = !isLoadingModel
+                enabled = !isLoadingModel,
             )
         } else {
             GradientButton(
                 text = "Send",
                 onClick = onSend,
-                enabled = input.isNotBlank()
+                enabled = input.isNotBlank(),
             )
         }
     }
 }
 
-private fun androidx.compose.material3.Text(
-    text: String,
-    color: androidx.compose.ui.graphics.Color
-) {
+private fun androidx.compose.material3.Text(text: String, color: androidx.compose.ui.graphics.Color) {
     // Placeholder - actual Text is imported from Material3
 }

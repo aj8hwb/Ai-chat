@@ -19,13 +19,13 @@ import com.aichathub.app.download.DownloadStartResult
 import com.aichathub.app.download.DownloadStatus
 import com.aichathub.app.util.Formatters
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
 data class ModelDetailsUiState(
     val model: CatalogModel? = null,
@@ -70,7 +70,7 @@ class ModelDetailsViewModel @Inject constructor(
             val installed = container_modelRepository.stateFor(modelId)
             _state.value = _state.value.copy(
                 lifecycle = installed?.state ?: ModelLifecycleState.NOT_INSTALLED,
-                filePath = installed?.filePath
+                filePath = installed?.filePath,
             )
             analyzeCompatibility(model)
             observeDownload(model)
@@ -86,7 +86,7 @@ class ModelDetailsViewModel @Inject constructor(
                 _state.value = current.copy(
                     isDefaultModel = s.defaultModelId == current.model?.id,
                     defaultModelMissing = s.defaultModelId != null &&
-                        catalogRepository.getModelById(s.defaultModelId!!) == null
+                        catalogRepository.getModelById(s.defaultModelId!!) == null,
                 )
             }
         }
@@ -114,18 +114,20 @@ class ModelDetailsViewModel @Inject constructor(
             listOf(model),
             profile,
             budget,
-            measured
+            measured,
         ).firstOrNull()
         _state.value = _state.value.copy(
             compatibility = rec?.level,
             recommendation = rec,
             warningMessage = when (rec?.level) {
                 CompatibilityLevel.HEAVY ->
-                    "This model uses more memory than is safely available right now. It will still load and run, but it may be slow or unstable."
+                    "This model uses more memory than is safely available right now. " +
+                        "It will still load and run, but it may be slow or unstable."
                 CompatibilityLevel.NOT_RECOMMENDED ->
-                    "This model is heavy for your device's memory. It will still load and run, but it may be slow or unstable."
+                    "This model is heavy for your device's memory. It will still load and run, " +
+                        "but it may be slow or unstable."
                 else -> null
-            }
+            },
         )
     }
 
@@ -145,7 +147,7 @@ class ModelDetailsViewModel @Inject constructor(
                     DownloadStatus.FAILED ->
                         _state.value = _state.value.copy(
                             lifecycle = ModelLifecycleState.NOT_INSTALLED,
-                            warningMessage = d.error
+                            warningMessage = d.error,
                         )
                     DownloadStatus.CANCELLED ->
                         _state.value = _state.value.copy(lifecycle = ModelLifecycleState.NOT_INSTALLED)
@@ -164,13 +166,15 @@ class ModelDetailsViewModel @Inject constructor(
                     _state.value = _state.value.copy(
                         lifecycle = ModelLifecycleState.DOWNLOADING,
                         warningMessage = null,
-                        download = null
+                        download = null,
                     )
                 }
                 is DownloadStartResult.AlreadyActive -> Unit
                 is DownloadStartResult.NoStorage -> {
                     _state.value = _state.value.copy(
-                        warningMessage = "Not enough free space. You need ${Formatters.bytes(result.requiredBytes)} free (${Formatters.bytes(result.availableBytes)} available)."
+                        warningMessage =
+                        "Not enough free space. You need ${Formatters.bytes(result.requiredBytes)} free " +
+                            "(${Formatters.bytes(result.availableBytes)} available).",
                     )
                 }
                 is DownloadStartResult.Failed -> {
@@ -203,7 +207,7 @@ class ModelDetailsViewModel @Inject constructor(
             _state.value = _state.value.copy(
                 lifecycle = ModelLifecycleState.NOT_INSTALLED,
                 filePath = null,
-                download = null
+                download = null,
             )
         }
     }
@@ -215,7 +219,7 @@ class ModelDetailsViewModel @Inject constructor(
             _state.value = _state.value.copy(
                 lifecycle = ModelLifecycleState.INSTALLED,
                 filePath = file.absolutePath,
-                warningMessage = null
+                warningMessage = null,
             )
         }
     }

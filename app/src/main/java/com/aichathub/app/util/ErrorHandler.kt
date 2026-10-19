@@ -1,11 +1,11 @@
 package com.aichathub.app.util
 
 import android.util.Log
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.io.IOException
 
 /**
  * Comprehensive error handling utility for the application.
@@ -25,42 +25,42 @@ object ErrorHandler {
         class NetworkError(message: String, cause: Throwable? = null) : AppError(
             message = message,
             cause = cause,
-            isRetryable = true
+            isRetryable = true,
         )
 
         class DatabaseError(message: String, cause: Throwable? = null) : AppError(
             message = message,
             cause = cause,
-            isRetryable = false
+            isRetryable = false,
         )
 
         class ModelError(message: String, cause: Throwable? = null) : AppError(
             message = message,
             cause = cause,
-            isRetryable = true
+            isRetryable = true,
         )
 
         class DownloadError(message: String, cause: Throwable? = null) : AppError(
             message = message,
             cause = cause,
-            isRetryable = true
+            isRetryable = true,
         )
 
         class MemoryError(message: String, cause: Throwable? = null) : AppError(
             message = message,
             cause = cause,
-            isRetryable = false
+            isRetryable = false,
         )
 
         class ValidationError(message: String) : AppError(
             message = message,
-            isRetryable = false
+            isRetryable = false,
         )
 
         class UnknownError(message: String, cause: Throwable? = null) : AppError(
             message = message,
             cause = cause,
-            isRetryable = true
+            isRetryable = true,
         )
     }
 
@@ -92,21 +92,21 @@ object ErrorHandler {
             is CancellationException -> throw exception // Don't handle cancellation
             is IOException -> AppError.NetworkError(
                 message = "Network error: ${exception.localizedMessage}",
-                cause = exception
+                cause = exception,
             )
             is OutOfMemoryError -> AppError.MemoryError(
                 message = "Insufficient memory. Try a lighter model.",
-                cause = exception
+                cause = exception,
             )
             is SecurityException -> AppError.DatabaseError(
                 message = "Permission denied: ${exception.localizedMessage}",
-                cause = exception
+                cause = exception,
             )
             else -> {
                 Log.e(TAG, "Unhandled exception", exception)
                 AppError.UnknownError(
                     message = exception.localizedMessage ?: "An unexpected error occurred",
-                    cause = exception
+                    cause = exception,
                 )
             }
         }
@@ -151,7 +151,8 @@ object ErrorHandler {
      */
     fun getUserFriendlyMessage(error: AppError): String {
         return when (error) {
-            is AppError.NetworkError -> "Network connection failed. Please check your internet connection and try again."
+            is AppError.NetworkError ->
+                "Network connection failed. Please check your internet connection and try again."
             is AppError.DatabaseError -> "Data storage error. Please try again."
             is AppError.ModelError -> "Model error: ${error.message}"
             is AppError.DownloadError -> "Download failed. Please try again."

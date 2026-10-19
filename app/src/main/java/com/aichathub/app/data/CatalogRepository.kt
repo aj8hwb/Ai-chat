@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Unified catalog repository that combines local and remote model catalogs.
@@ -61,7 +60,7 @@ class CatalogRepository(
     private suspend fun loadCatalogs() {
         try {
             _catalogState.value = CatalogState.Loading
-            
+
             val localModels = LocalModelCatalog.models
             var remoteModels: List<CatalogModel> = emptyList()
             var source = CatalogSource.LOCAL
@@ -80,11 +79,11 @@ class CatalogRepository(
             // Merge catalogs: remote models take precedence for same IDs
             val mergedModels = mergeCatalogs(localModels, remoteModels)
             _allModels.value = mergedModels
-            
+
             if (remoteModels.isNotEmpty()) {
                 source = CatalogSource.MERGED
             }
-            
+
             _catalogState.value = CatalogState.Ready(source)
             Log.i(TAG, "Catalog loaded: ${mergedModels.size} total models (source: $source)")
         } catch (e: Exception) {
@@ -97,22 +96,17 @@ class CatalogRepository(
     /**
      * Merges local and remote catalogs, with remote models taking precedence.
      */
-    private fun mergeCatalogs(
-        localModels: List<CatalogModel>,
-        remoteModels: List<CatalogModel>
-    ): List<CatalogModel> {
+    private fun mergeCatalogs(localModels: List<CatalogModel>, remoteModels: List<CatalogModel>): List<CatalogModel> {
         val remoteIds = remoteModels.map { it.id }.toSet()
         val localOnlyModels = localModels.filter { it.id !in remoteIds }
-        
+
         return remoteModels + localOnlyModels
     }
 
     /**
      * Converts a remote catalog manifest to a list of CatalogModel objects.
      */
-    private fun convertRemoteManifestToCatalogModels(
-        manifest: RemoteCatalogManifest
-    ): List<CatalogModel> {
+    private fun convertRemoteManifestToCatalogModels(manifest: RemoteCatalogManifest): List<CatalogModel> {
         return manifest.models.map { remoteModel ->
             CatalogModel(
                 id = remoteModel.id,
@@ -143,7 +137,7 @@ class CatalogRepository(
                 strengths = remoteModel.strengths,
                 limitations = remoteModel.limitations,
                 parameterCount = remoteModel.parameterCount,
-                chatTemplate = remoteModel.chatTemplate
+                chatTemplate = remoteModel.chatTemplate,
             )
         }
     }

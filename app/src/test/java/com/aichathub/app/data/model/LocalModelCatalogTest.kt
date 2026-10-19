@@ -20,7 +20,7 @@ class LocalModelCatalogTest {
         LocalModelCatalog.models.forEach { model ->
             assertTrue(
                 "Model ${model.id} must declare a chat template",
-                model.chatTemplate.name.isNotBlank()
+                model.chatTemplate.name.isNotBlank(),
             )
         }
     }

@@ -32,29 +32,33 @@ fun ThinkingBubble(thinkingSec: Int) {
         initialValue = 0.2f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
-        label = "dot1"
+        label = "dot1",
     )
     val d2 by transition.animateFloat(
         initialValue = 0.2f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(600, delayMillis = 200), RepeatMode.Reverse),
-        label = "dot2"
+        label = "dot2",
     )
     val d3 by transition.animateFloat(
         initialValue = 0.2f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(600, delayMillis = 400), RepeatMode.Reverse),
-        label = "dot3"
+        label = "dot3",
     )
     Row(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .widthIn(max = 320.dp)
                 .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(18.dp))
-                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Generating", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Generating",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.width(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Dot(alpha = d1)
@@ -69,7 +73,7 @@ fun ThinkingBubble(thinkingSec: Int) {
                 Text(
                     "thinking… ${thinkingSec}s",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -81,7 +85,7 @@ fun Dot(alpha: Float) {
     Box(
         modifier = Modifier
             .size(6.dp)
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha), RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha), RoundedCornerShape(50)),
     )
 }
 
@@ -92,16 +96,16 @@ fun StreamingBubble(text: String, thinkingSec: Int) {
             modifier = Modifier
                 .widthIn(max = 320.dp)
                 .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(18.dp))
-                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             Text(
                 com.aichathub.app.util.MarkdownFormatter.render(
                     text,
                     baseColor = MaterialTheme.colorScheme.onSurface,
-                    accentColor = MaterialTheme.colorScheme.primary
+                    accentColor = MaterialTheme.colorScheme.primary,
                 ),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -110,7 +114,7 @@ fun StreamingBubble(text: String, thinkingSec: Int) {
                 Text(
                     if (thinkingSec > 0) "Generating… ${thinkingSec}s" else "Generating…",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

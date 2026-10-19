@@ -10,12 +10,12 @@ import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.domain.model.CatalogModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class CompareResult(
     val modelId: String,
@@ -55,7 +55,7 @@ class CompareViewModel @Inject constructor(
             container_modelRepository.installedModels.collect { installed ->
                 val ids = installed.map { it.modelId }.toSet()
                 _state.value = _state.value.copy(
-                    models = catalogRepository.getAllModels().filter { it.id in ids }
+                    models = catalogRepository.getAllModels().filter { it.id in ids },
                 )
             }
         }
@@ -71,7 +71,7 @@ class CompareViewModel @Inject constructor(
         if (prompt.isBlank() || models.isEmpty()) return
         if (prompt.length > MAX_PROMPT_CHARS) {
             _state.value = _state.value.copy(
-                error = "That prompt is too long (max $MAX_PROMPT_CHARS characters). Please shorten it."
+                error = "That prompt is too long (max $MAX_PROMPT_CHARS characters). Please shorten it.",
             )
             return
         }
@@ -88,18 +88,18 @@ class CompareViewModel @Inject constructor(
                         temperature = settings.temperature,
                         topK = settings.topK,
                         topP = settings.topP,
-                        maxTokens = 300
+                        maxTokens = 300,
                     )
                     container_chatCoordinator.loadModel(
                         model,
                         java.io.File(installed.filePath),
                         config,
-                        threads = com.aichathub.app.util.ModelThreads.recommended(settings.batteryConscious)
+                        threads = com.aichathub.app.util.ModelThreads.recommended(settings.batteryConscious),
                     )
                     val output = container_inferenceRuntime.generateStreaming(
                         prompt = prompt,
                         config = config,
-                        onToken = {}
+                        onToken = {},
                     )
                     val perf = container_inferenceRuntime.performance.value
                     results += CompareResult(
@@ -107,7 +107,7 @@ class CompareViewModel @Inject constructor(
                         modelName = model.name,
                         output = output,
                         tokensPerSecond = perf.tokensPerSecond,
-                        tokens = perf.tokensGenerated
+                        tokens = perf.tokensGenerated,
                     )
                 } catch (e: Exception) {
                     results += CompareResult(
@@ -116,7 +116,7 @@ class CompareViewModel @Inject constructor(
                         output = "Failed to run.",
                         tokensPerSecond = 0f,
                         tokens = 0,
-                        failed = true
+                        failed = true,
                     )
                 }
             }

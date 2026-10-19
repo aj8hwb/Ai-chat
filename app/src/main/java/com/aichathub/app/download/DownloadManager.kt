@@ -9,6 +9,12 @@ import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.device.DeviceInfoProvider
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelLifecycleState
+import java.io.File
+import java.io.RandomAccessFile
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.ceil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,15 +32,15 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.io.File
-import java.io.RandomAccessFile
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicLong
-import kotlin.math.ceil
 
 enum class DownloadStatus {
-    QUEUED, DOWNLOADING, PAUSED, VERIFYING, COMPLETED, FAILED, CANCELLED
+    QUEUED,
+    DOWNLOADING,
+    PAUSED,
+    VERIFYING,
+    COMPLETED,
+    FAILED,
+    CANCELLED
 }
 
 data class DownloadInfo(
@@ -103,7 +109,8 @@ class DownloadManager(
     val downloads: StateFlow<List<DownloadInfo>> = _downloads.asStateFlow()
 
     private val _notificationPermissionNeeded = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val notificationPermissionNeeded: kotlinx.coroutines.flow.SharedFlow<Unit> = _notificationPermissionNeeded.asSharedFlow()
+    val notificationPermissionNeeded: kotlinx.coroutines.flow.SharedFlow<Unit> =
+        _notificationPermissionNeeded.asSharedFlow()
 
     private val jobs = ConcurrentHashMap<String, Job>()
     private val cancelFlags = ConcurrentHashMap<String, Boolean>()
@@ -124,17 +131,17 @@ class DownloadManager(
          * it. With followRedirects(true), OkHttp would follow redirects silently
          * before our validation code ever sees the response.
          */
-        fun defaultClient(): OkHttpClient =
-            OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(120, TimeUnit.SECONDS)
-                .writeTimeout(60, TimeUnit.SECONDS)
-                .followRedirects(false)
-                .followSslRedirects(false)
-                .build()
+        fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .build()
 
         private const val MAX_RETRY_ATTEMPTS = 3
         private const val RETRY_BACKOFF_SECONDS = 2
+
         /** Maximum number of redirect hops to follow before giving up. */
         private const val MAX_REDIRECT_HOPS = 10
     }
@@ -191,7 +198,7 @@ class DownloadManager(
     private fun ensureNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val granted = androidx.core.content.ContextCompat.checkSelfPermission(
-                context, android.Manifest.permission.POST_NOTIFICATIONS
+                context, android.Manifest.permission.POST_NOTIFICATIONS,
             ) == PackageManager.PERMISSION_GRANTED
             if (!granted) {
                 _notificationPermissionNeeded.tryEmit(Unit)
@@ -235,14 +242,16 @@ class DownloadManager(
 
             if (networkMonitor.isNetworkBlocked()) {
                 return@withLock DownloadStartResult.Failed(
-                    "Wi-Fi-only mode is on and the device is on mobile data. Enable Wi-Fi or turn off Wi-Fi-only in Settings."
+                    "Wi-Fi-only mode is on and the device is on mobile data. " +
+                        "Enable Wi-Fi or turn off Wi-Fi-only in Settings.",
                 )
             }
 
             // Account for merge overhead: segments + merged file can coexist temporarily
             val segments = DownloadSegmentPolicy.resolveFresh(
-                supportsRange = true, // conservative estimate
-                fileSizeBytes = model.fileSizeBytes
+                // conservative estimate
+                supportsRange = true,
+                fileSizeBytes = model.fileSizeBytes,
             )
             val mergeOverhead = if (segments > 1) model.fileSizeBytes else 0L
             val safetyReserve = 64L * 1024 * 1024 // 64 MB safety reserve
@@ -263,8 +272,8 @@ class DownloadManager(
                     downloadedBytes = already,
                     status = DownloadStatus.DOWNLOADING,
                     segments = 1,
-                    networkType = networkMonitor.currentNetworkType()
-                )
+                    networkType = networkMonitor.currentNetworkType(),
+                ),
             )
             modelRepository.setState(model.id, ModelLifecycleState.DOWNLOADING)
             ensureNotificationPermission()
@@ -310,8 +319,13 @@ class DownloadManager(
             val mutex = modelDownloadMutexes.getOrPut(modelId) { Mutex() }
             mutex.withLock {
                 // Re-check state after acquiring lock (may have changed)
-                val currentInfo = _downloads.value.firstOrNull { it.modelId == modelId } ?: return@withLock
-                if (currentInfo.status != DownloadStatus.PAUSED && currentInfo.status != DownloadStatus.FAILED) return@withLock
+                val currentInfo =
+                    _downloads.value.firstOrNull { it.modelId == modelId } ?: return@withLock
+                if (currentInfo.status != DownloadStatus.PAUSED &&
+                    currentInfo.status != DownloadStatus.FAILED
+                ) {
+                    return@withLock
+                }
 
                 pauseFlags[modelId] = false
                 cancelFlags[modelId] = false
@@ -377,7 +391,7 @@ class DownloadManager(
             hasMergedPart = mergedPart.exists(),
             hasSegmentFiles = persistence.hasAnySegmentFiles(model),
             supportsRange = supportsRange,
-            fileSizeBytes = model.fileSizeBytes
+            fileSizeBytes = model.fileSizeBytes,
         )
         if (segments == 0) {
             Log.w(tag, "Legacy segments without marker for ${model.id} — discarding and re-probing")
@@ -395,9 +409,11 @@ class DownloadManager(
                     it.copy(
                         downloadedBytes = downloadedTotal.get(),
                         segments = segments,
-                        status = DownloadStatus.DOWNLOADING
+                        status = DownloadStatus.DOWNLOADING,
                     )
-                } else it
+                } else {
+                    it
+                }
             }
         }
 
@@ -407,7 +423,7 @@ class DownloadManager(
                 segFile = mergedPart,
                 rangeStart = 0,
                 rangeEnd = model.fileSizeBytes - 1,
-                downloadedTotal = downloadedTotal
+                downloadedTotal = downloadedTotal,
             )
             if (outcome == SegmentOutcome.INTERRUPTED) {
                 handleInterrupt(model)
@@ -428,14 +444,17 @@ class DownloadManager(
                                 segFile = segFile,
                                 rangeStart = start,
                                 rangeEnd = end,
-                                downloadedTotal = downloadedTotal
+                                downloadedTotal = downloadedTotal,
                             )
                         }
                     }.forEach { it.join() }
                 }
             } catch (e: RangeUnsupportedException) {
-                Log.w(tag, "Range not supported for ${model.id} during segmented download; " +
-                    "falling back to single-stream")
+                Log.w(
+                    tag,
+                    "Range not supported for ${model.id} during segmented download; " +
+                        "falling back to single-stream",
+                )
                 persistence.cleanupSegmentFiles(model)
                 persistence.cleanupPartFiles(model)
                 downloadedTotal.set(0)
@@ -452,9 +471,11 @@ class DownloadManager(
                             it.copy(
                                 downloadedBytes = 0,
                                 segments = 1,
-                                status = DownloadStatus.DOWNLOADING
+                                status = DownloadStatus.DOWNLOADING,
                             )
-                        } else it
+                        } else {
+                            it
+                        }
                     }
                 }
                 val retryOutcome = downloadSegmentWithRetry(
@@ -462,7 +483,7 @@ class DownloadManager(
                     segFile = singlePart,
                     rangeStart = 0,
                     rangeEnd = model.fileSizeBytes - 1,
-                    downloadedTotal = downloadedTotal
+                    downloadedTotal = downloadedTotal,
                 )
                 if (retryOutcome == SegmentOutcome.INTERRUPTED) {
                     handleInterrupt(model)
@@ -538,7 +559,12 @@ class DownloadManager(
         // Install
         val installSuccess = installer.install(model, mergedPart)
         if (installSuccess) {
-            markStatus(model.id, DownloadStatus.COMPLETED, downloadedBytes = model.fileSizeBytes, totalBytes = model.fileSizeBytes)
+            markStatus(
+                model.id,
+                DownloadStatus.COMPLETED,
+                downloadedBytes = model.fileSizeBytes,
+                totalBytes = model.fileSizeBytes,
+            )
         } else {
             markStatus(model.id, DownloadStatus.FAILED, error = "Could not install the model file.")
         }
@@ -602,7 +628,7 @@ class DownloadManager(
                 val isRedirectValid = com.aichathub.app.data.SecurityValidator.isValidRedirect(
                     originalUrl = model.downloadUrl,
                     redirectUrl = redirectUrl,
-                    trustedDomains = com.aichathub.app.data.RemoteCatalogRepository.TRUSTED_DOMAINS
+                    trustedDomains = com.aichathub.app.data.RemoteCatalogRepository.TRUSTED_DOMAINS,
                 )
                 if (!isRedirectValid) {
                     throw IllegalStateException("Redirect to untrusted domain rejected: $redirectUrl")
@@ -621,12 +647,15 @@ class DownloadManager(
             }
 
             if (isRangeRequest && response.code == 200) {
-                Log.w(tag, "Server returned 200 instead of 206 for Range request on ${model.id}; " +
-                    "server does not support range requests — aborting segmented mode")
+                Log.w(
+                    tag,
+                    "Server returned 200 instead of 206 for Range request on ${model.id}; " +
+                        "server does not support range requests — aborting segmented mode",
+                )
                 response.body?.close()
                 throw RangeUnsupportedException(
                     "Server returned HTTP 200 for Range request — " +
-                    "Range requests are not supported by this server"
+                        "Range requests are not supported by this server",
                 )
             }
 
@@ -636,7 +665,7 @@ class DownloadManager(
                     response.body?.close()
                     Log.w(tag, "Server returned 206 without Content-Range header for ${model.id}")
                     throw IllegalStateException(
-                        "Server returned HTTP 206 without Content-Range header"
+                        "Server returned HTTP 206 without Content-Range header",
                     )
                 }
                 val match = Regex("bytes\\s+(\\d+)-(\\d+)/(\\d+)").find(contentRange)
@@ -644,17 +673,20 @@ class DownloadManager(
                     response.body?.close()
                     Log.w(tag, "Invalid Content-Range format on ${model.id}: $contentRange")
                     throw IllegalStateException(
-                        "Server returned invalid Content-Range: $contentRange"
+                        "Server returned invalid Content-Range: $contentRange",
                     )
                 }
                 val respStart = match.groupValues[1].toLong()
                 val respEnd = match.groupValues[2].toLong()
                 if (respStart != start || respEnd != rangeEnd) {
                     response.body?.close()
-                    Log.w(tag, "Content-Range mismatch on ${model.id}: " +
-                        "expected $start-$rangeEnd, got $respStart-$respEnd")
+                    Log.w(
+                        tag,
+                        "Content-Range mismatch on ${model.id}: " +
+                            "expected $start-$rangeEnd, got $respStart-$respEnd",
+                    )
                     throw IllegalStateException(
-                        "Server returned unexpected Content-Range: $contentRange"
+                        "Server returned unexpected Content-Range: $contentRange",
                     )
                 }
             }
@@ -667,10 +699,13 @@ class DownloadManager(
                     val expectedLength = rangeEnd - start + 1
                     if (contentLength != expectedLength) {
                         body.close()
-                        Log.w(tag, "Content-Length mismatch on ${model.id}: " +
-                            "expected $expectedLength, got $contentLength")
+                        Log.w(
+                            tag,
+                            "Content-Length mismatch on ${model.id}: " +
+                                "expected $expectedLength, got $contentLength",
+                        )
                         throw IllegalStateException(
-                            "Server returned unexpected Content-Length: $contentLength"
+                            "Server returned unexpected Content-Length: $contentLength",
                         )
                     }
                 }
@@ -755,7 +790,10 @@ class DownloadManager(
     // ------------------------------------------------------------------
 
     private fun scanForResumable() {
-        val resumable = persistence.scanForResumable(catalogRepository.getAllModels(), networkMonitor.currentNetworkType())
+        val resumable = persistence.scanForResumable(
+            catalogRepository.getAllModels(),
+            networkMonitor.currentNetworkType(),
+        )
         resumable.forEach { upsert(it) }
     }
 
@@ -791,9 +829,11 @@ class DownloadManager(
                         status = status,
                         error = error,
                         downloadedBytes = downloadedBytes ?: it.downloadedBytes,
-                        totalBytes = totalBytes ?: it.totalBytes
+                        totalBytes = totalBytes ?: it.totalBytes,
                     )
-                } else it
+                } else {
+                    it
+                }
             }
         }
     }

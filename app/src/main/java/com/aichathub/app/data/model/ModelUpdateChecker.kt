@@ -67,9 +67,12 @@ object ModelUpdateChecker {
                 installedVersion == latestVersion
 
             if (isVersionUpdate || isHashMismatch) {
-                Log.i(TAG, "Update available for ${catalogModel.id}: " +
-                    "v$installedVersion -> v$latestVersion" +
-                    if (isHashMismatch) " (hash mismatch)" else "")
+                Log.i(
+                    TAG,
+                    "Update available for ${catalogModel.id}: " +
+                        "v$installedVersion -> v$latestVersion" +
+                        if (isHashMismatch) " (hash mismatch)" else "",
+                )
 
                 updates.add(
                     ModelUpdateInfo(
@@ -84,8 +87,8 @@ object ModelUpdateChecker {
                         changelog = catalogModel.changelog,
                         publishedAt = catalogModel.publishedAt,
                         downloadUrl = catalogModel.downloadUrl,
-                        fileSizeBytes = catalogModel.fileSizeBytes
-                    )
+                        fileSizeBytes = catalogModel.fileSizeBytes,
+                    ),
                 )
             }
         }

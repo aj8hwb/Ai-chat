@@ -26,7 +26,7 @@ val catalogPublicKey: String = System.getenv("AICHATHUB_CATALOG_PUBLIC_KEY") ?: 
 if (catalogPublicKey.isBlank() && gradle.startParameter.taskNames.any { it.contains("release") }) {
     throw GradleException(
         "AICHATHUB_CATALOG_PUBLIC_KEY environment variable must be set for release builds. " +
-        "This key is required for Ed25519 catalog signature verification."
+            "This key is required for Ed25519 catalog signature verification.",
     )
 }
 
@@ -72,7 +72,7 @@ android {
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")

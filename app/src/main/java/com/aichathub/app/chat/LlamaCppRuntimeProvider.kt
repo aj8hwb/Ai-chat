@@ -6,12 +6,12 @@ import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.device.ThermalManager
 import com.aichathub.app.util.ModelThreads
 import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * [RuntimeProvider] for the llama.cpp inference engine.
@@ -51,7 +51,7 @@ class LlamaCppRuntimeProvider @Inject constructor(
      * would claim acceleration that is not actually active.
      */
     override val supportedBackends: List<BackendType> = listOf(
-        BackendType.CPU
+        BackendType.CPU,
     )
 
     /**
@@ -88,15 +88,14 @@ class LlamaCppRuntimeProvider @Inject constructor(
             // generation via cancelGeneration (a supported action). Reduced
             // thread counts are NOT changed live — llama.cpp fixes threads at
             // context creation; the thermal policy applies to the NEXT load.
-            thermalWatchdog = { thermalLevelOrNull(thermalManager) }
+            thermalWatchdog = { thermalLevelOrNull(thermalManager) },
         )
     }
 
-    private fun thermalLevelOrNull(manager: ThermalManager): ModelThreads.ThermalLoadLevel? =
-        try {
-            manager.currentLoadLevel()
-        } catch (e: Exception) {
-            Log.d(TAG, "Thermal watchdog probe failed: ${e.message}")
-            null
-        }
+    private fun thermalLevelOrNull(manager: ThermalManager): ModelThreads.ThermalLoadLevel? = try {
+        manager.currentLoadLevel()
+    } catch (e: Exception) {
+        Log.d(TAG, "Thermal watchdog probe failed: ${e.message}")
+        null
+    }
 }

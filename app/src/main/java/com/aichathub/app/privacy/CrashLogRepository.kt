@@ -47,7 +47,9 @@ object CrashLogRepository {
             val lines = combined.split("\n")
             val capped = if (lines.size > MAX_LINES) {
                 lines.takeLast(MAX_LINES).joinToString("\n")
-            } else combined
+            } else {
+                combined
+            }
             logFile.writeText(capped)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to write crash log", e)
@@ -95,8 +97,11 @@ object CrashLogRepository {
     fun entryCount(context: Context): Int {
         return try {
             val text = read(context)
-            if (text.isBlank()) 0
-            else text.split("\n").count { it.startsWith("=== ") }
+            if (text.isBlank()) {
+                0
+            } else {
+                text.split("\n").count { it.startsWith("=== ") }
+            }
         } catch (e: Exception) {
             0
         }

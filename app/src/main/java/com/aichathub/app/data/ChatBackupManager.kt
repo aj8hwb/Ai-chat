@@ -2,17 +2,16 @@ package com.aichathub.app.data
 
 import android.content.Context
 import android.net.Uri
-import android.provider.OpenableColumns
 import com.aichathub.app.data.local.AiDatabase
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageEntity
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.InputStream
 import java.io.OutputStream
-import java.util.Date
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Full chat backup & restore.
@@ -77,7 +76,7 @@ class ChatBackupManager(
                             put("content", m.content)
                             put("createdAt", m.createdAt)
                             if (m.modelId != null) put("modelId", m.modelId)
-                        }
+                        },
                     )
                 }
                 convArr.put(
@@ -88,7 +87,7 @@ class ChatBackupManager(
                         put("updatedAt", conv.updatedAt)
                         if (conv.systemPrompt != null) put("systemPrompt", conv.systemPrompt)
                         put("messages", msgArr)
-                    }
+                    },
                 )
             }
             root.put("conversations", convArr)
@@ -132,9 +131,12 @@ class ChatBackupManager(
                         modelId = convJson.optString("modelId", ""),
                         createdAt = convJson.optLong("createdAt", System.currentTimeMillis()),
                         updatedAt = convJson.optLong("updatedAt", System.currentTimeMillis()),
-                        systemPrompt = if (convJson.has("systemPrompt") && !convJson.isNull("systemPrompt"))
-                            convJson.optString("systemPrompt") else null
-                    )
+                        systemPrompt = if (convJson.has("systemPrompt") && !convJson.isNull("systemPrompt")) {
+                            convJson.optString("systemPrompt")
+                        } else {
+                            null
+                        },
+                    ),
                 )
                 val msgArr = convJson.optJSONArray("messages") ?: JSONArray()
                 for (j in 0 until msgArr.length()) {
@@ -145,8 +147,8 @@ class ChatBackupManager(
                             role = m.optString("role", "assistant"),
                             content = m.optString("content", ""),
                             createdAt = m.optLong("createdAt", System.currentTimeMillis()),
-                            modelId = if (m.has("modelId") && !m.isNull("modelId")) m.optString("modelId") else null
-                        )
+                            modelId = if (m.has("modelId") && !m.isNull("modelId")) m.optString("modelId") else null,
+                        ),
                     )
                     messages++
                 }

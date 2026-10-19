@@ -1,8 +1,5 @@
 package com.aichathub.app.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -52,9 +48,7 @@ data class OnboardingPage(
 )
 
 @Composable
-fun OnboardingScreen(
-    onComplete: () -> Unit
-) {
+fun OnboardingScreen(onComplete: () -> Unit) {
     val pages = listOf(
         OnboardingPage(
             title = stringResource(R.string.onboarding_welcome_title),
@@ -62,8 +56,8 @@ fun OnboardingScreen(
             icon = Icons.Filled.SmartToy,
             gradient = listOf(
                 MaterialTheme.colorScheme.primary,
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-            )
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+            ),
         ),
         OnboardingPage(
             title = stringResource(R.string.onboarding_models_title),
@@ -71,8 +65,8 @@ fun OnboardingScreen(
             icon = Icons.Filled.Storage,
             gradient = listOf(
                 MaterialTheme.colorScheme.secondary,
-                MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f)
-            )
+                MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f),
+            ),
         ),
         OnboardingPage(
             title = stringResource(R.string.onboarding_performance_title),
@@ -80,9 +74,9 @@ fun OnboardingScreen(
             icon = Icons.Filled.Speed,
             gradient = listOf(
                 MaterialTheme.colorScheme.tertiary,
-                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f)
-            )
-        )
+                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f),
+            ),
+        ),
     )
 
     val pagerState = rememberPagerState(pageCount = { pages.size })
@@ -90,11 +84,11 @@ fun OnboardingScreen(
 
     Box(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(MaterialTheme.colorScheme.background),
     ) {
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
         ) { page ->
             OnboardingPageContent(page = pages[page])
         }
@@ -105,7 +99,7 @@ fun OnboardingScreen(
                 .align(Alignment.BottomCenter)
                 .padding(32.dp),
             horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             repeat(pages.size) { index ->
                 Box(
@@ -118,8 +112,8 @@ fun OnboardingScreen(
                                 MaterialTheme.colorScheme.primary
                             } else {
                                 MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                            }
-                        )
+                            },
+                        ),
                 )
             }
         }
@@ -148,24 +142,30 @@ fun OnboardingScreen(
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            )
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                horizontalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    text = if (pagerState.currentPage < pages.size - 1) stringResource(R.string.onboarding_next) else stringResource(R.string.onboarding_get_started),
+                    text = if (pagerState.currentPage < pages.size - 1) {
+                        stringResource(
+                            R.string.onboarding_next,
+                        )
+                    } else {
+                        stringResource(R.string.onboarding_get_started)
+                    },
                     style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
                 )
                 if (pagerState.currentPage == pages.size - 1) {
                     Spacer(Modifier.width(8.dp))
                     Icon(
                         Icons.Filled.Check,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
@@ -183,12 +183,12 @@ fun OnboardingScreen(
                     },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                )
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
             ) {
                 Text(
                     text = stringResource(R.string.onboarding_skip),
-                    style = MaterialTheme.typography.labelLarge
+                    style = MaterialTheme.typography.labelLarge,
                 )
             }
         }
@@ -202,7 +202,7 @@ private fun OnboardingPageContent(page: OnboardingPage) {
             .fillMaxSize()
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         // Icon with gradient background
         Box(
@@ -210,13 +210,13 @@ private fun OnboardingPageContent(page: OnboardingPage) {
                 .size(120.dp)
                 .clip(CircleShape)
                 .background(Brush.linearGradient(page.gradient)),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 page.icon,
                 contentDescription = null,
                 modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onPrimary
+                tint = MaterialTheme.colorScheme.onPrimary,
             )
         }
 
@@ -227,7 +227,7 @@ private fun OnboardingPageContent(page: OnboardingPage) {
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
 
         Spacer(Modifier.height(16.dp))
@@ -236,7 +236,7 @@ private fun OnboardingPageContent(page: OnboardingPage) {
             text = page.description,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
     }
 }

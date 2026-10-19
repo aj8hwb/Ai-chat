@@ -2,8 +2,8 @@ package com.aichathub.app
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.aichathub.app.privacy.BiometricAuthManager
-import com.aichathub.app.privacy.CrashLogRepository
-import org.junit.Assert.*
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 

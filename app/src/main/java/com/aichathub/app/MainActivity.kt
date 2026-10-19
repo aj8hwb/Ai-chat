@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
                 AiChatHubTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.background
+                        color = MaterialTheme.colorScheme.background,
                     ) {
                         UnsupportedAbiScreen()
                     }
@@ -70,12 +70,12 @@ class MainActivity : ComponentActivity() {
             AiChatHubTheme(themeMode = themeMode, dynamicColor = dynamicColor) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = MaterialTheme.colorScheme.background,
                 ) {
                     if (appLockEnabled && !isUnlocked) {
                         // Show lock screen — prompt biometric on display
                         LockScreen(
-                            onUnlockRequested = { showBiometricPrompt() }
+                            onUnlockRequested = { showBiometricPrompt() },
                         )
                     } else {
                         AiChatHubApp()
@@ -107,7 +107,7 @@ class MainActivity : ComponentActivity() {
             },
             onAuthFailure = {
                 // Stay locked — user can try again
-            }
+            },
         )
     }
 }
@@ -117,29 +117,29 @@ private fun LockScreen(onUnlockRequested: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         Text(
             "AIChatHub",
             style = MaterialTheme.typography.headlineLarge,
-            color = Primary
+            color = Primary,
         )
         Text(
             "App is locked",
             style = MaterialTheme.typography.headlineSmall,
             color = TextSecondary,
-            modifier = Modifier.padding(top = 16.dp)
+            modifier = Modifier.padding(top = 16.dp),
         )
         Text(
             "Tap below to unlock with biometric or PIN",
             style = MaterialTheme.typography.bodyMedium,
             color = TextPrimary,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp)
+            modifier = Modifier.padding(top = 8.dp),
         )
         androidx.compose.material3.Button(
             onClick = onUnlockRequested,
-            modifier = Modifier.padding(top = 32.dp)
+            modifier = Modifier.padding(top = 32.dp),
         ) {
             Text("Unlock")
         }
@@ -151,19 +151,19 @@ private fun UnsupportedAbiScreen() {
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         Text(
             "Not Supported",
             style = MaterialTheme.typography.headlineMedium,
-            color = Primary
+            color = Primary,
         )
         Text(
             "AI Chat Hub requires a 64-bit ARM (arm64-v8a) device.\n\n" +
                 "This device reports ABI: ${Build.SUPPORTED_ABIS?.joinToString(", ")}",
             style = MaterialTheme.typography.bodyMedium,
             color = TextSecondary,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
         Text(
             "The on-device AI engine (llama.cpp) only ships arm64-v8a native " +
@@ -171,7 +171,7 @@ private fun UnsupportedAbiScreen() {
             style = MaterialTheme.typography.bodySmall,
             color = TextPrimary,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 16.dp)
+            modifier = Modifier.padding(top = 16.dp),
         )
     }
 }

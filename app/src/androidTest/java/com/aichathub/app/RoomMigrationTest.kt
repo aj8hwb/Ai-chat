@@ -1,15 +1,15 @@
 package com.aichathub.app
 
-import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.aichathub.app.data.local.AiDatabase
-import org.junit.Assert.*
+import java.io.IOException
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.IOException
 
 /**
  * Tests that verify every Room database migration preserves data correctly.
@@ -25,34 +25,38 @@ import java.io.IOException
 @RunWith(AndroidJUnit4::class)
 class RoomMigrationTest {
 
-    private val TEST_DB_NAME = "migration-test-db"
+    private val testDbName = "migration-test-db"
 
     @get:Rule
     val helper = MigrationTestHelper(
         InstrumentationRegistry.getInstrumentation(),
-        AiDatabase::class.java
+        AiDatabase::class.java,
     )
 
     @Test
     @Throws(IOException::class)
     fun migrate1To2() {
         // Create v1 database with test data
-        var db = helper.createDatabase(TEST_DB_NAME, 1).apply {
+        var db = helper.createDatabase(testDbName, 1).apply {
             // v1 schema: installed_models, conversations, messages
-            execSQL("""
+            execSQL(
+                """
                 INSERT INTO conversations (title, modelId, createdAt, updatedAt)
                 VALUES ('Old Chat', 'model-1', 1000, 2000)
-            """.trimIndent())
-            execSQL("""
+                """.trimIndent(),
+            )
+            execSQL(
+                """
                 INSERT INTO messages (conversationId, role, content, createdAt, modelId)
                 VALUES (1, 'user', 'Hello from v1', 1500, 'model-1')
-            """.trimIndent())
+                """.trimIndent(),
+            )
         }
         db.close()
 
         // Migrate to v2 (adds index on messages.conversationId)
         db = helper.runMigrationsAndValidate(
-            TEST_DB_NAME, 2, true, AiDatabase.MIGRATION_1_2
+            testDbName, 2, true, AiDatabase.MIGRATION_1_2,
         )
 
         // Verify data survived
@@ -74,17 +78,19 @@ class RoomMigrationTest {
     @Throws(IOException::class)
     fun migrate2To3() {
         // Create v2 database
-        var db = helper.createDatabase(TEST_DB_NAME, 2).apply {
-            execSQL("""
+        var db = helper.createDatabase(testDbName, 2).apply {
+            execSQL(
+                """
                 INSERT INTO conversations (title, modelId, createdAt, updatedAt)
                 VALUES ('V2 Chat', 'model-2', 1000, 2000)
-            """.trimIndent())
+                """.trimIndent(),
+            )
         }
         db.close()
 
         // Migrate to v3 (adds systemPrompt column)
         db = helper.runMigrationsAndValidate(
-            TEST_DB_NAME, 3, true, AiDatabase.MIGRATION_2_3
+            testDbName, 3, true, AiDatabase.MIGRATION_2_3,
         )
 
         // Verify data survived and new column exists with default null
@@ -110,21 +116,25 @@ class RoomMigrationTest {
     @Throws(IOException::class)
     fun migrate3To4() {
         // Create v3 database
-        var db = helper.createDatabase(TEST_DB_NAME, 3).apply {
-            execSQL("""
+        var db = helper.createDatabase(testDbName, 3).apply {
+            execSQL(
+                """
                 INSERT INTO conversations (title, modelId, createdAt, updatedAt, systemPrompt)
                 VALUES ('V3 Chat', 'model-3', 1000, 2000, 'Be helpful')
-            """.trimIndent())
-            execSQL("""
+                """.trimIndent(),
+            )
+            execSQL(
+                """
                 INSERT INTO messages (conversationId, role, content, createdAt, modelId)
                 VALUES (1, 'user', 'Test message', 1500, 'model-3')
-            """.trimIndent())
+                """.trimIndent(),
+            )
         }
         db.close()
 
         // Migrate to v4 (adds summary column)
         db = helper.runMigrationsAndValidate(
-            TEST_DB_NAME, 4, true, AiDatabase.MIGRATION_3_4
+            testDbName, 4, true, AiDatabase.MIGRATION_3_4,
         )
 
         // Verify all data survived
@@ -157,25 +167,31 @@ class RoomMigrationTest {
     @Throws(IOException::class)
     fun migrate4To5() {
         // Create v4 database with full data
-        var db = helper.createDatabase(TEST_DB_NAME, 4).apply {
-            execSQL("""
+        var db = helper.createDatabase(testDbName, 4).apply {
+            execSQL(
+                """
                 INSERT INTO conversations (title, modelId, createdAt, updatedAt, systemPrompt, summary)
                 VALUES ('V4 Chat', 'model-4', 1000, 2000, 'Be concise', 'Discussed AI')
-            """.trimIndent())
-            execSQL("""
+                """.trimIndent(),
+            )
+            execSQL(
+                """
                 INSERT INTO messages (conversationId, role, content, createdAt, modelId)
                 VALUES (1, 'user', 'First message', 1500, 'model-4')
-            """.trimIndent())
-            execSQL("""
+                """.trimIndent(),
+            )
+            execSQL(
+                """
                 INSERT INTO messages (conversationId, role, content, createdAt, modelId)
                 VALUES (1, 'assistant', 'Response', 2000, 'model-4')
-            """.trimIndent())
+                """.trimIndent(),
+            )
         }
         db.close()
 
         // Migrate to v5 (adds composite index on conversationId+createdAt)
         db = helper.runMigrationsAndValidate(
-            TEST_DB_NAME, 5, true, AiDatabase.MIGRATION_4_5
+            testDbName, 5, true, AiDatabase.MIGRATION_4_5,
         )
 
         // Verify conversation data survived
@@ -198,7 +214,7 @@ class RoomMigrationTest {
 
         // Verify the new composite index exists
         val indexCursor = db.query(
-            "SELECT name FROM sqlite_master WHERE type='index' AND name='index_messages_conversationId_createdAt'"
+            "SELECT name FROM sqlite_master WHERE type='index' AND name='index_messages_conversationId_createdAt'",
         )
         assertTrue("Composite index should exist after migration", indexCursor.moveToFirst())
         indexCursor.close()
@@ -210,39 +226,43 @@ class RoomMigrationTest {
     @Throws(IOException::class)
     fun fullMigrationPath_1To5() {
         // Start from v1 and migrate all the way to v5
-        var db = helper.createDatabase(TEST_DB_NAME, 1).apply {
-            execSQL("""
+        var db = helper.createDatabase(testDbName, 1).apply {
+            execSQL(
+                """
                 INSERT INTO conversations (title, modelId, createdAt, updatedAt)
                 VALUES ('Full Path Chat', 'model-full', 1000, 2000)
-            """.trimIndent())
-            execSQL("""
+                """.trimIndent(),
+            )
+            execSQL(
+                """
                 INSERT INTO messages (conversationId, role, content, createdAt, modelId)
                 VALUES (1, 'user', 'Start of journey', 1500, 'model-full')
-            """.trimIndent())
+                """.trimIndent(),
+            )
         }
         db.close()
 
         // Migrate 1→2
         db = helper.runMigrationsAndValidate(
-            TEST_DB_NAME, 2, true, AiDatabase.MIGRATION_1_2
+            testDbName, 2, true, AiDatabase.MIGRATION_1_2,
         )
         db.close()
 
         // Migrate 2→3
         db = helper.runMigrationsAndValidate(
-            TEST_DB_NAME, 3, true, AiDatabase.MIGRATION_2_3
+            testDbName, 3, true, AiDatabase.MIGRATION_2_3,
         )
         db.close()
 
         // Migrate 3→4
         db = helper.runMigrationsAndValidate(
-            TEST_DB_NAME, 4, true, AiDatabase.MIGRATION_3_4
+            testDbName, 4, true, AiDatabase.MIGRATION_3_4,
         )
         db.close()
 
         // Migrate 4→5
         db = helper.runMigrationsAndValidate(
-            TEST_DB_NAME, 5, true, AiDatabase.MIGRATION_4_5
+            testDbName, 5, true, AiDatabase.MIGRATION_4_5,
         )
 
         // Verify everything survived the full migration path

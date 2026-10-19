@@ -2,6 +2,7 @@ package com.aichathub.app.download
 
 import android.util.Log
 import com.aichathub.app.domain.model.CatalogModel
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -10,7 +11,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * Download queue manager for sequential model downloads.
@@ -42,7 +42,9 @@ class DownloadQueue(
     }
 
     enum class QueueStatus {
-        IDLE, PROCESSING, PAUSED
+        IDLE,
+        PROCESSING,
+        PAUSED
     }
 
     enum class QueuePriority(val value: Int) {
@@ -60,7 +62,11 @@ class DownloadQueue(
     )
 
     enum class QueueItemStatus {
-        WAITING, DOWNLOADING, COMPLETED, FAILED, CANCELLED
+        WAITING,
+        DOWNLOADING,
+        COMPLETED,
+        FAILED,
+        CANCELLED
     }
 
     data class QueueState(
@@ -118,7 +124,7 @@ class DownloadQueue(
             if (item.status == QueueItemStatus.DOWNLOADING) {
                 downloadManager.cancel(modelId)
             }
-            Log.i(TAG, "Removed ${modelId} from queue")
+            Log.i(TAG, "Removed $modelId from queue")
             updateState()
         }
     }
@@ -131,7 +137,7 @@ class DownloadQueue(
         if (item != null) {
             queue.remove(item)
             downloadManager.cancel(modelId)
-            Log.i(TAG, "Cancelled ${modelId}")
+            Log.i(TAG, "Cancelled $modelId")
             updateState()
             processQueue()
         }
@@ -262,7 +268,7 @@ class DownloadQueue(
         if (item.retryCount < MAX_RETRY_ATTEMPTS) {
             val retryItem = item.copy(
                 retryCount = item.retryCount + 1,
-                status = QueueItemStatus.WAITING
+                status = QueueItemStatus.WAITING,
             )
             queue.add(retryItem)
             Log.i(TAG, "Retrying ${item.model.id} (attempt ${retryItem.retryCount})")
@@ -284,7 +290,7 @@ class DownloadQueue(
             queue.remove(item)
             val completedItem = item.copy(status = QueueItemStatus.COMPLETED)
             queue.add(completedItem)
-            Log.i(TAG, "Completed ${modelId}")
+            Log.i(TAG, "Completed $modelId")
         }
         updateState()
         processQueue()
@@ -301,7 +307,7 @@ class DownloadQueue(
             activeDownloads = items.count { it.status == QueueItemStatus.DOWNLOADING },
             totalQueued = items.count { it.status == QueueItemStatus.WAITING },
             completedCount = items.count { it.status == QueueItemStatus.COMPLETED },
-            failedCount = items.count { it.status == QueueItemStatus.FAILED }
+            failedCount = items.count { it.status == QueueItemStatus.FAILED },
         )
     }
 }

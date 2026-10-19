@@ -5,11 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.aichathub.app.download.DownloadInfo
 import com.aichathub.app.download.DownloadManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class DownloadsUiState(
     val downloads: List<DownloadInfo> = emptyList()

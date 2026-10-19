@@ -16,11 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Memory
@@ -35,21 +32,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aichathub.app.domain.model.ModelLifecycleState
 import com.aichathub.app.domain.model.Recommendation
 import com.aichathub.app.ui.components.AppCard
 import com.aichathub.app.ui.components.CompatibilityBadge
 import com.aichathub.app.ui.components.GradientButton
 import com.aichathub.app.ui.components.GradientHeaderCard
-import com.aichathub.app.ui.components.ModelCard
 import com.aichathub.app.ui.components.ModelIcon
 import com.aichathub.app.ui.components.ProgressBlock
 import com.aichathub.app.ui.components.SectionHeader
@@ -57,39 +53,39 @@ import com.aichathub.app.ui.navigation.Screen
 import com.aichathub.app.ui.theme.Success
 import com.aichathub.app.ui.theme.Warning
 import com.aichathub.app.util.Formatters
-import com.aichathub.app.domain.model.ModelLifecycleState
 
 @Composable
-fun HomeScreen(
-    onNavigate: (String) -> Unit,
-    viewModel: HomeViewModel = hiltViewModel()
-) {
+fun HomeScreen(onNavigate: (String) -> Unit, viewModel: HomeViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 100.dp)
+        contentPadding = PaddingValues(bottom = 100.dp),
     ) {
         // Header
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         stringResource(R.string.home_title),
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
                         stringResource(R.string.home_subtitle),
                         style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
                 IconButton(onClick = { onNavigate(Screen.SystemStatus.route) }) {
-                    Icon(Icons.Filled.Speed, contentDescription = stringResource(R.string.home_system_status), tint = MaterialTheme.colorScheme.secondary)
+                    Icon(
+                        Icons.Filled.Speed,
+                        contentDescription = stringResource(R.string.home_system_status),
+                        tint = MaterialTheme.colorScheme.secondary,
+                    )
                 }
             }
         }
@@ -98,12 +94,15 @@ fun HomeScreen(
             item {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(40.dp),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(16.dp))
-                        Text(stringResource(R.string.home_analyzing), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            stringResource(R.string.home_analyzing),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
@@ -117,7 +116,7 @@ fun HomeScreen(
                     installedCount = state.installedStates.size,
                     readyCount = readyCount,
                     onOpenChat = { onNavigate(Screen.Chat.BASE_ROUTE) },
-                    onExplore = { onNavigate(Screen.Models.route) }
+                    onExplore = { onNavigate(Screen.Models.route) },
                 )
             }
 
@@ -126,7 +125,7 @@ fun HomeScreen(
                 item {
                     HelpCard(
                         onDismiss = viewModel::dismissHelp,
-                        onExplore = { onNavigate(Screen.Models.route) }
+                        onExplore = { onNavigate(Screen.Models.route) },
                     )
                 }
             }
@@ -135,25 +134,25 @@ fun HomeScreen(
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     QuickAction(
                         icon = Icons.Filled.Add,
                         label = stringResource(R.string.home_new_chat),
                         onClick = { onNavigate(Screen.Chat.BASE_ROUTE) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     )
                     QuickAction(
                         icon = Icons.Filled.Widgets,
                         label = stringResource(R.string.home_model_store),
                         onClick = { onNavigate(Screen.Models.route) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     )
                     QuickAction(
                         icon = Icons.Filled.PlayArrow,
                         label = stringResource(R.string.home_playground),
                         onClick = { onNavigate(Screen.Playground.route) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -163,7 +162,7 @@ fun HomeScreen(
                 SystemOverview(
                     profile = state.deviceProfile,
                     budget = state.memoryBudget,
-                    onViewSystem = { onNavigate(Screen.SystemStatus.route) }
+                    onViewSystem = { onNavigate(Screen.SystemStatus.route) },
                 )
             }
 
@@ -171,7 +170,7 @@ fun HomeScreen(
             item {
                 SectionHeader(
                     title = stringResource(R.string.home_recommended_for_you),
-                    modifier = Modifier.padding(horizontal = 20.dp)
+                    modifier = Modifier.padding(horizontal = 20.dp),
                 )
             }
             val recs = state.recommendations
@@ -180,7 +179,7 @@ fun HomeScreen(
                 RecommendationCard(
                     recommendation = rec,
                     isInstalled = state.installedStates[rec.model.id] != null,
-                    onClick = { onNavigate(Screen.ModelDetails.routeFor(rec.model.id)) }
+                    onClick = { onNavigate(Screen.ModelDetails.routeFor(rec.model.id)) },
                 )
             }
         }
@@ -188,14 +187,11 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HelpCard(
-    onDismiss: () -> Unit,
-    onExplore: () -> Unit
-) {
+private fun HelpCard(onDismiss: () -> Unit, onExplore: () -> Unit) {
     AppCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .padding(horizontal = 20.dp, vertical = 6.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -204,36 +200,48 @@ private fun HelpCard(
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.dismiss), tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.dismiss),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
             }
             Spacer(Modifier.height(4.dp))
-            Text(stringResource(R.string.home_help_step_1), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(stringResource(R.string.home_help_step_2), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(stringResource(R.string.home_help_step_3), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(R.string.home_help_step_1),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                stringResource(R.string.home_help_step_2),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                stringResource(R.string.home_help_step_3),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(10.dp))
             GradientButton(
                 text = stringResource(R.string.explore_models),
                 onClick = onExplore,
                 icon = Icons.Filled.Widgets,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
 }
 
 @Composable
-private fun HeroCard(
-    installedCount: Int,
-    readyCount: Int,
-    onOpenChat: () -> Unit,
-    onExplore: () -> Unit
-) {
+private fun HeroCard(installedCount: Int, readyCount: Int, onOpenChat: () -> Unit, onExplore: () -> Unit) {
     GradientHeaderCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -247,7 +255,7 @@ private fun HeroCard(
                         title,
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
                     )
                     val subtitle = when {
                         readyCount > 0 -> stringResource(R.string.home_hero_ready_count, readyCount, installedCount)
@@ -257,7 +265,7 @@ private fun HeroCard(
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 val dotColor = when {
@@ -267,7 +275,7 @@ private fun HeroCard(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        modifier = Modifier.size(8.dp).background(dotColor, CircleShape)
+                        modifier = Modifier.size(8.dp).background(dotColor, CircleShape),
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
@@ -277,17 +285,23 @@ private fun HeroCard(
                             else -> stringResource(R.string.no_models_yet)
                         },
                         color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.labelMedium
+                        style = MaterialTheme.typography.labelMedium,
                     )
                 }
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 GradientButton(
-                    text = if (installedCount > 0) stringResource(R.string.open_chat) else stringResource(R.string.explore_models),
+                    text = if (installedCount > 0) {
+                        stringResource(
+                            R.string.open_chat,
+                        )
+                    } else {
+                        stringResource(R.string.explore_models)
+                    },
                     onClick = if (installedCount > 0) onOpenChat else onExplore,
                     icon = if (installedCount > 0) Icons.Filled.ChatBubbleOutline else Icons.Filled.Widgets,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 )
             }
         }
@@ -295,24 +309,24 @@ private fun HeroCard(
 }
 
 @Composable
-private fun QuickAction(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun QuickAction(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     AppCard(modifier = modifier.clickable(onClick = onClick)) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
+            )
             Spacer(Modifier.height(8.dp))
             Text(
                 label,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurface,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
         }
     }
@@ -326,24 +340,30 @@ private fun SystemOverview(
 ) {
     if (profile == null) return
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        SectionHeader(title = stringResource(R.string.home_system_overview), actionText = stringResource(R.string.home_view_system_status), onAction = onViewSystem)
+        SectionHeader(
+            title = stringResource(R.string.home_system_overview),
+            actionText = stringResource(R.string.home_view_system_status),
+            onAction = onViewSystem,
+        )
         AppCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     MetricBox(
                         icon = Icons.Filled.Memory,
-                        value = "${profile.availableRamGb.toString().take(3)} / ${profile.totalRamGb.toString().take(3)} GB",
+                        value = "${profile.availableRamGb.toString().take(
+                            3,
+                        )} / ${profile.totalRamGb.toString().take(3)} GB",
                         label = stringResource(R.string.home_ram),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     )
                     MetricBox(
                         icon = Icons.Filled.Storage,
                         value = Formatters.bytes(profile.storageAvailableBytes),
                         label = stringResource(R.string.home_storage_free),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     )
                 }
                 if (budget != null) {
@@ -351,7 +371,7 @@ private fun SystemOverview(
                     ProgressBlock(
                         label = stringResource(R.string.home_safe_ai_budget),
                         progress = budget.modelMemoryBytes.toFloat() / profile.availableRamBytes.toFloat(),
-                        valueText = "${budget.modelMemoryGb.toString().take(3)} GB"
+                        valueText = "${budget.modelMemoryGb.toString().take(3)} GB",
                     )
                 }
             }
@@ -360,33 +380,34 @@ private fun SystemOverview(
 }
 
 @Composable
-private fun MetricBox(
-    icon: ImageVector,
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier
-) {
+private fun MetricBox(icon: ImageVector, value: String, label: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.size(16.dp),
+            )
             Spacer(Modifier.width(6.dp))
-            Text(value, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+            Text(
+                value,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun RecommendationCard(
-    recommendation: Recommendation,
-    isInstalled: Boolean,
-    onClick: () -> Unit
-) {
+private fun RecommendationCard(recommendation: Recommendation, isInstalled: Boolean, onClick: () -> Unit) {
     AppCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .padding(horizontal = 20.dp, vertical = 6.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -397,12 +418,12 @@ private fun RecommendationCard(
                         recommendation.model.name,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         recommendation.model.provider,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 CompatibilityBadge(level = recommendation.level)
@@ -411,7 +432,7 @@ private fun RecommendationCard(
             Text(
                 recommendation.reason,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (isInstalled) {
                 Spacer(Modifier.height(8.dp))

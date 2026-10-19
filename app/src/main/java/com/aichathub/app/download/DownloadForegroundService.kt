@@ -14,13 +14,13 @@ import androidx.core.app.NotificationCompat
 import com.aichathub.app.MainActivity
 import com.aichathub.app.R
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 @AndroidEntryPoint
 class DownloadForegroundService : Service() {
@@ -98,7 +98,11 @@ class DownloadForegroundService : Service() {
     private fun startForegroundCompat() {
         val notification = buildNotification(null)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+            )
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
@@ -129,7 +133,7 @@ class DownloadForegroundService : Service() {
             this,
             0,
             Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_download)
@@ -148,7 +152,7 @@ class DownloadForegroundService : Service() {
                     builder.addAction(
                         0,
                         getString(R.string.notification_action_cancel),
-                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_CANCEL, info.modelId)
+                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_CANCEL, info.modelId),
                     )
                 }
                 DownloadStatus.PAUSED -> {
@@ -156,29 +160,29 @@ class DownloadForegroundService : Service() {
                     builder.addAction(
                         0,
                         getString(R.string.notification_action_resume),
-                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_RESUME, info.modelId)
+                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_RESUME, info.modelId),
                     )
                     builder.addAction(
                         0,
                         getString(R.string.notification_action_cancel),
-                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_CANCEL, info.modelId)
+                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_CANCEL, info.modelId),
                     )
                 }
                 else -> {
                     builder.setProgress(100, info.progress, false)
                     builder.setContentText(
                         "${info.progress}% . ${formatBytes(info.downloadedBytes)} / ${formatBytes(info.totalBytes)}" +
-                            (if (info.speedBytesPerSec > 0) " . ${formatBytes(info.speedBytesPerSec)}/s" else "")
+                            (if (info.speedBytesPerSec > 0) " . ${formatBytes(info.speedBytesPerSec)}/s" else ""),
                     )
                     builder.addAction(
                         0,
                         getString(R.string.notification_action_pause),
-                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_PAUSE, info.modelId)
+                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_PAUSE, info.modelId),
                     )
                     builder.addAction(
                         0,
                         getString(R.string.notification_action_cancel),
-                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_CANCEL, info.modelId)
+                        DownloadActionReceiver.actionIntent(this, DownloadActionReceiver.ACTION_CANCEL, info.modelId),
                     )
                 }
             }
@@ -200,7 +204,7 @@ class DownloadForegroundService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             getString(R.string.notification_channel_downloads),
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_LOW,
         ).apply {
             description = getString(R.string.notification_channel_downloads_desc)
             setShowBadge(false)

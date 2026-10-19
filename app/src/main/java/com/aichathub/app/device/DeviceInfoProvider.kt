@@ -31,25 +31,23 @@ class DeviceInfoProvider(private val context: Context) {
             storageAvailableBytes = storageAvailable,
             cpuCores = Runtime.getRuntime().availableProcessors(),
             abi = Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown",
-            androidVersion = Build.VERSION.SDK_INT
+            androidVersion = Build.VERSION.SDK_INT,
         )
     }
 
-    private fun storageTotal(): Long =
-        try {
-            StatFs(Environment.getDataDirectory().absolutePath).let { stat ->
-                stat.blockCountLong * stat.blockSizeLong
-            }
-        } catch (e: Exception) {
-            0L
+    private fun storageTotal(): Long = try {
+        StatFs(Environment.getDataDirectory().absolutePath).let { stat ->
+            stat.blockCountLong * stat.blockSizeLong
         }
+    } catch (e: Exception) {
+        0L
+    }
 
-    private fun storageAvailable(): Long =
-        try {
-            StatFs(Environment.getDataDirectory().absolutePath).let { stat ->
-                stat.availableBlocksLong * stat.blockSizeLong
-            }
-        } catch (e: Exception) {
-            0L
+    private fun storageAvailable(): Long = try {
+        StatFs(Environment.getDataDirectory().absolutePath).let { stat ->
+            stat.availableBlocksLong * stat.blockSizeLong
         }
+    } catch (e: Exception) {
+        0L
+    }
 }

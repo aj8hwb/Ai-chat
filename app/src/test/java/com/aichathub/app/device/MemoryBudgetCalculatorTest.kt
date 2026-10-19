@@ -17,7 +17,7 @@ class MemoryBudgetCalculatorTest {
         storageAvailableBytes = gb(40),
         cpuCores = 8,
         abi = "arm64-v8a",
-        androidVersion = 14
+        androidVersion = 14,
     )
 
     @Test
@@ -66,7 +66,10 @@ class MemoryBudgetCalculatorTest {
     @Test
     fun `kv metadata derives exact bytes per token`() {
         val spec = MemoryBudgetCalculator.KvCacheSpec(
-            layers = 32, kvHeads = 8, headDim = 128, bytesPerElement = 2
+            layers = 32,
+            kvHeads = 8,
+            headDim = 128,
+            bytesPerElement = 2,
         )
         assertEquals(131_072L, spec.bytesPerToken)
     }
@@ -75,15 +78,21 @@ class MemoryBudgetCalculatorTest {
     fun `kv metadata overrides parameter-count heuristic`() {
         val weights = mb(2000)
         val withMetadata = MemoryBudgetCalculator.calculate(
-            profile(8, 4096), weights, contextLength = 4096, parameterCount = 7_000_000_000L,
-            kvCacheSpec = MemoryBudgetCalculator.KvCacheSpec(32, 8, 128)
+            profile(8, 4096),
+            weights,
+            contextLength = 4096,
+            parameterCount = 7_000_000_000L,
+            kvCacheSpec = MemoryBudgetCalculator.KvCacheSpec(32, 8, 128),
         )
         // kvCacheMemory must be exactly spec.bytesPerToken × context
         assertEquals(131_072L * 4096, withMetadata.kvCacheMemoryBytes)
         // The 7B parameter heuristic would have produced the 512 B/token
         // reference — prove metadata actually changed the result.
         val withoutMetadata = MemoryBudgetCalculator.calculate(
-            profile(8, 4096), weights, contextLength = 4096, parameterCount = 7_000_000_000L
+            profile(8, 4096),
+            weights,
+            contextLength = 4096,
+            parameterCount = 7_000_000_000L,
         )
         assertTrue(withoutMetadata.kvCacheMemoryBytes != withMetadata.kvCacheMemoryBytes)
     }
@@ -91,8 +100,10 @@ class MemoryBudgetCalculatorTest {
     @Test
     fun `parameter-count heuristic produces reference bytes for 7B`() {
         val budget = MemoryBudgetCalculator.calculate(
-            profile(8, 4096), modelWeightsBytes = mb(4000), contextLength = 1024,
-            parameterCount = 7_000_000_000L
+            profile(8, 4096),
+            modelWeightsBytes = mb(4000),
+            contextLength = 1024,
+            parameterCount = 7_000_000_000L,
         )
         assertEquals(512L * 1024, budget.kvCacheMemoryBytes)
     }
@@ -102,8 +113,11 @@ class MemoryBudgetCalculatorTest {
         val spec = MemoryBudgetCalculator.KvCacheSpec(32, 8, 128) // 131072 B/token
         val weights = mb(2000)
         val budget = MemoryBudgetCalculator.calculate(
-            profile(8, 4096), weights, contextLength = 8192,
-            parameterCount = null, kvCacheSpec = spec
+            profile(8, 4096),
+            weights,
+            contextLength = 8192,
+            parameterCount = null,
+            kvCacheSpec = spec,
         )
         // availableForContext = 1972MB - 2000MB - 128KB → negative → 0
         assertEquals(0, budget.maxContextTokens)
@@ -114,8 +128,11 @@ class MemoryBudgetCalculatorTest {
         val spec = MemoryBudgetCalculator.KvCacheSpec(20, 8, 128) // 81920 B/token
         val weights = mb(1000)
         val budget = MemoryBudgetCalculator.calculate(
-            profile(8, 4096), weights, contextLength = 2048,
-            parameterCount = null, kvCacheSpec = spec
+            profile(8, 4096),
+            weights,
+            contextLength = 2048,
+            parameterCount = null,
+            kvCacheSpec = spec,
         )
         val availableForContext = mb(1972) - mb(1000) -
             AiMemoryBudget.THREAD_BUFFER_PER_THREAD * AiMemoryBudget.DEFAULT_THREADS

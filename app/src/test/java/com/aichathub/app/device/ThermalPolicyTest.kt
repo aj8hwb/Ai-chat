@@ -58,15 +58,15 @@ class ThermalPolicyTest {
     fun `combine picks the worse signal`() {
         assertEquals(
             ThermalManager.ThermalState.HOT,
-            ThermalPolicy.combine(ThermalManager.ThermalState.NORMAL, ThermalManager.ThermalState.HOT)
+            ThermalPolicy.combine(ThermalManager.ThermalState.NORMAL, ThermalManager.ThermalState.HOT),
         )
         assertEquals(
             ThermalManager.ThermalState.CRITICAL,
-            ThermalPolicy.combine(ThermalManager.ThermalState.WARM, ThermalManager.ThermalState.CRITICAL)
+            ThermalPolicy.combine(ThermalManager.ThermalState.WARM, ThermalManager.ThermalState.CRITICAL),
         )
         assertEquals(
             ThermalManager.ThermalState.NORMAL,
-            ThermalPolicy.combine(ThermalManager.ThermalState.NORMAL, ThermalManager.ThermalState.NORMAL)
+            ThermalPolicy.combine(ThermalManager.ThermalState.NORMAL, ThermalManager.ThermalState.NORMAL),
         )
     }
 
@@ -113,19 +113,19 @@ class ThermalPolicyTest {
     fun `load level mapping covers all states`() {
         assertEquals(
             ModelThreads.ThermalLoadLevel.NORMAL,
-            ThermalPolicy.toLoadLevel(ThermalManager.ThermalState.NORMAL)
+            ThermalPolicy.toLoadLevel(ThermalManager.ThermalState.NORMAL),
         )
         assertEquals(
             ModelThreads.ThermalLoadLevel.WARM,
-            ThermalPolicy.toLoadLevel(ThermalManager.ThermalState.WARM)
+            ThermalPolicy.toLoadLevel(ThermalManager.ThermalState.WARM),
         )
         assertEquals(
             ModelThreads.ThermalLoadLevel.HOT,
-            ThermalPolicy.toLoadLevel(ThermalManager.ThermalState.HOT)
+            ThermalPolicy.toLoadLevel(ThermalManager.ThermalState.HOT),
         )
         assertEquals(
             ModelThreads.ThermalLoadLevel.CRITICAL,
-            ThermalPolicy.toLoadLevel(ThermalManager.ThermalState.CRITICAL)
+            ThermalPolicy.toLoadLevel(ThermalManager.ThermalState.CRITICAL),
         )
     }
 
@@ -135,11 +135,11 @@ class ThermalPolicyTest {
     fun `escalation applies immediately`() {
         assertEquals(
             ThermalManager.ThermalState.CRITICAL,
-            ThermalPolicy.stabilize(ThermalManager.ThermalState.NORMAL, ThermalManager.ThermalState.CRITICAL)
+            ThermalPolicy.stabilize(ThermalManager.ThermalState.NORMAL, ThermalManager.ThermalState.CRITICAL),
         )
         assertEquals(
             ThermalManager.ThermalState.WARM,
-            ThermalPolicy.stabilize(ThermalManager.ThermalState.NORMAL, ThermalManager.ThermalState.WARM)
+            ThermalPolicy.stabilize(ThermalManager.ThermalState.NORMAL, ThermalManager.ThermalState.WARM),
         )
     }
 
@@ -147,7 +147,7 @@ class ThermalPolicyTest {
     fun `equal reading keeps the current state`() {
         assertEquals(
             ThermalManager.ThermalState.HOT,
-            ThermalPolicy.stabilize(ThermalManager.ThermalState.HOT, ThermalManager.ThermalState.HOT)
+            ThermalPolicy.stabilize(ThermalManager.ThermalState.HOT, ThermalManager.ThermalState.HOT),
         )
     }
 
@@ -155,15 +155,15 @@ class ThermalPolicyTest {
     fun `one-rank dip does not de-escalate (no flapping)`() {
         assertEquals(
             ThermalManager.ThermalState.HOT,
-            ThermalPolicy.stabilize(ThermalManager.ThermalState.HOT, ThermalManager.ThermalState.WARM)
+            ThermalPolicy.stabilize(ThermalManager.ThermalState.HOT, ThermalManager.ThermalState.WARM),
         )
         assertEquals(
             ThermalManager.ThermalState.WARM,
-            ThermalPolicy.stabilize(ThermalManager.ThermalState.WARM, ThermalManager.ThermalState.NORMAL)
+            ThermalPolicy.stabilize(ThermalManager.ThermalState.WARM, ThermalManager.ThermalState.NORMAL),
         )
         assertEquals(
             ThermalManager.ThermalState.CRITICAL,
-            ThermalPolicy.stabilize(ThermalManager.ThermalState.CRITICAL, ThermalManager.ThermalState.HOT)
+            ThermalPolicy.stabilize(ThermalManager.ThermalState.CRITICAL, ThermalManager.ThermalState.HOT),
         )
     }
 
@@ -171,15 +171,15 @@ class ThermalPolicyTest {
     fun `clear recovery de-escalates`() {
         assertEquals(
             ThermalManager.ThermalState.NORMAL,
-            ThermalPolicy.stabilize(ThermalManager.ThermalState.WARM, ThermalManager.ThermalState.NORMAL)
+            ThermalPolicy.stabilize(ThermalManager.ThermalState.WARM, ThermalManager.ThermalState.NORMAL),
         )
         assertEquals(
             ThermalManager.ThermalState.WARM,
-            ThermalPolicy.stabilize(ThermalManager.ThermalState.CRITICAL, ThermalManager.ThermalState.WARM)
+            ThermalPolicy.stabilize(ThermalManager.ThermalState.CRITICAL, ThermalManager.ThermalState.WARM),
         )
         assertEquals(
             ThermalManager.ThermalState.NORMAL,
-            ThermalPolicy.stabilize(ThermalManager.ThermalState.HOT, ThermalManager.ThermalState.NORMAL)
+            ThermalPolicy.stabilize(ThermalManager.ThermalState.HOT, ThermalManager.ThermalState.NORMAL),
         )
     }
 }

@@ -1,7 +1,7 @@
 package com.aichathub.app.chat
 
-import kotlinx.coroutines.flow.StateFlow
 import java.io.File
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Explicit runtime state machine for the inference engine.
@@ -77,17 +77,10 @@ interface InferenceRuntime {
     suspend fun unload()
 
     /** Generates a full response (non-streaming). */
-    suspend fun generate(
-        prompt: String,
-        config: GenerationConfig
-    ): String
+    suspend fun generate(prompt: String, config: GenerationConfig): String
 
     /** Generates a response with streaming tokens via [onToken]. */
-    suspend fun generateStreaming(
-        prompt: String,
-        config: GenerationConfig,
-        onToken: (String) -> Unit
-    ): String
+    suspend fun generateStreaming(prompt: String, config: GenerationConfig, onToken: (String) -> Unit): String
 
     /**
      * Cancels any active generation.

@@ -1,9 +1,8 @@
 package com.aichathub.app
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.aichathub.app.util.TokenEstimator
-import org.junit.Assert.*
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 

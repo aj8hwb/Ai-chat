@@ -152,7 +152,7 @@ class SettingsRepository(private val context: Context) {
             incognitoMode = p[Keys.incognitoMode] ?: false,
             clipboardAutoClear = p[Keys.clipboardAutoClear] ?: false,
             crashLogPurge = p[Keys.crashLogPurge] ?: false,
-            onboardingCompleted = p[Keys.onboardingCompleted] ?: false
+            onboardingCompleted = p[Keys.onboardingCompleted] ?: false,
         )
     }
 

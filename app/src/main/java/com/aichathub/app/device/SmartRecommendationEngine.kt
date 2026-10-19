@@ -76,10 +76,10 @@ class SmartRecommendationEngine {
     // ── weight profiles per mode ──────────────────────────────────────
     // memory, speed, storage, battery/thermal
     private val weights: Map<RecommendationMode, FloatArray> = mapOf(
-        RecommendationMode.BEST_BALANCE  to floatArrayOf(0.40f, 0.25f, 0.20f, 0.15f),
-        RecommendationMode.FASTEST       to floatArrayOf(0.25f, 0.50f, 0.10f, 0.15f),
-        RecommendationMode.BEST_QUALITY  to floatArrayOf(0.35f, 0.20f, 0.25f, 0.20f),
-        RecommendationMode.SMALLEST      to floatArrayOf(0.30f, 0.10f, 0.50f, 0.10f)
+        RecommendationMode.BEST_BALANCE to floatArrayOf(0.40f, 0.25f, 0.20f, 0.15f),
+        RecommendationMode.FASTEST to floatArrayOf(0.25f, 0.50f, 0.10f, 0.15f),
+        RecommendationMode.BEST_QUALITY to floatArrayOf(0.35f, 0.20f, 0.25f, 0.20f),
+        RecommendationMode.SMALLEST to floatArrayOf(0.30f, 0.10f, 0.50f, 0.10f),
     )
 
     // ── public API ────────────────────────────────────────────────────
@@ -106,15 +106,15 @@ class SmartRecommendationEngine {
         measuredPss: Map<String, Long> = emptyMap(),
         pastBenchmarks: Map<String, Float> = emptyMap()
     ): SmartRecommendation {
-        val memory    = memoryScore(model, budget, measuredPss)
-        val speed     = speedScore(model, profile, pastBenchmarks)
-        val storage   = storageScore(model, profile)
+        val memory = memoryScore(model, budget, measuredPss)
+        val speed = speedScore(model, profile, pastBenchmarks)
+        val storage = storageScore(model, profile)
         val batteryTh = batteryThermalScore(thermalStatus, batteryLevel)
 
         val w = weights.getValue(mode)
         val composite = clamp(w[0] * memory + w[1] * speed + w[2] * storage + w[3] * batteryTh)
 
-        val risk   = deriveRiskLevel(composite, memory)
+        val risk = deriveRiskLevel(composite, memory)
         val speedLabel = deriveSpeedLabel(speed)
         val bestForTag = deriveBestFor(model, mode)
         val compat = deriveCompatibilityLevel(composite)
@@ -132,7 +132,7 @@ class SmartRecommendationEngine {
             storageScore = storage,
             batteryThermalScore = batteryTh,
             reason = reason,
-            compatibilityLevel = compat
+            compatibilityLevel = compat,
         )
     }
 
@@ -148,10 +148,9 @@ class SmartRecommendationEngine {
         batteryLevel: Int = -1,
         measuredPss: Map<String, Long> = emptyMap(),
         pastBenchmarks: Map<String, Float> = emptyMap()
-    ): List<SmartRecommendation> =
-        models.map { model ->
-            score(model, profile, budget, mode, thermalStatus, batteryLevel, measuredPss, pastBenchmarks)
-        }.sortedByDescending { it.score }
+    ): List<SmartRecommendation> = models.map { model ->
+        score(model, profile, budget, mode, thermalStatus, batteryLevel, measuredPss, pastBenchmarks)
+    }.sortedByDescending { it.score }
 
     // ── individual scoring dimensions ─────────────────────────────────
 
@@ -159,21 +158,17 @@ class SmartRecommendationEngine {
      * Memory score: how comfortably the model fits in the safe budget.
      * 1.0 = uses < 60 % of budget, 0.0 = exceeds budget by > 35 %.
      */
-    private fun memoryScore(
-        model: CatalogModel,
-        budget: AiMemoryBudget,
-        measuredPss: Map<String, Long>
-    ): Float {
+    private fun memoryScore(model: CatalogModel, budget: AiMemoryBudget, measuredPss: Map<String, Long>): Float {
         val usable = budget.modelMemoryBytes.toDouble()
         if (usable <= 0.0) return 0f
         val required = effectiveMemory(model, measuredPss).toDouble()
         val ratio = required / usable
         return when {
-            ratio <= 0.6  -> 1.0f
+            ratio <= 0.6 -> 1.0f
             ratio <= 0.75 -> lerp(0.75f, 1.0f, (ratio - 0.6) / 0.15)
-            ratio <= 1.0  -> lerp(0.5f, 0.75f, (ratio - 0.75) / 0.25)
+            ratio <= 1.0 -> lerp(0.5f, 0.75f, (ratio - 0.75) / 0.25)
             ratio <= 1.35 -> lerp(0.2f, 0.5f, (ratio - 1.0) / 0.35)
-            else          -> clamp(0.2f - ((ratio - 1.35).toFloat() * 0.3f))
+            else -> clamp(0.2f - ((ratio - 1.35).toFloat() * 0.3f))
         }
     }
 
@@ -185,11 +180,7 @@ class SmartRecommendationEngine {
      * runtime is CPU-only (gpuLayers=0). GPU acceleration will be factored in
      * only when a GPU-capable runtime is actually functional.
      */
-    private fun speedScore(
-        model: CatalogModel,
-        profile: DeviceProfile,
-        pastBenchmarks: Map<String, Float>
-    ): Float {
+    private fun speedScore(model: CatalogModel, profile: DeviceProfile, pastBenchmarks: Map<String, Float>): Float {
         // Historical benchmark is the strongest signal.
         val benchTps = pastBenchmarks[model.id]
         if (benchTps != null && benchTps > 0f) {
@@ -208,10 +199,10 @@ class SmartRecommendationEngine {
         val ramFactor = when {
             ramGb >= 16f -> 1.0f
             ramGb >= 12f -> 0.85f
-            ramGb >= 8f  -> 0.65f
-            ramGb >= 6f  -> 0.45f
-            ramGb >= 4f  -> 0.25f
-            else         -> 0.1f
+            ramGb >= 8f -> 0.65f
+            ramGb >= 6f -> 0.45f
+            ramGb >= 4f -> 0.25f
+            else -> 0.1f
         }
         score += ramFactor * 0.45f
 
@@ -231,12 +222,12 @@ class SmartRecommendationEngine {
         val freeAfter = profile.storageAvailableBytes - model.fileSizeBytes
         val freeMb = freeAfter / (1024.0 * 1024.0)
         return when {
-            freeMb >= 4096  -> 1.0f
-            freeMb >= 2048  -> 0.85f
-            freeMb >= 1024  -> 0.65f
-            freeMb >= 500   -> 0.4f
-            freeMb >= 200   -> 0.2f
-            else            -> 0.05f
+            freeMb >= 4096 -> 1.0f
+            freeMb >= 2048 -> 0.85f
+            freeMb >= 1024 -> 0.65f
+            freeMb >= 500 -> 0.4f
+            freeMb >= 200 -> 0.2f
+            else -> 0.05f
         }
     }
 
@@ -246,21 +237,21 @@ class SmartRecommendationEngine {
      */
     private fun batteryThermalScore(thermal: ThermalStatus, batteryLevel: Int): Float {
         val thermalScore = when (thermal) {
-            ThermalStatus.NONE     -> 1.0f
-            ThermalStatus.LIGHT    -> 0.85f
+            ThermalStatus.NONE -> 1.0f
+            ThermalStatus.LIGHT -> 0.85f
             ThermalStatus.MODERATE -> 0.6f
-            ThermalStatus.SEVERE   -> 0.3f
+            ThermalStatus.SEVERE -> 0.3f
             ThermalStatus.CRITICAL -> 0.1f
             ThermalStatus.EMERGENCY,
             ThermalStatus.SHUTDOWN -> 0.0f
         }
         val batteryScore = when {
-            batteryLevel < 0  -> 0.7f   // unknown → mild default
+            batteryLevel < 0 -> 0.7f // unknown → mild default
             batteryLevel >= 50 -> 1.0f
             batteryLevel >= 30 -> 0.8f
             batteryLevel >= 15 -> 0.5f
-            batteryLevel >= 5  -> 0.25f
-            else               -> 0.05f
+            batteryLevel >= 5 -> 0.25f
+            else -> 0.05f
         }
         return clamp(thermalScore * 0.65f + batteryScore * 0.35f)
     }
@@ -272,22 +263,22 @@ class SmartRecommendationEngine {
 
     private fun deriveRiskLevel(composite: Float, memory: Float): RiskLevel = when {
         composite >= 0.75f && memory >= 0.5f -> RiskLevel.SAFE
-        composite >= 0.55f                   -> RiskLevel.MODERATE
-        composite >= 0.3f                    -> RiskLevel.HEAVY
-        else                                 -> RiskLevel.NOT_RECOMMENDED
+        composite >= 0.55f -> RiskLevel.MODERATE
+        composite >= 0.3f -> RiskLevel.HEAVY
+        else -> RiskLevel.NOT_RECOMMENDED
     }
 
     private fun deriveSpeedLabel(speed: Float): String = when {
         speed >= 0.7f -> "Fast"
         speed >= 0.4f -> "Moderate"
-        else          -> "Slow"
+        else -> "Slow"
     }
 
     private fun deriveBestFor(model: CatalogModel, mode: RecommendationMode): String = when (mode) {
-        RecommendationMode.BEST_BALANCE  -> "Best balance"
-        RecommendationMode.FASTEST       -> "Fastest"
-        RecommendationMode.BEST_QUALITY  -> "Best quality"
-        RecommendationMode.SMALLEST      -> "Smallest"
+        RecommendationMode.BEST_BALANCE -> "Best balance"
+        RecommendationMode.FASTEST -> "Fastest"
+        RecommendationMode.BEST_QUALITY -> "Best quality"
+        RecommendationMode.SMALLEST -> "Smallest"
     }
 
     private fun deriveCompatibilityLevel(composite: Float): CompatibilityLevel = when {
@@ -295,7 +286,7 @@ class SmartRecommendationEngine {
         composite >= 0.6f -> CompatibilityLevel.RECOMMENDED
         composite >= 0.4f -> CompatibilityLevel.USABLE
         composite >= 0.2f -> CompatibilityLevel.HEAVY
-        else              -> CompatibilityLevel.NOT_RECOMMENDED
+        else -> CompatibilityLevel.NOT_RECOMMENDED
     }
 
     private fun buildReason(

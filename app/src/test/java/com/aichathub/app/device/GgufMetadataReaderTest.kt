@@ -1,13 +1,13 @@
 package com.aichathub.app.device
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
 /**
  * Builds SYNTHETIC GGUF v2/v3 headers in memory and verifies
@@ -65,11 +65,26 @@ class GgufMetadataReaderTest {
     private fun typeF32() = 6
 
     private fun standardLlamaHeader(writer: GgufWriter): GgufWriter = writer
-        .keyType("llama.block_count", TYPE_U32).let { it.u32(32); it }
-        .keyType("llama.attention.head_count", TYPE_U32).let { it.u32(32); it }
-        .keyType("llama.attention.head_count_kv", TYPE_U32).let { it.u32(8); it }
-        .keyType("llama.attention.key_length", TYPE_U32).let { it.u32(128); it }
-        .keyType("llama.attention.value_length", TYPE_U32).let { it.u32(128); it }
+        .keyType("llama.block_count", TYPE_U32).let {
+            it.u32(32)
+            it
+        }
+        .keyType("llama.attention.head_count", TYPE_U32).let {
+            it.u32(32)
+            it
+        }
+        .keyType("llama.attention.head_count_kv", TYPE_U32).let {
+            it.u32(8)
+            it
+        }
+        .keyType("llama.attention.key_length", TYPE_U32).let {
+            it.u32(128)
+            it
+        }
+        .keyType("llama.attention.value_length", TYPE_U32).let {
+            it.u32(128)
+            it
+        }
 
     // ── happy path ──────────────────────────────────────────────────────
 
@@ -77,9 +92,18 @@ class GgufMetadataReaderTest {
     fun `standard llama GGUF metadata produces the exact KvCacheSpec`() {
         val file = standardLlamaHeader(
             GgufWriter().magic()
-                .let { it.u32(3); it } // version
-                .let { it.u64(0L); it } // tensor count
-                .let { it.u64(5L); it }
+                .let {
+                    it.u32(3)
+                    it
+                } // version
+                .let {
+                    it.u64(0L)
+                    it
+                } // tensor count
+                .let {
+                    it.u64(5L)
+                    it
+                },
         ).toFile()
 
         val metadata = GgufMetadataReader.readMetadata(file)
@@ -97,8 +121,14 @@ class GgufMetadataReaderTest {
     @Test
     fun `architecture name is read from general dot architecture`() {
         val file = GgufWriter().magic().u32(3).u64(0).u64(2)
-            .keyType("general.architecture", TYPE_STRING).let { it.str("qwen2"); it }
-            .keyType("qwen2.block_count", TYPE_U32).let { it.u32(24); it }
+            .keyType("general.architecture", TYPE_STRING).let {
+                it.str("qwen2")
+                it
+            }
+            .keyType("qwen2.block_count", TYPE_U32).let {
+                it.u32(24)
+                it
+            }
             .toFile()
         assertEquals("qwen2", GgufMetadataReader.readMetadata(file)!!.architecture)
     }
@@ -108,9 +138,18 @@ class GgufMetadataReaderTest {
         // A plain GGUF model without a KV-head key is treated as full-MHA:
         // kvHeads = headCount (conservative upper bound, documented).
         val file = GgufWriter().magic().u32(3).u64(0).u64(2)
-            .keyType("m.block_count", TYPE_U32).let { it.u32(20); it }
-            .keyType("m.attention.head_count", TYPE_U32).let { it.u32(16); it }
-            .keyType("m.attention.key_length", TYPE_U32).let { it.u32(64); it }
+            .keyType("m.block_count", TYPE_U32).let {
+                it.u32(20)
+                it
+            }
+            .keyType("m.attention.head_count", TYPE_U32).let {
+                it.u32(16)
+                it
+            }
+            .keyType("m.attention.key_length", TYPE_U32).let {
+                it.u32(64)
+                it
+            }
             .toFile()
         val spec = GgufMetadataReader.toKvCacheSpec(GgufMetadataReader.readMetadata(file))
         assertEquals(16, spec!!.kvHeads)
@@ -120,9 +159,18 @@ class GgufMetadataReaderTest {
     @Test
     fun `key length derives from embedding and head count when absent`() {
         val file = GgufWriter().magic().u32(3).u64(0).u64(2)
-            .keyType("m.block_count", TYPE_U32).let { it.u32(20); it }
-            .keyType("m.attention.head_count", TYPE_U32).let { it.u32(16); it }
-            .keyType("m.embedding_length", TYPE_U32).let { it.u32(2048); it }
+            .keyType("m.block_count", TYPE_U32).let {
+                it.u32(20)
+                it
+            }
+            .keyType("m.attention.head_count", TYPE_U32).let {
+                it.u32(16)
+                it
+            }
+            .keyType("m.embedding_length", TYPE_U32).let {
+                it.u32(2048)
+                it
+            }
             .toFile()
         val spec = GgufMetadataReader.toKvCacheSpec(GgufMetadataReader.readMetadata(file))
         assertEquals(2048 / 16, spec!!.headDim)
@@ -131,10 +179,22 @@ class GgufMetadataReaderTest {
     @Test
     fun `differing K and V dimensions use the max`() {
         val file = GgufWriter().magic().u32(3).u64(0).u64(3)
-            .keyType("m.block_count", TYPE_U32).let { it.u32(20); it }
-            .keyType("m.attention.head_count_kv", TYPE_U32).let { it.u32(4); it }
-            .keyType("m.attention.key_length", TYPE_U32).let { it.u32(96); it }
-            .keyType("m.attention.value_length", TYPE_U32).let { it.u32(192); it }
+            .keyType("m.block_count", TYPE_U32).let {
+                it.u32(20)
+                it
+            }
+            .keyType("m.attention.head_count_kv", TYPE_U32).let {
+                it.u32(4)
+                it
+            }
+            .keyType("m.attention.key_length", TYPE_U32).let {
+                it.u32(96)
+                it
+            }
+            .keyType("m.attention.value_length", TYPE_U32).let {
+                it.u32(192)
+                it
+            }
             .toFile()
         val spec = GgufMetadataReader.toKvCacheSpec(GgufMetadataReader.readMetadata(file))
         assertEquals(192, spec!!.headDim)
@@ -166,9 +226,18 @@ class GgufMetadataReaderTest {
     @Test
     fun `cross-layer kv sharing (negative head_count_kv) yields no spec`() {
         val file = GgufWriter().magic().u32(3).u64(0).u64(3)
-            .keyType("m.block_count", TYPE_U32).let { it.u32(20); it }
-            .keyType("m.attention.head_count_kv", TYPE_U32).let { it.u32(0xFF_FF_FFFEu.toInt()); it }
-            .keyType("m.attention.key_length", TYPE_U32).let { it.u32(128); it }
+            .keyType("m.block_count", TYPE_U32).let {
+                it.u32(20)
+                it
+            }
+            .keyType("m.attention.head_count_kv", TYPE_U32).let {
+                it.u32(0xFF_FF_FFFEu.toInt())
+                it
+            }
+            .keyType("m.attention.key_length", TYPE_U32).let {
+                it.u32(128)
+                it
+            }
             .toFile()
         val metadata = GgufMetadataReader.readMetadata(file)
         // -2 * may come through as a huge u32 → invalid → validator returns null
@@ -184,9 +253,18 @@ class GgufMetadataReaderTest {
                 repeat(4) { it.u32(1) }
                 it
             }
-            .keyType("m.block_count", TYPE_U32).let { it.u32(10); it }
-            .keyType("m.attention.head_count_kv", TYPE_U32).let { it.u32(5); it }
-            .keyType("m.attention.key_length", TYPE_U32).let { it.u32(128); it }
+            .keyType("m.block_count", TYPE_U32).let {
+                it.u32(10)
+                it
+            }
+            .keyType("m.attention.head_count_kv", TYPE_U32).let {
+                it.u32(5)
+                it
+            }
+            .keyType("m.attention.key_length", TYPE_U32).let {
+                it.u32(128)
+                it
+            }
             .toFile()
         val spec = GgufMetadataReader.toKvCacheSpec(GgufMetadataReader.readMetadata(file))
         assertEquals(10, spec!!.layers)
@@ -198,9 +276,18 @@ class GgufMetadataReaderTest {
         // Vocab (huge string array) comes AFTER the arch fields in real GGUF
         // produced by llama.cpp; even if it aborts, the scalar fields survive.
         val file = GgufWriter().magic().u32(3).u64(0).u64(4)
-            .keyType("m.block_count", TYPE_U32).let { it.u32(10); it }
-            .keyType("m.attention.head_count_kv", TYPE_U32).let { it.u32(5); it }
-            .keyType("m.attention.key_length", TYPE_U32).let { it.u32(128); it }
+            .keyType("m.block_count", TYPE_U32).let {
+                it.u32(10)
+                it
+            }
+            .keyType("m.attention.head_count_kv", TYPE_U32).let {
+                it.u32(5)
+                it
+            }
+            .keyType("m.attention.key_length", TYPE_U32).let {
+                it.u32(128)
+                it
+            }
             .keyType("tokenizer.ggml.tokens", TYPE_ARRAY).let {
                 it.u32(TYPE_STRING)
                 it.u64(32000L)
@@ -219,8 +306,14 @@ class GgufMetadataReaderTest {
     fun `metadata after insane string keys aborts without usable fields`() {
         // A key with a 10 MB declared length aborts; nothing usable collected.
         val file = GgufWriter().magic().u32(3).u64(0).u64(2)
-            .keyType("m.attention.head_count", TYPE_U32).let { it.u32(16); it }
-            .keyType("m.".padEnd(600, 'x'), TYPE_U32).let { it.u32(5); it }
+            .keyType("m.attention.head_count", TYPE_U32).let {
+                it.u32(16)
+                it
+            }
+            .keyType("m.".padEnd(600, 'x'), TYPE_U32).let {
+                it.u32(5)
+                it
+            }
             // key length 600 > cap 512 → abort → only head_count survives,
             // which alone cannot build a spec (no layers).
             .toFile()
@@ -231,7 +324,10 @@ class GgufMetadataReaderTest {
     @Test
     fun `missing block count yields no spec even with heads present`() {
         val file = GgufWriter().magic().u32(3).u64(0).u64(1)
-            .keyType("m.attention.head_count_kv", TYPE_U32).let { it.u32(8); it }
+            .keyType("m.attention.head_count_kv", TYPE_U32).let {
+                it.u32(8)
+                it
+            }
             .toFile()
         assertNull(GgufMetadataReader.toKvCacheSpec(GgufMetadataReader.readMetadata(file)))
     }
@@ -255,11 +351,26 @@ class GgufMetadataReaderTest {
     @Test
     fun `bool and float32 values are traversed without breaking the scan`() {
         val file = GgufWriter().magic().u32(3).u64(0).u64(4)
-            .keyType("m.some_flag", typeBool()).let { it.u8(1); it }
-            .keyType("m.some_float", typeF32()).let { it.u32(0x3F800000); it } // 1.0f bits
-            .keyType("m.block_count", TYPE_U32).let { it.u32(6); it }
-            .keyType("m.attention.head_count_kv", TYPE_U32).let { it.u32(3); it }
-            .keyType("m.attention.key_length", TYPE_U32).let { it.u32(64); it }
+            .keyType("m.some_flag", typeBool()).let {
+                it.u8(1)
+                it
+            }
+            .keyType("m.some_float", typeF32()).let {
+                it.u32(0x3F800000)
+                it
+            } // 1.0f bits
+            .keyType("m.block_count", TYPE_U32).let {
+                it.u32(6)
+                it
+            }
+            .keyType("m.attention.head_count_kv", TYPE_U32).let {
+                it.u32(3)
+                it
+            }
+            .keyType("m.attention.key_length", TYPE_U32).let {
+                it.u32(64)
+                it
+            }
             .toFile()
         val spec = GgufMetadataReader.toKvCacheSpec(GgufMetadataReader.readMetadata(file))
         assertEquals(6, spec!!.layers)

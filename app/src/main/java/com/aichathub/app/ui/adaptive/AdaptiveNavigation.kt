@@ -35,7 +35,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -48,7 +47,7 @@ data class NavigationItem(
     val screen: Screen,
     val label: String,
     val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
 )
 
 private val navigationItems = listOf(
@@ -98,10 +97,7 @@ fun AdaptiveNavigation(
 }
 
 @Composable
-private fun CompactNavigation(
-    navController: NavController,
-    content: @Composable () -> Unit
-) {
+private fun CompactNavigation(navController: NavController, content: @Composable () -> Unit) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -150,10 +146,7 @@ private fun CompactNavigation(
 }
 
 @Composable
-private fun MediumNavigation(
-    navController: NavController,
-    content: @Composable () -> Unit
-) {
+private fun MediumNavigation(navController: NavController, content: @Composable () -> Unit) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -209,10 +202,7 @@ private fun MediumNavigation(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ExpandedNavigation(
-    navController: NavController,
-    content: @Composable () -> Unit
-) {
+private fun ExpandedNavigation(navController: NavController, content: @Composable () -> Unit) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val drawerState = rememberDrawerState(DrawerValue.Open)

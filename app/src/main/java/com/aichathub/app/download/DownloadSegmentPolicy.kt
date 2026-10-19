@@ -24,7 +24,7 @@ object DownloadSegmentPolicy {
 
     fun metaFileName(fileName: String): String = "$fileName$META_SUFFIX"
 
-    fun partFileName(fileName: String, index: Int): String = "${fileName}.part.$index"
+    fun partFileName(fileName: String, index: Int): String = "$fileName.part.$index"
 
     fun mergedPartFileName(fileName: String): String = "$fileName$MERGED_PART_SUFFIX"
 

@@ -53,8 +53,7 @@ object ConversationGroups {
     }
 
     /** Short "HH:mm" label for a timestamp. */
-    fun timeLabel(timestamp: Long): String =
-        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+    fun timeLabel(timestamp: Long): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
 
     private fun startOfDay(cal: Calendar): Calendar = (cal.clone() as Calendar).also {
         it.set(Calendar.HOUR_OF_DAY, 0)

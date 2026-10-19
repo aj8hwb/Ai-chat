@@ -12,7 +12,7 @@ class ConversationGroupsTest {
         title = title,
         modelId = "m",
         createdAt = updatedAt,
-        updatedAt = updatedAt
+        updatedAt = updatedAt,
     )
 
     private fun daysAgo(days: Int, hour: Int = 12): Long {
@@ -28,7 +28,7 @@ class ConversationGroupsTest {
     @Test
     fun `groups by today yesterday and older`() {
         val groups = ConversationGroups.groupByDay(
-            listOf(conv(daysAgo(2)), conv(daysAgo(1)), conv(daysAgo(0)))
+            listOf(conv(daysAgo(2)), conv(daysAgo(1)), conv(daysAgo(0))),
         )
         assertEquals(3, groups.size)
         assertEquals("Today", groups[0].label)
@@ -40,7 +40,7 @@ class ConversationGroupsTest {
     @Test
     fun `groups are sorted newest first`() {
         val groups = ConversationGroups.groupByDay(
-            listOf(conv(daysAgo(5)), conv(daysAgo(0)))
+            listOf(conv(daysAgo(5)), conv(daysAgo(0))),
         )
         assertEquals("Today", groups.first().label)
         assertEquals(1, groups.first().conversations.size)

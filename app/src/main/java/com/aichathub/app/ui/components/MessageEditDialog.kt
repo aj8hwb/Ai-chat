@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -34,7 +33,7 @@ fun MessageEditDialog(
         title = {
             Text(
                 "Edit message",
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
             )
         },
         text = {
@@ -42,7 +41,7 @@ fun MessageEditDialog(
                 Text(
                     "Modify the message content below.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
@@ -57,15 +56,15 @@ fun MessageEditDialog(
                         unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        cursorColor = MaterialTheme.colorScheme.primary
-                    )
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                    ),
                 )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = { onSave(messageId, editedText.trim()) },
-                enabled = editedText.isNotBlank() && editedText.trim() != originalContent
+                enabled = editedText.isNotBlank() && editedText.trim() != originalContent,
             ) {
                 Text("Save", color = MaterialTheme.colorScheme.primary)
             }
@@ -74,6 +73,6 @@ fun MessageEditDialog(
             TextButton(onClick = onDismiss) {
                 Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        }
+        },
     )
 }

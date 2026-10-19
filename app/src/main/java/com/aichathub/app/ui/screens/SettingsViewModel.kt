@@ -6,14 +6,13 @@ import com.aichathub.app.data.CatalogRepository
 import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.SettingsRepository
 import com.aichathub.app.domain.model.CatalogModel
-import com.aichathub.app.domain.model.ModelLifecycleState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class SettingsUiState(
     val defaultModelId: String? = null,
@@ -60,7 +59,7 @@ class SettingsViewModel @Inject constructor(
                 themeMode = s.themeMode,
                 dynamicColor = s.dynamicColor,
                 historyTurns = s.historyTurns,
-                installedModels = installed
+                installedModels = installed,
             )
         }
     }

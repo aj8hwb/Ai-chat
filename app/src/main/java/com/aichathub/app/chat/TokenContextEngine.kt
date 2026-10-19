@@ -47,15 +47,11 @@ class TokenContextEngine {
             maxTokens = maxTokens,
             utilizationPercent = utilizationPercent.coerceIn(0f, 100f),
             isNearLimit = utilizationPercent > 80f,
-            isAtLimit = utilizationPercent > 95f
+            isAtLimit = utilizationPercent > 95f,
         )
     }
 
-    fun estimateFromRendered(
-        renderedPrompt: String,
-        model: CatalogModel,
-        outputTokens: Int = 0
-    ): ContextStatus {
+    fun estimateFromRendered(renderedPrompt: String, model: CatalogModel, outputTokens: Int = 0): ContextStatus {
         val promptTokens = TokenEstimator.estimate(renderedPrompt)
         val totalUsed = promptTokens + outputTokens
         val maxTokens = model.contextLength
@@ -68,7 +64,7 @@ class TokenContextEngine {
             maxTokens = maxTokens,
             utilizationPercent = utilizationPercent.coerceIn(0f, 100f),
             isNearLimit = utilizationPercent > 80f,
-            isAtLimit = utilizationPercent > 95f
+            isAtLimit = utilizationPercent > 95f,
         )
     }
 
@@ -85,22 +81,18 @@ class TokenContextEngine {
         return result
     }
 
-    fun estimateHistoryTokens(history: List<Pair<String, String>>): Int =
-        history.sumOf { (role, content) ->
-            TokenEstimator.estimate(role) + TokenEstimator.estimate(content)
-        }
+    fun estimateHistoryTokens(history: List<Pair<String, String>>): Int = history.sumOf { (role, content) ->
+        TokenEstimator.estimate(role) + TokenEstimator.estimate(content)
+    }
 
-    fun suggestCompaction(
-        contextStatus: ContextStatus,
-        history: List<Pair<String, String>>
-    ): CompactionSuggestion? {
+    fun suggestCompaction(contextStatus: ContextStatus, history: List<Pair<String, String>>): CompactionSuggestion? {
         if (!contextStatus.isNearLimit) return null
 
         if (contextStatus.isAtLimit && history.size <= 2) {
             return CompactionSuggestion(
                 type = CompactionType.START_NEW,
                 reason = "Context is at capacity with minimal history. Start a new conversation.",
-                estimatedTokensSaved = contextStatus.totalUsed
+                estimatedTokensSaved = contextStatus.totalUsed,
             )
         }
 
@@ -111,7 +103,7 @@ class TokenContextEngine {
             return CompactionSuggestion(
                 type = CompactionType.TRIM_OLDEST,
                 reason = "Context is almost full. Older messages will be dropped to make room.",
-                estimatedTokensSaved = oldTokens
+                estimatedTokensSaved = oldTokens,
             )
         }
 
@@ -120,7 +112,7 @@ class TokenContextEngine {
             return CompactionSuggestion(
                 type = CompactionType.SUMMARIZE,
                 reason = "Context is getting full. Summarizing older messages can free space.",
-                estimatedTokensSaved = halfHistoryTokens
+                estimatedTokensSaved = halfHistoryTokens,
             )
         }
 
@@ -130,7 +122,7 @@ class TokenContextEngine {
         return CompactionSuggestion(
             type = CompactionType.TRIM_OLDEST,
             reason = "Context usage is high. Dropping the oldest message can help.",
-            estimatedTokensSaved = oldestTokens
+            estimatedTokensSaved = oldestTokens,
         )
     }
 

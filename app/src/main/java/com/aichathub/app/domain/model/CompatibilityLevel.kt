@@ -12,7 +12,6 @@ enum class CompatibilityLevel(val label: String, val rank: Int) {
     NOT_RECOMMENDED("Not Recommended", 1);
 
     companion object {
-        fun fromRank(rank: Int): CompatibilityLevel =
-            entries.firstOrNull { it.rank == rank } ?: NOT_RECOMMENDED
+        fun fromRank(rank: Int): CompatibilityLevel = entries.firstOrNull { it.rank == rank } ?: NOT_RECOMMENDED
     }
 }

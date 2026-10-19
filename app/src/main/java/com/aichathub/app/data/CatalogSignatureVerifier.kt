@@ -5,15 +5,15 @@ import android.util.Log
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.Signature
 import java.security.spec.EdECPublicKeySpec
 import java.security.spec.NamedParameterSpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
-import java.math.BigInteger
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 private val Context.signatureDataStore by preferencesDataStore(name = "catalog_signature")
 
@@ -94,8 +94,11 @@ object CatalogSignatureVerifier {
         // Warn but do NOT crash — the app can still function with cached catalogs
         // when the production key is not yet configured.
         if (PUBLIC_KEYS.isEmpty()) {
-            Log.w(TAG, "CatalogSignatureVerifier: production Ed25519 public key not configured. " +
-                "Remote catalog signature verification will be skipped until the key is set.")
+            Log.w(
+                TAG,
+                "CatalogSignatureVerifier: production Ed25519 public key not configured. " +
+                    "Remote catalog signature verification will be skipped until the key is set.",
+            )
         }
     }
 
@@ -203,7 +206,7 @@ object CatalogSignatureVerifier {
                 payload = canonicalizeJson(payloadObj),
                 signature = signature,
                 keyId = keyId,
-                version = version
+                version = version,
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse manifest envelope", e)
