@@ -1,8 +1,12 @@
 [versions]
 # AndroidX Core
+# Kotlin ↔ KSP pairing note: KSP2 has plain versions since 2.3.0; each mirrors
+# the Kotlin compiler it embeds (KSP 2.3.12 embeds Kotlin 2.3.20). PIN KSP to
+# the release matching the Kotlin version here — a mismatched pair fails
+# plugin resolution or compilation.
 agp = "9.0.0"
-kotlin = "2.4.20"
-ksp = "2.4.20-1.0.28"
+kotlin = "2.3.20"
+ksp = "2.3.12"
 core-ktx = "1.16.0"
 activity-compose = "1.10.1"
 
@@ -56,7 +60,7 @@ test-ext-junit = "1.3.0"
 espresso = "3.7.0"
 
 # Lint & Analysis
-ktlint = "12.2.1"
+ktlint = "12.2.0"
 detekt = "1.23.8"
 baseline-profile = "1.4.0"
 
