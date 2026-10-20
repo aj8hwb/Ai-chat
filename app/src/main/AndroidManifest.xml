@@ -45,6 +45,14 @@
                 tools:node="remove" />
         </provider>
 
+        <!-- WorkManager runs CatalogSyncWorker as foreground work with the
+             dataSync type; since API 34 the type must be declared on the
+             WorkManager service node too (lint: SpecifyForegroundServiceType). -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+
         <service
             android:name=".download.DownloadForegroundService"
             android:exported="false"
