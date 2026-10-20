@@ -145,7 +145,7 @@ class GgufMetadataReaderTest {
     fun `missing head_count_kv falls back to the MHA assumption`() {
         // A plain GGUF model without a KV-head key is treated as full-MHA:
         // kvHeads = headCount (conservative upper bound, documented).
-        val file = GgufWriter().magic().u32(3).u64(0).u64(2)
+        val file = GgufWriter().magic().u32(3).u64(0).u64(3)
             .keyType("m.block_count", TYPE_U32).let {
                 it.u32(20)
                 it
@@ -166,7 +166,7 @@ class GgufMetadataReaderTest {
 
     @Test
     fun `key length derives from embedding and head count when absent`() {
-        val file = GgufWriter().magic().u32(3).u64(0).u64(2)
+        val file = GgufWriter().magic().u32(3).u64(0).u64(3)
             .keyType("m.block_count", TYPE_U32).let {
                 it.u32(20)
                 it
@@ -186,7 +186,7 @@ class GgufMetadataReaderTest {
 
     @Test
     fun `differing K and V dimensions use the max`() {
-        val file = GgufWriter().magic().u32(3).u64(0).u64(3)
+        val file = GgufWriter().magic().u32(3).u64(0).u64(4)
             .keyType("m.block_count", TYPE_U32).let {
                 it.u32(20)
                 it
@@ -254,7 +254,7 @@ class GgufMetadataReaderTest {
 
     @Test
     fun `fixed-size arrays are skipped and parsing continues`() {
-        val file = GgufWriter().magic().u32(3).u64(0).u64(3)
+        val file = GgufWriter().magic().u32(3).u64(0).u64(4)
             .keyType("m.some_u32_array", TYPE_ARRAY).let {
                 it.u32(TYPE_U32)
                 it.u64(4L)
@@ -359,7 +359,7 @@ class GgufMetadataReaderTest {
 
     @Test
     fun `bool and float32 values are traversed without breaking the scan`() {
-        val file = GgufWriter().magic().u32(3).u64(0).u64(4)
+        val file = GgufWriter().magic().u32(3).u64(0).u64(5)
             .keyType("m.some_flag", typeBool()).let {
                 it.u8(1)
                 it

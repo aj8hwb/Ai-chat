@@ -107,7 +107,7 @@ class TokenContextEngine {
             )
         }
 
-        if (contextStatus.utilizationPercent > 85f) {
+        if (contextStatus.utilizationPercent > 90f) {
             val halfHistoryTokens = estimateHistoryTokens(history.take(history.size / 2))
             return CompactionSuggestion(
                 type = CompactionType.SUMMARIZE,

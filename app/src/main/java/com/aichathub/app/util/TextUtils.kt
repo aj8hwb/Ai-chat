@@ -25,19 +25,16 @@ object TextUtils {
         var i = 0
         while (i < chars.size && tokens < maxTokens) {
             val code = chars[i].code
-            // Rough token estimate: 1 token per ~4 bytes
-            val bytes = when {
-                code <= 0x7F -> 1
-                code <= 0x7FF -> 2
-                code in 0xD800..0xDFFF -> 4 // surrogate pair
-                code <= 0xFFFF -> 3
-                else -> 4
-            }
-            tokens += (bytes / 4).coerceAtLeast(1)
-            // Skip surrogate pair
             if (code in 0xD800..0xDBFF && i + 1 < chars.size && chars[i + 1].code in 0xDC00..0xDFFF) {
+                // A surrogate pair (e.g. an emoji) is one grapheme unit worth
+                // ~2 tokens; consume it only if it fits the budget entirely,
+                // otherwise back off so the pair is never half-kept.
+                if (tokens + 2 > maxTokens) break
+                tokens += 2
                 i += 2
             } else {
+                // Rough token estimate: ~2 bytes per token, minimum 1.
+                tokens += 1
                 i++
             }
         }

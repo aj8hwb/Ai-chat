@@ -169,17 +169,31 @@ class ThermalPolicyTest {
 
     @Test
     fun `clear recovery de-escalates`() {
+        // A cleared event is authoritative — even a one-rank recovery applies
+        // (contrast `one-rank dip does not de-escalate`, which holds on noise).
         assertEquals(
             ThermalManager.ThermalState.NORMAL,
-            ThermalPolicy.stabilize(ThermalManager.ThermalState.WARM, ThermalManager.ThermalState.NORMAL),
+            ThermalPolicy.stabilize(
+                ThermalManager.ThermalState.WARM,
+                ThermalManager.ThermalState.NORMAL,
+                cleared = true,
+            ),
         )
         assertEquals(
             ThermalManager.ThermalState.WARM,
-            ThermalPolicy.stabilize(ThermalManager.ThermalState.CRITICAL, ThermalManager.ThermalState.WARM),
+            ThermalPolicy.stabilize(
+                ThermalManager.ThermalState.CRITICAL,
+                ThermalManager.ThermalState.WARM,
+                cleared = true,
+            ),
         )
         assertEquals(
             ThermalManager.ThermalState.NORMAL,
-            ThermalPolicy.stabilize(ThermalManager.ThermalState.HOT, ThermalManager.ThermalState.NORMAL),
+            ThermalPolicy.stabilize(
+                ThermalManager.ThermalState.HOT,
+                ThermalManager.ThermalState.NORMAL,
+                cleared = true,
+            ),
         )
     }
 }

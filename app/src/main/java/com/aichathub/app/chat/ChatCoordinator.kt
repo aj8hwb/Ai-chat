@@ -642,10 +642,15 @@ internal class StreamCoalescer(
     private val intervalMs: Long = INTERVAL_MS
 ) {
     private var lastEmitAt = 0L
+    private var hasEmitted = false
 
     fun onToken(builder: StringBuilder) {
         val now = System.currentTimeMillis()
-        if (now - lastEmitAt >= intervalMs) {
+        // The first token is always emitted; afterwards throttle to the
+        // interval (a huge test interval must not swallow the first token,
+        // which is what lastEmitAt == 0 vs now == t0 would do).
+        if (!hasEmitted || now - lastEmitAt >= intervalMs) {
+            hasEmitted = true
             lastEmitAt = now
             onEmit(builder.toString())
         }

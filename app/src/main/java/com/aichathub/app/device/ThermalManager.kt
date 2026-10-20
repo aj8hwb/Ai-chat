@@ -84,6 +84,19 @@ object ThermalPolicy {
     fun stabilize(
         stabilized: ThermalManager.ThermalState,
         current: ThermalManager.ThermalState
+    ): ThermalManager.ThermalState = stabilize(stabilized, current, cleared = false)
+
+    /**
+     * Same hysteresis filter, with an explicit [cleared] event: when the OS
+     * reports that thermal throttling was CLEARED (not just a sensor dip),
+     * the sticky state fully de-escalates to the current reading — a one-rank
+     * spontaneous dip caused by sensor noise would hold, but a clear event
+     * is authoritative.
+     */
+    fun stabilize(
+        stabilized: ThermalManager.ThermalState,
+        current: ThermalManager.ThermalState,
+        cleared: Boolean
     ): ThermalManager.ThermalState {
         val rank = { s: ThermalManager.ThermalState ->
             when (s) {
@@ -95,6 +108,7 @@ object ThermalPolicy {
         }
         return when {
             rank(current) >= rank(stabilized) -> current // escalate immediately
+            cleared -> current // explicit clear event → full de-escalation
             rank(stabilized) - rank(current) >= 2 -> current // clearly recovered
             else -> stabilized // hold — do not flap on 1-rank dips
         }

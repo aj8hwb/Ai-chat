@@ -44,7 +44,9 @@ object TokenEstimator {
                 if (containsCode(text)) {
                     (chars / 2.5).toInt()
                 } else {
-                    (chars / 4.0).toInt()
+                    // ~3 bytes per token for English prose (contract-pinned;
+                    // more conservative than 4 — never underestimates).
+                    (bytes / 3.0).toInt()
                 }
             }
             Script.CJK -> {
@@ -77,11 +79,20 @@ object TokenEstimator {
         val emojiTokens = emojiCount * 1 // ~1 token per emoji
 
         // Adjust for emoji-heavy text
-        val baseTokens = if (emojiCount > 0 && emojiCount > chars * 0.1) {
+        var baseTokens = if (emojiCount > 0 && emojiCount > chars * 0.1) {
             // Emoji-heavy: use char-based with emoji adjustment
             (chars * 0.8 + emojiTokens * 0.2).toInt()
         } else {
             estimatedTokens
+        }
+
+        // Degenerate repetition (long runs of the SAME character — separator
+        // spam, junk input): BPE merges these, but the ratio is unreliable and
+        // the estimator must never undercount — handle runs at 1 token/2 chars.
+        val longestRun = longestIdenticalRun(text)
+        if (longestRun >= 16) {
+            val runTokens = longestRun / 2 + (chars - longestRun) / 4
+            baseTokens = maxOf(baseTokens, runTokens)
         }
 
         return baseTokens.coerceAtLeast(1)
@@ -120,7 +131,7 @@ object TokenEstimator {
     fun charsPerToken(text: String): Float {
         val script = detectDominantScript(text)
         return when (script) {
-            Script.LATIN -> if (containsCode(text)) 2.5f else 4.0f
+            Script.LATIN -> if (containsCode(text)) 2.5f else 3.0f
             Script.CJK -> 1.2f
             Script.HANGUL -> 1.3f
             Script.DEVANAGARI, Script.BENGALI, Script.THAI, Script.ARABIC -> 1.1f
@@ -205,6 +216,18 @@ object TokenEstimator {
             cyrillic == maxCount -> Script.CYRILLIC
             else -> Script.MIXED
         }
+    }
+
+    private fun longestIdenticalRun(text: String): Int {
+        var best = 0
+        var i = 0
+        while (i < text.length) {
+            var j = i
+            while (j < text.length && text[j] == text[i]) j++
+            if (j - i > best) best = j - i
+            i = j
+        }
+        return best
     }
 
     private fun containsCode(text: String): Boolean {

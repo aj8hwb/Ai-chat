@@ -66,6 +66,13 @@ android {
         }
     }
 
+    testOptions {
+        // Unit tests run on the JVM without an Android runtime; framework
+        // calls like android.util.Log must return default values instead of
+        // throwing "not mocked" exceptions.
+        unitTests.isReturnDefaultValues = true
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true

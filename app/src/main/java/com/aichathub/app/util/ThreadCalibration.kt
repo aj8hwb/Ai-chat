@@ -96,7 +96,14 @@ object ThreadCalibration {
         modelId: String,
         contextLength: Int,
         quantization: String
-    ): String = "$deviceHardware|$runtimeVersion|$modelId|$contextLength|$quantization"
+    ): String = sanitize(deviceHardware) +
+        "|" + sanitize(runtimeVersion) +
+        "|" + sanitize(modelId) +
+        "|" + contextLength +
+        "|" + sanitize(quantization)
+
+    /** Keeps the cache key safe as a serialized identifier (no separators or special chars). */
+    private fun sanitize(part: String): String = part.replace(Regex("[^A-Za-z0-9._/+-]"), "_")
 
     /**
      * THE single validation + resolution point for calibration records.

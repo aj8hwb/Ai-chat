@@ -117,7 +117,7 @@ class SmartRecommendationEngine {
         val risk = deriveRiskLevel(composite, memory)
         val speedLabel = deriveSpeedLabel(speed)
         val bestForTag = deriveBestFor(model, mode)
-        val compat = deriveCompatibilityLevel(composite)
+        val compat = deriveCompatibilityLevel(composite, memory)
         val reason = buildReason(model, memory, speed, storage, batteryTh, measuredPss, budget)
 
         return SmartRecommendation(
@@ -253,6 +253,9 @@ class SmartRecommendationEngine {
             batteryLevel >= 5 -> 0.25f
             else -> 0.05f
         }
+        // At CRITICAL/emergency heat the device must not start heavy work
+        // regardless of charge level — a full battery cannot rescue the score.
+        if (thermalScore <= 0.1f) return thermalScore
         return clamp(thermalScore * 0.65f + batteryScore * 0.35f)
     }
 
@@ -262,7 +265,10 @@ class SmartRecommendationEngine {
         measuredPss[model.id] ?: model.estimatedMemoryBytes
 
     private fun deriveRiskLevel(composite: Float, memory: Float): RiskLevel = when {
-        composite >= 0.75f && memory >= 0.5f -> RiskLevel.SAFE
+        // A model that utterly exceeds the memory budget is not usable,
+        // however pleasant the other signals look.
+        memory <= 0f -> RiskLevel.NOT_RECOMMENDED
+        composite >= 0.75f && memory >= 0.75f -> RiskLevel.SAFE
         composite >= 0.55f -> RiskLevel.MODERATE
         composite >= 0.3f -> RiskLevel.HEAVY
         else -> RiskLevel.NOT_RECOMMENDED
@@ -281,7 +287,8 @@ class SmartRecommendationEngine {
         RecommendationMode.SMALLEST -> "Smallest"
     }
 
-    private fun deriveCompatibilityLevel(composite: Float): CompatibilityLevel = when {
+    private fun deriveCompatibilityLevel(composite: Float, memory: Float): CompatibilityLevel = when {
+        memory <= 0f -> CompatibilityLevel.NOT_RECOMMENDED
         composite >= 0.8f -> CompatibilityLevel.EXCELLENT
         composite >= 0.6f -> CompatibilityLevel.RECOMMENDED
         composite >= 0.4f -> CompatibilityLevel.USABLE
