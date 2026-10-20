@@ -4,6 +4,7 @@ import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.local.ConversationDao
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageDao
+import com.aichathub.app.chat.InferenceRuntime
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelFormat
 import io.mockk.coEvery
@@ -14,6 +15,7 @@ import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -74,6 +76,10 @@ class ChatCoordinatorTest {
         modelRepository = mockk(relaxed = true)
 
         every { runtime.activeModelId } returns null
+        // `performance` is not stubbed per-test; a relaxed mock would return an
+        // untyped Object on .value and blow up with ClassCastException. Default
+        // snapshot (all zeros) makes buildPrompt fall back to the model maximum.
+        every { runtime.performance } returns MutableStateFlow(InferenceRuntime.Performance())
         coEvery { runtime.load(any(), any(), any(), any(), any()) } returns Unit
         coEvery { runtime.unload() } returns Unit
         coEvery { runtime.generateStreaming(any(), any(), any()) } returns "Hello"
