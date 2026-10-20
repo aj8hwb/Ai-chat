@@ -215,7 +215,16 @@ class ChatCoordinator(
         if (_state.value.generationState == ChatGenerationState.GENERATING) {
             throw IllegalStateException("Already generating")
         }
-        _state.value = _state.value.copy(generationState = ChatGenerationState.GENERATING, error = null)
+        // A STOPPING state means an unwind from a Stop request is still in
+        // progress; it must not be overwritten so the coroutine's own
+        // CancellationException handler can preserve it (spec §8.9). Any
+        // other starting state becomes GENERATING as usual.
+        val startingState = if (_state.value.generationState == ChatGenerationState.STOPPING) {
+            ChatGenerationState.STOPPING
+        } else {
+            ChatGenerationState.GENERATING
+        }
+        _state.value = _state.value.copy(generationState = startingState, error = null)
         runtime.clearCancellation()
 
         val incognito = PrivacyCenter.isIncognitoMode()
