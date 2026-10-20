@@ -4,7 +4,6 @@ import com.aichathub.app.data.ModelRepository
 import com.aichathub.app.data.local.ConversationDao
 import com.aichathub.app.data.local.ConversationEntity
 import com.aichathub.app.data.local.MessageDao
-import com.aichathub.app.chat.InferenceRuntime
 import com.aichathub.app.domain.model.CatalogModel
 import com.aichathub.app.domain.model.ModelFormat
 import io.mockk.coEvery
